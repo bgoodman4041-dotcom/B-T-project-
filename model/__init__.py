@@ -1,7 +1,7 @@
 """Track Boss underwriting and screening model."""
 
 from .gates import Gate, GateResult, ScreenResult, funnel_report, has_required_identifiers, screen
-from .scoring import CompositeScore, composite_score, rank
+from .scoring import CompositeScore, composite_score, narrative, rank
 from .two_stack import (
     CostStack,
     ForSaleResult,
@@ -28,6 +28,7 @@ __all__ = [
     "has_required_identifiers",
     "CompositeScore",
     "composite_score",
+    "narrative",
     "rank",
     "CostStack",
     "ForSaleResult",

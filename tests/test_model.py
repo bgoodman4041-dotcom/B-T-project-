@@ -490,6 +490,89 @@ def test_higher_track_cost_lowers_supportable_land():
     assert row == sorted(row, reverse=True), "costlier pavement must reduce land headroom"
 
 
+def test_sensitivity_applies_both_axes():
+    """
+    Regression: chaining the two axis mutations with `or` short-circuited as
+    soon as the x axis returned a per-mile override, silently dropping the y
+    axis and producing a grid whose rows were all identical.
+    """
+    for x_key, y_key in [
+        ("track_hard_cost_per_mile_usd", "annual_dues_usd"),
+        ("membership_cap", "track_hard_cost_per_mile_usd"),
+        ("membership_cap", "annual_dues_usd"),
+    ]:
+        g = two_stack.sensitivity_grid(CFG, x_key, y_key)
+        rows = g["cells"]
+        assert any(r != rows[0] for r in rows[1:]), f"y axis {y_key} had no effect"
+        assert any(len(set(r)) > 1 for r in rows), f"x axis {x_key} had no effect"
+
+
+def test_absorption_reaches_yield_through_carry():
+    """
+    A sensitivity axis that cannot move the number is decorative. Absorption
+    reaches YoC only through carry duration, so a slower sell-out must lower
+    the supportable land price.
+    """
+    if not CFG["cost"]["carry"].get("follows_absorption", False):
+        return
+    g = two_stack.sensitivity_grid(CFG, "absorption_years", "annual_dues_usd")
+    for row in g["cells"]:
+        assert row == sorted(row, reverse=True), "slower sell-out must cost land headroom"
+        assert len(set(row)) > 1, "absorption axis is flat"
+
+
+def test_carry_period_follows_sellout_when_longer():
+    fs = two_stack.project_for_sale(CFG)
+    cost = two_stack.build_cost_stack(CFG, fs)
+    dev = CFG["cost"]["carry"]["development_years"]
+    if CFG["cost"]["carry"].get("follows_absorption", False):
+        assert cost.carry_years == max(dev, fs.sellout_years)
+    else:
+        assert cost.carry_years == dev
+
+
+def test_slower_sellout_raises_carry_and_lowers_land():
+    if not CFG["cost"]["carry"].get("follows_absorption", False):
+        return
+    slow = copy.deepcopy(CFG)
+    slow["for_sale"]["garage_condos"]["absorption_units_per_year"] = 4
+    slow["for_sale"]["homesites"]["absorption_units_per_year"] = 2
+    base = two_stack.underwrite(CFG, "BASE")
+    slower = two_stack.underwrite(slow, "SLOW")
+    assert slower.cost.carry_factor > base.cost.carry_factor
+    assert slower.max_land_gross < base.max_land_gross
+
+
+# =============================================================================
+# §11 narrative
+# =============================================================================
+
+def test_narrative_returns_both_lines():
+    p = _base_parcel()
+    uw = two_stack.underwrite(CFG, "NARR", ask_price=9_800_000)
+    cs = scoring.composite_score(p, CFG, uw)
+    why, kills = scoring.narrative(cs, p, uw)
+    assert why and kills
+    assert not why.endswith(" ") and not kills.endswith(" ")
+
+
+def test_narrative_surfaces_the_killer_flag():
+    p = _base_parcel(flags="SUB-SCALE — thin buffer | PRIOR-DENIAL — denied 2019")
+    cs = scoring.composite_score(p, CFG)
+    _, kills = scoring.narrative(cs, p)
+    assert "denied" in kills.lower(), f"most fatal flag should win, got: {kills}"
+
+
+def test_narrative_reports_infeasible_income_stack():
+    p = _base_parcel()
+    uw = two_stack.underwrite(CFG, "INF", ask_price=5_000_000)
+    if uw.max_land_gross > 0:
+        return
+    cs = scoring.composite_score(p, CFG, uw)
+    _, kills = scoring.narrative(cs, p, uw)
+    assert "any land price" in kills or "above the" in kills
+
+
 def test_config_validation_rejects_bad_weights():
     bad = copy.deepcopy(CFG)
     bad["scoring"]["weights"]["optionality"] = 99

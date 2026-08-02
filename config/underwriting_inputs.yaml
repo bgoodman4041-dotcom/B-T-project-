@@ -184,8 +184,16 @@ cost:
 
   carry:
     interest_rate: 0.0850
-    avg_outstanding_pct: 0.55         # avg draw balance over dev period
+    avg_outstanding_pct: 0.55         # avg draw balance over the carry period
     development_years: 3.5
+    # Merchant build: capital is outstanding until the last unit sells, so a
+    # sell-out longer than the construction period extends the carry. This is
+    # also the ONLY channel through which absorption reaches yield -- with it
+    # off, the absorption axis of the sensitivity grid is decorative.
+    # NOTE: avg_outstanding_pct was set for a ~3.5 year draw profile. When
+    # sell-out extends the period, re-calibrate it -- holding 55% average
+    # exposure across a much longer tail overstates carry.
+    follows_absorption: true
 
   incentives_usd: 0                   # base case: zero. Upside only.
 

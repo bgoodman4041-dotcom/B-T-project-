@@ -42,8 +42,8 @@ researched.
 
 On those placeholders the program is **infeasible on the gross basis**:
 stabilized NOI of ~$8.1M against a non-land cost basis of ~$200.9M means NOI
-must reach ~$15.2M (1.88×) before *free land* clears 6.50%. The maximum
-supportable land price is about **−$93.8M** gross, **+$34.9M** net.
+must reach ~$16.0M (1.98×) before *free land* clears 6.50%. The maximum
+supportable land price is about **−$99.5M** gross, **+$22.5M** net.
 
 That is a program finding, not a parcel finding, and no site in the three-state
 search can cure it. **Run `comp-analyst` and re-base the revenue assumptions
@@ -63,12 +63,12 @@ config/underwriting_inputs.yaml   Single source of truth. Change assumptions HER
 model/two_stack.py                Two-stack model; closed-form max supportable land price
 model/gates.py                    Gates 1-5 screening funnel
 model/scoring.py                  Composite 100-point ranking (§11 weights)
-model/schema.py                   112-column parcel schema; CSV intake coercion
+model/schema.py                   114-column parcel schema; CSV intake coercion
 build/build_workbook.py           11-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
-tests/test_model.py               50 tests; fast
+tests/test_model.py               57 tests; fast
 tests/test_workbook_formulas.py   Excel-vs-Python drift test; slow
 .claude/agents/                   The seven §8 agents
 .claude/skills/track-radar/       The `run track radar` entry point
@@ -80,7 +80,8 @@ tests/test_workbook_formulas.py   Excel-vs-Python drift test; slow
 
 ```
 S = hard + soft + entitlement + FF&E + contingency        (all non-land cost)
-k = rate × avg_outstanding × development_years            (carry factor)
+k = rate × avg_outstanding × carry_years                  (carry factor)
+carry_years = max(development_years, sellout_years)       (merchant build)
 
 gross_basis(L) = (L + S) × (1 + k)
 net_basis(L)   = gross_basis(L) − for_sale_net_proceeds − incentives
@@ -109,6 +110,12 @@ cannot carry the vertical even if the dirt were free.
   day one regardless of member count.
 - **For-sale vertical cost sits in hard cost.** `net_proceeds` is revenue net
   of *selling cost only* — subtracting vertical cost there double-counts it.
+- **Carry follows sell-out.** In a merchant build the capital is outstanding
+  until the last unit sells, so `carry_years = max(development, sell-out)`.
+  This is also the only channel by which absorption reaches yield — switch
+  `follows_absorption` off and the Sensitivity absorption axis goes flat.
+  Re-calibrate `avg_outstanding_pct` when sell-out extends the period; 55%
+  average exposure across a long tail overstates carry.
 - **Never invent a dBA limit.** An unpublished ordinance is a research task and
   a named phone call, not a number.
 - **The four identifiers are non-negotiable.** Live URL, APN, lat/long,
@@ -124,7 +131,7 @@ cannot carry the vertical even if the dirt were free.
 python3 build/build_workbook.py --parcels data/parcels.csv --out dist/
 python3 build/build_memo.py --parcels data/parcels.csv --rank 1 --out dist/
 
-python3 tests/test_model.py               # 50 tests, fast
+python3 tests/test_model.py               # 57 tests, fast
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow
 ```
 

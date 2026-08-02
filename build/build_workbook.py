@@ -351,6 +351,12 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     h_price = put_input("Homesite price", fs["homesites"]["price_per_unit_usd"], FMT_USD0)
     h_cost = put_input("Homesite improvement cost", fs["homesites"]["improvement_cost_per_unit_usd"], FMT_USD0)
     cos_pct = put_input("Cost of sale", fs["garage_condos"]["cost_of_sale_pct"], FMT_PCT)
+    c_absorb = put_input("Condo absorption (units/yr)",
+                         fs["garage_condos"]["absorption_units_per_year"])
+    h_absorb = put_input("Homesite absorption (units/yr)",
+                         fs["homesites"]["absorption_units_per_year"])
+    sellout = put_formula("Sell-out period (yrs)",
+                          f"=MAX({c_units}/{c_absorb},{h_units}/{h_absorb})", FMT_DEC)
 
     fs_rev = put_formula("For-sale gross revenue", f"={c_units}*{c_sf}*{c_psf}+{h_units}*{h_price}")
     fs_vert = put_formula("For-sale vertical cost", f"={c_units}*{c_sf}*{c_cost_psf}+{h_units}*{h_cost}",
@@ -383,7 +389,12 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     rate = put_input("Carry interest rate", cost["carry"]["interest_rate"], FMT_PCT)
     avg_out = put_input("Avg outstanding balance", cost["carry"]["avg_outstanding_pct"], FMT_PCT)
     dev_yrs = put_input("Development years", cost["carry"]["development_years"], FMT_DEC)
-    k = put_formula("CARRY FACTOR  (k)", f"={rate}*{avg_out}*{dev_yrs}", "0.0000")
+    if cost["carry"].get("follows_absorption", False):
+        carry_yrs = put_formula("Carry period (yrs)", f"=MAX({dev_yrs},{sellout})", FMT_DEC,
+                                "merchant build: capital is out until the last unit sells")
+    else:
+        carry_yrs = dev_yrs
+    k = put_formula("CARRY FACTOR  (k)", f"={rate}*{avg_out}*{carry_yrs}", "0.0000")
     incent = put_input("Capital incentives (IDA/PILOT/EDA)", cost["incentives_usd"], FMT_USD0,
                        "base case zero — upside only")
     hurdle_ref = put_input("HURDLE YoC", hurdle, FMT_PCT)
@@ -565,7 +576,8 @@ def _simple_tab(wb: Workbook, name: str, headers: list[str], rows: list[list[Any
             cell.border = BORDER
             cell.alignment = Alignment(vertical="top", wrap_text=True)
     _finish(ws, freeze=f"A{start + 1}", ncols=len(headers),
-            nrows=max(len(rows) + start, start + 1), widths=widths, header_row=start)
+            nrows=len(rows) + start, widths=widths, header_row=start,
+            autofilter=bool(rows))
     return ws
 
 
@@ -732,6 +744,7 @@ def enrich(parcels: list[dict[str, Any]], cfg: dict[str, Any]) -> tuple[list[dic
         cs = scoring.composite_score(p, cfg, uw, sr)
         p["composite_score"] = cs.total
         p["grade"] = cs.grade
+        p["why_wins"], p["what_kills"] = scoring.narrative(cs, p, uw)
         for src, dst in [
             ("entitlement_probability", "score_entitlement"),
             ("yield_on_cost", "score_yield"),

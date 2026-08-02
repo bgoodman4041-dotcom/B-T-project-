@@ -13,15 +13,16 @@ Say **`run track radar`** to execute a full cycle.
 ```bash
 pip install pyyaml openpyxl reportlab
 
-python3 tests/test_model.py                                       # 50 tests
+python3 tests/test_model.py                                       # 57 tests
 python3 build/build_workbook.py --parcels data/parcels.example.csv --out dist/
 python3 build/build_memo.py --parcels data/parcels.example.csv --rank 1 --out dist/
 ```
 
 `data/parcels.example.csv` contains **five synthetic fixture rows** (`SYNTH-*`,
-all marked `confidence: Assumed`). They exercise the funnel — one survivor, one
-Gate 1 jurisdiction kill, one undersized kill, one missing-identifier row — and
-are not sourced parcels. Real intake goes in `data/parcels.csv`.
+all marked `confidence: Assumed`). They exercise the funnel — two survivors, a
+Gate 1 Highlands kill, an undersized kill, and one row missing lat/long that
+routes to `Unverified` — and are not sourced parcels. Real intake goes in
+`data/parcels.csv`.
 
 ---
 
@@ -64,11 +65,11 @@ The income and cost assumptions in `config/underwriting_inputs.yaml` are
 
 On those placeholders the program **fails the gross test before land is priced
 at all**: stabilized NOI of ~$8.1M against a ~$200.9M non-land basis needs to
-reach ~$15.2M (1.88×) for *free land* to clear 6.50%.
+reach ~$16.0M (1.98×) for *free land* to clear 6.50%.
 
 ```
-max supportable land — gross:   −$93,815,224
-max supportable land — net:     +$34,931,357
+max supportable land — gross:   −$99,475,024
+max supportable land — net:     +$22,467,153
 ```
 
 That is a program finding, not a parcel finding. Run `comp-analyst` and re-base

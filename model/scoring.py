@@ -371,3 +371,85 @@ def composite_score(
 
 def rank(scores: list[CompositeScore], top_n: int = 10) -> list[CompositeScore]:
     return sorted(scores, key=lambda s: s.total, reverse=True)[:top_n]
+
+
+# =============================================================================
+# §11: "For each, one line: why this one wins, and what would kill it."
+# =============================================================================
+
+_CRITERION_LABEL = {
+    "entitlement_probability": "entitlement path",
+    "yield_on_cost": "yield headroom",
+    "physical_suitability": "physical suitability",
+    "market_catchment": "catchment",
+    "infrastructure_burden": "infrastructure cost",
+    "deal_control": "deal control",
+    "optionality": "optionality",
+}
+
+# Flags that are, on their own, the thing that kills a parcel. Ordered by how
+# fatal they actually are, not alphabetically.
+_KILLER_FLAGS = [
+    ("PRICE-INFEASIBLE", "the ask is more than 20% above the maximum supportable land price"),
+    ("PRIOR-DENIAL", "the municipality has already denied a comparable use"),
+    ("NO-NOISE-PRECEDENT", "greenfield with no inherited noise floor to stand on"),
+    ("WATERSHED", "NYC DEP watershed exposure"),
+    ("TIGHT-ORDINANCE", "a daytime dBA limit a road course cannot meet without heavy mitigation"),
+    ("CLOSE-NEIGHBOR", "an occupied residence inside the setback, relying on buffer"),
+    ("ZONING-LIFT", "a map amendment with no as-of-right fallback"),
+    ("SUB-SCALE", "acreage in the sub-scale band — buffer is thin"),
+    ("CONSERVATION", "a conservation restriction of record"),
+    ("ROFR", "a right of first refusal of record"),
+    ("POWER-BURDEN", "a seven-figure three-phase power extension"),
+    ("ORDINANCE-UNVERIFIED", "an unverified noise ordinance — the number is not yet known"),
+]
+
+
+def narrative(
+    score: CompositeScore,
+    parcel: dict[str, Any],
+    underwriting: Any = None,
+) -> tuple[str, str]:
+    """
+    Derive the two one-liners §11 asks for from the score components and screen
+    flags. These are a floor, not a substitute for judgment -- an analyst should
+    overwrite them when the real story differs.
+    """
+    ratios = {k: (v / score.max_components[k]) if score.max_components[k] else 0.0
+              for k, v in score.components.items()}
+    ordered = sorted(ratios, key=lambda k: ratios[k], reverse=True)
+
+    # --- why it wins ---------------------------------------------------------
+    strengths = [k for k in ordered[:2] if ratios[k] >= 0.60]
+    if strengths:
+        why = " and ".join(f"{_CRITERION_LABEL[k]} at {ratios[k]:.0%}" for k in strengths)
+        prior = str(parcel.get("prior_use", "")).replace("_", " ")
+        if prior and ratios.get("entitlement_probability", 0) >= 0.60:
+            why = f"{prior} gives it an inherited noise floor; {why}"
+        why = why[0].upper() + why[1:]
+    else:
+        why = (f"Nothing scores above 60% — carried for physical optionality only "
+               f"(best: {_CRITERION_LABEL[ordered[0]]} at {ratios[ordered[0]]:.0%})")
+
+    # --- what would kill it --------------------------------------------------
+    flags = str(parcel.get("flags") or "")
+    kills = ""
+    for token, phrase in _KILLER_FLAGS:
+        if token in flags:
+            kills = phrase[0].upper() + phrase[1:]
+            break
+
+    if not kills and underwriting is not None and underwriting.ask_price is not None:
+        max_land = underwriting.max_land_gross
+        if max_land <= 0:
+            kills = ("The income stack cannot carry the vertical at any land price on the "
+                     "gross basis")
+        elif underwriting.ask_price > max_land:
+            kills = (f"The ask sits ${underwriting.ask_price - max_land:,.0f} above the "
+                     f"maximum supportable land price")
+
+    if not kills:
+        weakest = ordered[-1]
+        kills = f"{_CRITERION_LABEL[weakest].capitalize()} at {ratios[weakest]:.0%}"
+
+    return why, kills

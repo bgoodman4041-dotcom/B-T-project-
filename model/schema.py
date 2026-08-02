@@ -166,6 +166,8 @@ SCREEN_OUT: list[Field] = [
     Field("flags", "Flags", "str", "Screen"),
     Field("composite_score", "Composite Score (100)", "float", "Screen"),
     Field("grade", "Grade", "str", "Screen"),
+    Field("why_wins", "Why This One Wins", "str", "Screen", note="§11 one-liner"),
+    Field("what_kills", "What Would Kill It", "str", "Screen", note="§11 one-liner"),
     Field("score_entitlement", "Score: Entitlement (25)", "float", "Screen"),
     Field("score_yield", "Score: Yield (20)", "float", "Screen"),
     Field("score_physical", "Score: Physical (15)", "float", "Screen"),

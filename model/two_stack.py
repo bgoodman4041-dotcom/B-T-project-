@@ -292,6 +292,7 @@ class CostStack:
     non_land_subtotal: float       # S
     carry_factor: float            # k
     incentives: float              # G
+    carry_years: float = 0.0       # the period k was actually built from
 
     def gross_basis(self, land_price: float) -> float:
         return (land_price + self.non_land_subtotal) * (1 + self.carry_factor)
@@ -328,7 +329,15 @@ def build_cost_stack(
     S = hard + soft + entitlement + ffe + contingency
 
     ca = cost["carry"]
-    k = ca["interest_rate"] * ca["avg_outstanding_pct"] * ca["development_years"]
+    # In a merchant build the capital stays outstanding until the last unit
+    # sells, so a sell-out longer than the construction period extends the
+    # carry. Without this the absorption axis of the sensitivity grid has no
+    # channel to yield at all -- sell-out could stretch from 5 to 24 years and
+    # the cost basis would not move.
+    carry_years = ca["development_years"]
+    if ca.get("follows_absorption", False):
+        carry_years = max(carry_years, for_sale.sellout_years)
+    k = ca["interest_rate"] * ca["avg_outstanding_pct"] * carry_years
 
     return CostStack(
         hard=hard,
@@ -339,6 +348,7 @@ def build_cost_stack(
         non_land_subtotal=S,
         carry_factor=k,
         incentives=cost["incentives_usd"],
+        carry_years=carry_years,
     )
 
 
@@ -547,7 +557,12 @@ def sensitivity_grid(
         row: list[float] = []
         for xv in axes[x_key]:
             c = copy.deepcopy(cfg)
-            per_mile = apply(c, x_key, xv) or apply(c, y_key, yv)
+            # Both axes must be applied. Chaining these with `or` short-circuits
+            # the moment the x axis returns a per-mile override, silently
+            # dropping the y axis and producing a grid with identical rows.
+            per_mile_x = apply(c, x_key, xv)
+            per_mile_y = apply(c, y_key, yv)
+            per_mile = per_mile_x if per_mile_x is not None else per_mile_y
             try:
                 r = underwrite(c, parcel_id="SENS", track_cost_per_mile=per_mile)
                 row.append(r.max_land_gross if basis == "gross" else r.max_land_net)
