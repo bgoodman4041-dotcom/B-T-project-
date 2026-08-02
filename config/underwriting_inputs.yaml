@@ -1,0 +1,213 @@
+# =============================================================================
+# TRACK BOSS — UNDERWRITING INPUTS
+# Car Community Site Sourcing Agent · NY / CT / NJ
+# =============================================================================
+# Every figure here is either CONFIRMED by the principal or ASSUMED by the model.
+# The `basis` key on each block records which. Assumed values are placeholders
+# that MUST be replaced by Comp Analyst output before an IC memo is issued.
+#
+# §3 rule: never dress an assumption as a sourced figure.
+# =============================================================================
+
+meta:
+  version: "1.0"
+  confirmed_on: "2026-08-02"
+  hurdle_yoc: 0.0650          # the 6.50% test
+
+# -----------------------------------------------------------------------------
+# PRINCIPAL-CONFIRMED DECISIONS (Open Items, resolved)
+# -----------------------------------------------------------------------------
+mandate:
+  basis: confirmed
+
+  # ◆ YoC basis — model BOTH, rank the Executive Summary on GROSS.
+  yoc_basis:
+    compute: [gross, net]
+    rank_on: gross
+    note: >
+      Gross basis holds stabilized income NOI against the entire development
+      cost including the for-sale vertical, with no sell-out offset. Net basis
+      subtracts net for-sale proceeds per §3. Both are reported on every parcel;
+      ranking and the PASS/FAIL hurdle call use gross.
+
+  # ◆ Hold structure — merchant build. Both components sold.
+  hold_structure:
+    garage_condos: sold
+    homesites: sold
+    ground_lease_residences: false
+    note: >
+      Both for-sale components sit in Stack A. Ground rent line in Stack B is
+      therefore zero in the base case. Flipping either to `held` moves its
+      revenue into Stack B and removes its proceeds from the net-basis offset;
+      the model handles this without code changes.
+
+  # ◆ Acreage floor — hard reject under 250; 250-350 allowed but flagged.
+  acreage:
+    hard_floor_acres: 250        # Gate 1 auto-reject below this
+    preferred_floor_acres: 350   # below this -> SUB-SCALE flag + score penalty
+    target_band_acres: [350, 700]
+    note: >
+      Principal set the floor as a band, not a point. Under 250 contiguous
+      developable acres is an auto-reject. 250-350 stays in the workbook,
+      carries a SUB-SCALE flag, and takes a graduated physical-suitability
+      penalty that scales linearly to zero at 350 acres.
+
+  # ◆ Drive-time ceiling — 2 hours max.
+  drive_time:
+    max_minutes: 120             # Gate 3 reject beyond this
+    prize_minutes: 90            # full marks at or under this
+    origins:
+      - name: "Manhattan (59th St Bridge)"
+        lat: 40.7580
+        lon: -73.9601
+      - name: "Greenwich, CT"
+        lat: 41.0262
+        lon: -73.6282
+      - name: "Short Hills, NJ"
+        lat: 40.7379
+        lon: -74.3260
+    rule: min_of_origins        # a parcel is scored on its BEST origin
+
+  # ◆ Capital stack — NOT confirmed by principal. Assumed; flag in every memo.
+  capital_stack:
+    basis: assumed
+    target_ltc: 0.60
+    equity_check_usd: null       # principal has not sized the check
+    incentives_in_base_case: false
+    incentives_in_upside_case: true
+    note: >
+      OPEN ITEM — unresolved. 60% LTC is a placeholder consistent with
+      construction debt on a single-asset recreational development with a
+      for-sale component. IDA/PILOT/EDA offsets are excluded from the base
+      case and modeled only as upside. Confirm before any IC submission.
+
+# -----------------------------------------------------------------------------
+# STACK B — INCOME / HELD  (the 6.5% test)
+# -----------------------------------------------------------------------------
+# ALL VALUES ASSUMED until Comp Analyst returns verified figures from §7.
+# These are structural placeholders so the model runs end to end, not estimates
+# to be relied upon.
+income:
+  basis: assumed
+
+  membership:
+    cap: 250                     # total member slots at buildout
+    cap_per_track_mile: 65       # sanity check against comp set
+    initiation_fee_usd: 175000
+    annual_dues_usd: 22000
+    dues_escalator: 0.030
+    expected_tenure_years: 12    # initiation amortization period
+    ramp:                        # members added per year from opening
+      - 70
+      - 60
+      - 45
+      - 35
+      - 25
+    stabilization_threshold: 0.85  # §3: stabilized = 85% of cap
+
+  # Initiation fee treatment. §3: do NOT capitalize into NOI.
+  initiation_treatment:
+    mode: amortized              # amortized | excluded | capitalized
+    note: >
+      Base case amortizes initiation over expected_tenure_years and includes
+      that amortized slice in NOI. The Sensitivity tab reports NOI and YoC with
+      initiation fully EXCLUDED and fully CAPITALIZED as the two bookends.
+
+  ancillary_annual_usd:          # at stabilization, before opex
+    track_rental_and_events: 1850000
+    driving_school: 640000
+    indoor_storage: 780000
+    fb_net_contribution: 310000
+    service_dept_net_contribution: 420000
+    ground_rent: 0               # zero: merchant build, both components sold
+
+  opex_annual_usd:               # at stabilization
+    club_and_fb_operations: 1450000
+    track_and_grounds: 980000
+    insurance: 520000
+    general_admin: 610000
+    repairs_maintenance: 440000
+
+  management_fee_pct_egi: 0.040
+  replacement_reserve_pct_egi: 0.025
+
+  exit_cap: 0.0725               # for development-spread reporting
+
+# -----------------------------------------------------------------------------
+# STACK A — FOR-SALE  (velocity, not yield)
+# -----------------------------------------------------------------------------
+for_sale:
+  basis: assumed
+
+  garage_condos:
+    units: 96
+    avg_sf: 2200
+    sale_price_psf: 585
+    hard_cost_psf: 265
+    cost_of_sale_pct: 0.055
+    absorption_units_per_year: 22
+
+  homesites:
+    units: 44
+    price_per_unit_usd: 795000
+    improvement_cost_per_unit_usd: 210000
+    cost_of_sale_pct: 0.055
+    absorption_units_per_year: 9
+
+# -----------------------------------------------------------------------------
+# DEVELOPMENT COST — non-land
+# -----------------------------------------------------------------------------
+# Land price is the SOLVED variable, never an input. See model/two_stack.py.
+cost:
+  basis: assumed
+
+  track:
+    miles: 3.2
+    hard_cost_per_mile_usd: 4200000   # paving, base, drainage, barriers, runoff
+    paddock_and_pit_usd: 6800000
+
+  vertical_hard_usd:
+    clubhouse: 21500000               # 32,000 SF
+    service_tech_center: 8900000      # 22,000 SF
+    karting_skidpad_autocross: 4100000
+
+  site_infrastructure_usd:
+    earthwork_and_cutfill: 12500000
+    utilities_and_three_phase: 6200000
+    roads_and_access: 5400000
+    stormwater_and_environmental: 4800000
+
+  soft_cost_pct_of_hard: 0.180
+  entitlement_budget_usd: 3500000     # incl. noise study, SEQRA/CEPA, counsel
+  ffe_usd: 4200000
+  contingency_pct: 0.100              # applied to hard + soft
+
+  carry:
+    interest_rate: 0.0850
+    avg_outstanding_pct: 0.55         # avg draw balance over dev period
+    development_years: 3.5
+
+  incentives_usd: 0                   # base case: zero. Upside only.
+
+# -----------------------------------------------------------------------------
+# COMPOSITE SCORE WEIGHTS (§11) — must total 100
+# -----------------------------------------------------------------------------
+scoring:
+  basis: confirmed
+  weights:
+    entitlement_probability: 25
+    yield_on_cost: 20
+    physical_suitability: 15
+    market_catchment: 15
+    infrastructure_burden: 10
+    deal_control: 10
+    optionality: 5
+
+# -----------------------------------------------------------------------------
+# SENSITIVITY GRID (§9 Sensitivity tab)
+# -----------------------------------------------------------------------------
+sensitivity:
+  membership_cap: [180, 215, 250, 285, 320]
+  annual_dues_usd: [16000, 19000, 22000, 25000, 28000]
+  track_hard_cost_per_mile_usd: [3400000, 3800000, 4200000, 4600000, 5000000]
+  absorption_years: [4, 5, 6, 7, 8]

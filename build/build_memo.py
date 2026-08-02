@@ -1,0 +1,299 @@
+"""
+TRACK BOSS — One-Page IC Memo (§9.B)
+====================================
+
+Times New Roman, diamond bullets, bold-label/value structure, numbered
+citations, no padding. Fixed section order per §9.B:
+
+    Recommendation -> Site -> Program -> Underwriting -> Path to Control
+    -> Risks -> Ask
+
+One page is a constraint, not a target. The builder measures the flowable
+height and warns loudly if the content overruns -- it will not silently ship a
+two-page "one-pager".
+
+Usage:
+    python3 build/build_memo.py --parcels data/parcels.example.csv --rank 1
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.pagesizes import LETTER
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
+    HRFlowable,
+    PageTemplate,
+    Paragraph,
+)
+
+from build.build_workbook import enrich, load_parcels_csv
+from model import two_stack
+
+SERIF = "Times-Roman"
+SERIF_B = "Times-Bold"
+SERIF_I = "Times-Italic"
+
+MARGIN = 0.6 * inch
+FRAME_W = LETTER[0] - 2 * MARGIN
+FRAME_H = LETTER[1] - 2 * MARGIN
+
+S_TITLE = ParagraphStyle("t", fontName=SERIF_B, fontSize=13.5, leading=16, spaceAfter=1)
+S_SUB = ParagraphStyle("s", fontName=SERIF_I, fontSize=8.5, leading=10,
+                       textColor=colors.HexColor("#444444"), spaceAfter=5)
+S_H = ParagraphStyle("h", fontName=SERIF_B, fontSize=9.5, leading=11.5,
+                     spaceBefore=5, spaceAfter=2)
+S_BODY = ParagraphStyle("b", fontName=SERIF, fontSize=8.8, leading=10.8,
+                        alignment=TA_JUSTIFY, spaceAfter=1.5)
+S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.8, leading=10.8,
+                          leftIndent=11, firstLineIndent=-11, spaceAfter=1.5)
+S_NOTE = ParagraphStyle("n", fontName=SERIF_I, fontSize=7.6, leading=9.2,
+                        textColor=colors.HexColor("#555555"), spaceBefore=3)
+S_CITE = ParagraphStyle("c", fontName=SERIF, fontSize=7.4, leading=9,
+                        leftIndent=11, firstLineIndent=-11)
+
+# Times-Roman has no U+25C6, and reportlab silently substitutes a literal "u"
+# when asked for one. ZapfDingbats is a base-14 font present in every PDF
+# reader, and its "u" IS the filled diamond -- so the glyph comes from there
+# while the body stays in Times per §9.B.
+DIAMOND = '<font name="ZapfDingbats">u</font>'
+
+
+def _usd(v: Any) -> str:
+    if v is None:
+        return "n/a"
+    v = float(v)
+    sign = "(" if v < 0 else ""
+    close = ")" if v < 0 else ""
+    return f"{sign}${abs(v):,.0f}{close}"
+
+
+def _pct(v: Any) -> str:
+    if v is None or v == float("-inf"):
+        return "n/a"
+    return f"{float(v):.2%}"
+
+
+def bullet(label: str, value: str) -> Paragraph:
+    """Diamond bullet, bold label, plain value."""
+    return Paragraph(f"{DIAMOND}&nbsp;<b>{label}:</b> {value}", S_BULLET)
+
+
+def build_memo(
+    parcel: dict[str, Any],
+    cfg: dict[str, Any],
+    diag: dict[str, Any],
+    sources: list[dict[str, Any]] | None = None,
+    out_dir: Path | str = "dist",
+) -> Path:
+    hurdle = cfg["meta"]["hurdle_yoc"]
+    rank_basis = cfg["mandate"]["yoc_basis"]["rank_on"]
+    sources = sources or _default_sources()
+
+    pid = parcel.get("parcel_id", "UNKNOWN")
+    muni = parcel.get("municipality", "—")
+    county = parcel.get("county", "—")
+    state = parcel.get("state", "—")
+
+    story: list[Any] = []
+    story.append(Paragraph("INVESTMENT COMMITTEE MEMORANDUM", S_TITLE))
+    story.append(Paragraph(
+        f"Track Boss &middot; Car Community Deal Lane &middot; {muni}, {county} County, {state} "
+        f"&middot; {dt.date.today():%d %B %Y}", S_SUB))
+    story.append(HRFlowable(width="100%", thickness=0.7, color=colors.black, spaceAfter=4))
+
+    # --- Recommendation ------------------------------------------------------
+    infeasible = not diag["program_feasible"]
+    if infeasible:
+        rec = (
+            f"<b>DO NOT PROCEED TO CONTRACT ON CURRENT ASSUMPTIONS.</b> The program as "
+            f"modeled fails the {hurdle:.2%} test on the {rank_basis} basis before land is "
+            f"priced at all. Stabilized NOI of {_usd(diag['stabilized_noi'])} must reach "
+            f"{_usd(diag['noi_required_at_zero_land'])} "
+            f"({diag['noi_multiple_required']:.2f}&times;) merely to clear the hurdle on free "
+            f"land. This is a program problem, not a parcel problem, and no site in the "
+            f"three-state search can cure it. Recommend re-basing the revenue assumptions "
+            f"against the verified comp set before any site is put under control."
+        )
+    else:
+        rec = (
+            f"<b>PROCEED TO OPTION.</b> {pid} clears the {hurdle:.2%} hurdle on the "
+            f"{rank_basis} basis with {_usd(parcel.get('headroom_to_ask'))} of headroom "
+            f"between the ask and the maximum supportable land price."
+        )
+    story.append(Paragraph("RECOMMENDATION", S_H))
+    story.append(Paragraph(rec, S_BODY))
+
+    # --- Site ----------------------------------------------------------------
+    story.append(Paragraph("SITE", S_H))
+    acres = parcel.get("contiguous_developable_acres")
+    site_bits = [
+        bullet("Parcel", f"{pid} &middot; APN {parcel.get('apn', '—')} &middot; "
+                         f"{parcel.get('latitude', '—')}, {parcel.get('longitude', '—')}"),
+        bullet("Acreage", f"{acres:,.0f} contiguous developable acres" if acres else "unresolved"),
+        bullet("Prior use", str(parcel.get("prior_use", "—")).replace("_", " ")),
+        bullet("Nearest residence",
+               f"{parcel.get('nearest_residence_ft'):,.0f} ft &middot; "
+               f"{parcel.get('residences_within_1mi', '—')} residences within one mile"
+               if parcel.get("nearest_residence_ft") else "UNVERIFIED"),
+        bullet("Drive time", f"{parcel.get('best_drive_min', '—')} min best origin "
+                             f"(ceiling {cfg['mandate']['drive_time']['max_minutes']} min)"),
+        bullet("Zoning", f"{parcel.get('zoning_district', '—')} &middot; "
+                         f"{str(parcel.get('zoning_posture', '—')).replace('_', ' ')}"),
+    ]
+    story.extend(site_bits)
+
+    # --- Program -------------------------------------------------------------
+    tr = cfg["cost"]["track"]
+    fs = cfg["for_sale"]
+    m = cfg["income"]["membership"]
+    story.append(Paragraph("PROGRAM", S_H))
+    story.extend([
+        bullet("Circuit", f"{tr['miles']:.1f} miles configurable pavement"),
+        bullet("Garage condominiums",
+               f"{fs['garage_condos']['units']} units @ {fs['garage_condos']['avg_sf']:,} SF "
+               f"&middot; {_usd(fs['garage_condos']['sale_price_psf'])}/SF"),
+        bullet("Homesites", f"{fs['homesites']['units']} units @ "
+                            f"{_usd(fs['homesites']['price_per_unit_usd'])}"),
+        bullet("Membership", f"{m['cap']} cap &middot; "
+                             f"{_usd(m['initiation_fee_usd'])} initiation &middot; "
+                             f"{_usd(m['annual_dues_usd'])} dues"),
+        bullet("Hold structure", "Merchant build — garage condos and homesites both sold; "
+                                 "for-sale proceeds offset the net basis only"),
+    ])
+
+    # --- Underwriting --------------------------------------------------------
+    story.append(Paragraph("UNDERWRITING", S_H))
+    story.extend([
+        bullet("Stabilized NOI",
+               f"{_usd(diag['stabilized_noi'])} in operating year "
+               f"{two_stack.stabilization_year(cfg)} "
+               f"(membership at {m['stabilization_threshold']:.0%} of cap)"),
+        bullet("Net cost basis (non-land)", _usd(diag["non_land_cost"])),
+        bullet("For-sale net proceeds", _usd(diag["for_sale_net_proceeds"])),
+        bullet("Max supportable land — gross basis", _usd(parcel.get("max_land_gross"))),
+        bullet("Max supportable land — net basis", _usd(parcel.get("max_land_net"))),
+        bullet("Ask", _usd(parcel.get("ask_price"))),
+        bullet("YoC at ask",
+               f"gross {_pct(parcel.get('yoc_gross_at_ask'))} &middot; "
+               f"net {_pct(parcel.get('yoc_net_at_ask'))} &middot; "
+               f"Year 5 gross {_pct(parcel.get('yoc_gross_year5'))}"),
+    ])
+    story.append(Paragraph(
+        "Initiation fees are amortized over expected member tenure, not capitalized into NOI; "
+        "the workbook Sensitivity tab carries the fully-excluded and fully-capitalized "
+        "bookends. Model math, not a sourced figure. [1]", S_NOTE))
+
+    # --- Path to Control -----------------------------------------------------
+    story.append(Paragraph("PATH TO CONTROL", S_H))
+    story.extend([
+        bullet("Owner", f"{parcel.get('owner_name') or '—'} &middot; "
+                        f"{str(parcel.get('owner_type', '—')).replace('_', ' ')}"),
+        bullet("Days on market", str(parcel.get("days_on_market", "—"))),
+        bullet("Structure", "24-month option with entitlement contingency; extension fees "
+                            "credited to purchase price at closing"),
+        bullet("Abatement path", str(parcel.get("tax_abatement_path") or "unresolved")),
+    ])
+
+    # --- Risks ---------------------------------------------------------------
+    story.append(Paragraph("RISKS", S_H))
+    flags = [f.strip() for f in str(parcel.get("flags") or "").split("|") if f.strip()]
+    if infeasible:
+        flags.insert(0, "PROGRAM-INFEASIBLE — revenue assumptions unverified and below the "
+                        "level required to clear the hurdle")
+    for f in flags[:5]:
+        story.append(Paragraph(f"{DIAMOND}&nbsp;{f}", S_BULLET))
+    if not flags:
+        story.append(Paragraph(f"{DIAMOND}&nbsp;No screen flags raised.", S_BULLET))
+
+    # --- Ask -----------------------------------------------------------------
+    story.append(Paragraph("ASK", S_H))
+    if infeasible:
+        ask_txt = ("Approval to commission the verified comp study (§7) and re-base dues, "
+                   "membership cap, and ancillary revenue against it. No capital at risk, no "
+                   "site under control, until the program clears the hurdle on paper.")
+    else:
+        ask_txt = (f"Approval to execute a 24-month option on {pid} at or below "
+                   f"{_usd(parcel.get('max_land_gross'))}, and to fund Phase I, a boundary "
+                   f"and topographic survey, and an acoustic model.")
+    story.append(Paragraph(ask_txt, S_BODY))
+
+    # --- Citations -----------------------------------------------------------
+    story.append(HRFlowable(width="100%", thickness=0.5,
+                            color=colors.HexColor("#999999"), spaceBefore=5, spaceAfter=3))
+    for s in sources:
+        story.append(Paragraph(
+            f"[{s['no']}] <b>{s['name']}</b> — <i>Cited for: {s['cited_for']}</i> {s['url']}",
+            S_CITE))
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / f"IC_Memo_{pid}_{dt.date.today():%Y-%m-%d}.pdf"
+
+    doc = BaseDocTemplate(str(path), pagesize=LETTER,
+                          leftMargin=MARGIN, rightMargin=MARGIN,
+                          topMargin=MARGIN, bottomMargin=MARGIN,
+                          title=f"IC Memo — {pid}", author="Track Boss")
+    doc.addPageTemplates([PageTemplate(
+        id="one", frames=[Frame(MARGIN, MARGIN, FRAME_W, FRAME_H, id="f",
+                                leftPadding=0, rightPadding=0,
+                                topPadding=0, bottomPadding=0)])])
+
+    # Measure before committing: a "one-pager" that spills is a defect.
+    used = sum(f.wrap(FRAME_W, FRAME_H)[1] for f in story)
+    doc.build(story)
+
+    if used > FRAME_H:
+        print(f"  WARNING: content is {used:.0f}pt against a {FRAME_H:.0f}pt frame "
+              f"({used / FRAME_H:.0%}) — memo will spill past one page.")
+    return path
+
+
+def _default_sources() -> list[dict[str, Any]]:
+    return [{
+        "no": 1,
+        "name": "The Thermal Club",
+        "cited_for": ("reference program — 426 private acres, over five miles of track, "
+                      "homesites/villas/luxury residences, clubhouse with dining, fitness, "
+                      "spa, and resort pools."),
+        "url": "https://www.thermal.cc/",
+    }]
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Build the one-page IC memo.")
+    ap.add_argument("--parcels", type=Path, required=True)
+    ap.add_argument("--rank", type=int, default=1, help="1-based rank to memo")
+    ap.add_argument("--config", type=Path, default=None)
+    ap.add_argument("--out", type=Path, default=Path("dist"))
+    args = ap.parse_args()
+
+    cfg = two_stack.load_config(args.config)
+    universe, _ = enrich(load_parcels_csv(args.parcels), cfg)
+    survivors = [p for p in universe if not p.get("killed_at_gate")]
+    if not survivors:
+        print("No parcels survived the funnel — nothing to memo.")
+        return
+    if args.rank > len(survivors):
+        print(f"Only {len(survivors)} survivor(s); cannot memo rank {args.rank}.")
+        return
+
+    diag = two_stack.feasibility_diagnostic(cfg)
+    path = build_memo(survivors[args.rank - 1], cfg, diag, out_dir=args.out)
+    print(f"Wrote {path}")
+
+
+if __name__ == "__main__":
+    main()
