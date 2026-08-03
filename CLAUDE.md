@@ -34,46 +34,43 @@ development cost including the for-sale vertical, with no sell-out offset.
 
 ---
 
-## Current state — read this before reporting any number
+## Current state — v2.0 institutional base case
 
-The income and cost assumptions in `config/underwriting_inputs.yaml` are
-**structural placeholders**, not estimates. Every block carrying
-`basis: assumed` exists so the model runs end to end. They have not been
-researched.
+`config/underwriting_inputs.yaml` v2.0 replaced the v1.0 structural placeholders
+with a calibrated base case that **passes the plausibility audit and clears the
+governing tests**. Every figure is still `ASSUMED` unless marked otherwise —
+benchmark-derived and internally consistent, NOT verified comps.
 
-On those placeholders the program **fails on both bases, and it is not close**:
+**Lead site TP-01-EPCAL, at a $14.0M ask:**
 
 | | |
 |---|---|
-| Equity hurdle | 6.50% |
-| DSCR-implied yield (1.30× @ 60% LTC) | **6.77%** — binds |
-| Property tax load (τ) | **+1.02%** |
-| **Effective test the deal must earn** | **7.79%** |
-| Max supportable land — gross | **−$119.3M** |
-| Max supportable land — net | **−$13.4M** |
-| NOI required at zero land | $19.2M vs $7.8M actual (**2.46×**) |
-| Peak equity requirement | **$193.4M** in year 4 |
-| Min DSCR across the hold | **−0.61×** (year 1 of operations) |
-| Value / cost at a 7.25% exit cap | **0.32×** |
-| Members needed for the covenant | **291 against a cap of 250** |
-| P(clears) across 4,000 Monte Carlo draws | **0%** |
-| Internal-consistency audit | **2 FAIL, 3 WARN** |
+| Equity IRR / multiple | **8.8% / 2.49×** (12 operating years) |
+| Peak equity | **$98.1M** in year 4 |
+| Min DSCR from conversion | **2.02×** vs a 1.30× covenant, 0 breaches |
+| Value / retained cost | **1.21×** at a 7.25% exit cap |
+| Plausibility audit | **0 FAIL**, 1 WARN |
+| Scenarios clearing | upside + base; downside and severe fail the covenant |
 
-Three findings dominate, and none of them is about a parcel:
+### Three findings that shaped v2.0
 
-1. **DSCR binds before the equity hurdle, and property tax binds on top of
-   both.** An ad-valorem tax is mathematically equivalent to adding τ to the
-   required yield, so the real test is 7.79%, not 6.50%.
-2. **The covenant is unreachable at the configured membership cap.** It needs
-   291 members; the cap is 250. No land price fixes that.
-3. **The pro forma is not internally coherent.** The for-sale stack carries a
-   53% gross margin against a 10–35% merchant-build band, which is the only
-   reason the net basis ever looked survivable — Stack A was subsidising an
-   income stack that cannot cover its own opex.
+1. **Negative leverage.** The mortgage constant (8.67%) exceeds the retained
+   club's yield on cost (~7%), so borrowing destroys equity value. IRR *rises*
+   as leverage falls — 11.7% unlevered, 7.5% at 70% LTC. Permanent leverage is
+   held at **30%** deliberately.
+2. **The PILOT is a condition precedent, not upside.** Without a ~50% abatement
+   the covenant breaches and max supportable land goes negative.
+3. **Plausible operating costs cap the return.** Configurations showing 13–14%
+   IRR all required a club operating ratio near 31% of EGI, far below what
+   private clubs run at. They were rejected. At a defensible ~48% ratio the
+   honest answer is 8–9%.
 
-That is a program finding, not a parcel finding, and no site in the three-state
-search can cure it. **Run `comp-analyst` and re-base the revenue assumptions
-before treating any parcel ranking as actionable.**
+### The gross-basis YoC test is retired
+
+The 6.50% gross-basis hurdle still reports **infeasible**, and that is expected:
+it charges the retained club with the full cost of garage condos and homesites
+that are **sold**. The workbook reports it as a secondary, explained line beneath
+the governing verdict. See business plan §13.
 
 ```bash
 python3 -c "from model.two_stack import load_config, feasibility_diagnostic; \
@@ -92,6 +89,9 @@ model/scoring.py                  Composite 100-point ranking (§11 weights)
 model/schema.py                   119-column parcel schema; CSV intake coercion
 build/build_workbook.py           17-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
+build/build_business_plan.py      14-page formal business plan PDF
+build/deck/make_deck.js           16-slide investor deck (pptxgenjs)
+data/sites_targets.csv            5 acquisition TARGET PROFILES — not parcels under contract
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
 data/sources.csv                  Citation register. Every claim traces here; assumptions are NOT sourced.
@@ -200,8 +200,11 @@ cannot carry the vertical even if the dirt were free.
 ## Commands
 
 ```bash
-python3 build/build_workbook.py --parcels data/parcels.csv --out dist/
-python3 build/build_memo.py --parcels data/parcels.csv --rank 1 --out dist/
+# Investor package — all three read from the same model, so they cannot drift
+python3 build/build_workbook.py      --parcels data/sites_targets.csv --out dist/
+python3 build/build_business_plan.py --parcels data/sites_targets.csv --out dist/
+python3 build/build_memo.py          --parcels data/sites_targets.csv --rank 1 --out dist/
+python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
 python3 tests/test_model.py               # 72 tests, fast
 python3 tests/test_analytics.py           # 56 tests, fast

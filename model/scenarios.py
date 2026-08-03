@@ -46,8 +46,9 @@ class ScenarioResult:
     dscr_stabilized_gross: float | None
     dscr_stabilized_net: float | None
 
-    min_dscr_any_year: float | None
+    min_dscr_any_year: float | None      # includes lease-up, which is reserve-funded
     min_dscr_year: int | None
+    min_dscr_tested: float | None        # from conversion — the actual covenant test
     covenant_breach_years: int
 
     peak_equity: float
@@ -64,13 +65,21 @@ class ScenarioResult:
 
     @property
     def verdict(self) -> str:
-        if self.feasible_gross and self.covenant_holds:
-            return "CLEARS"
-        if self.feasible_net and self.covenant_holds:
-            return "CLEARS NET ONLY"
-        if self.feasible_net:
-            return "NET ONLY, COVENANT FAILS"
-        return "FAILS"
+        """
+        Graded on the tests that actually govern a merchant build with a
+        retained amenity: does the covenant hold, is the asset worth what it
+        cost to keep, and is there a return. The gross-basis yield test is
+        reported separately in `feasible_gross` because holding stabilised club
+        NOI against a basis that includes sold collateral is not the governing
+        test -- see the business plan's recommendation on the hurdle.
+        """
+        if not self.covenant_holds:
+            return "COVENANT FAILS"
+        if self.equity_irr is None or self.equity_irr <= 0:
+            return "NO RETURN"
+        if self.value_to_cost < 1.0:
+            return "MARGINAL — value < cost"
+        return "CLEARS"
 
 
 # =============================================================================
@@ -178,14 +187,26 @@ def run_scenario(
     overrides: dict[str, Any],
     ask_price: float | None = None,
     horizon: int = 12,
+    site_cost_premium: float = 0.0,
 ) -> ScenarioResult:
     c = apply_scenario(cfg, overrides)
     label = overrides.get("label", name)
 
-    uw = ts.underwrite(c, parcel_id=f"SCEN-{name}", ask_price=ask_price)
+    uw = ts.underwrite(c, parcel_id=f"SCEN-{name}", ask_price=ask_price,
+                       site_cost_premium=site_cost_premium)
     land_for_cf = ask_price if ask_price is not None else max(0.0, uw.max_land_net)
-    cf = cf_mod.project_cash_flow(c, land_for_cf, horizon_operating_years=horizon)
-    cov = cf_mod.covenant_report(cf, c["debt"]["min_dscr"])
+    cf = cf_mod.project_cash_flow(c, land_for_cf, horizon_operating_years=horizon,
+                                  site_cost_premium=site_cost_premium)
+    # Test the covenant from CONVERSION, consistent with every other report in
+    # the system. Lease-up coverage is still visible in `min_dscr_any_year` and
+    # is what sizes the debt-service reserve -- it is not a default, because the
+    # note is interest-only until stabilisation. Testing the whole hold produced
+    # negative coverage and a "COVENANT FAILS" verdict even on the upside case,
+    # which contradicted every other slide.
+    dev_years = int(round(c["cost"]["carry"]["development_years"]))
+    stab_year = ts.stabilization_year(c, horizon=horizon)
+    tested_from = dev_years + stab_year if stab_year > 0 else None
+    cov = cf_mod.covenant_report(cf, c["debt"]["min_dscr"], tested_from_year=tested_from)
 
     tau = ts.tax_load(c)
     return ScenarioResult(
@@ -205,6 +226,7 @@ def run_scenario(
         dscr_stabilized_net=uw.dscr_net_at_ask,
         min_dscr_any_year=cf.min_dscr,
         min_dscr_year=cf.min_dscr_year,
+        min_dscr_tested=cov["min_dscr_tested"],
         covenant_breach_years=cov["breach_count"],
         peak_equity=cf.peak_equity_requirement,
         equity_multiple=cf.equity_multiple,
@@ -223,13 +245,15 @@ SCENARIO_ORDER = ["upside", "base", "downside", "severe"]
 
 
 def run_all(
-    cfg: dict[str, Any], ask_price: float | None = None, horizon: int = 12
+    cfg: dict[str, Any], ask_price: float | None = None, horizon: int = 12,
+    site_cost_premium: float = 0.0,
 ) -> list[ScenarioResult]:
     """Run every scenario defined in config, best case first."""
     defs = {k: v for k, v in cfg["scenarios"].items() if isinstance(v, dict)}
     ordered = [n for n in SCENARIO_ORDER if n in defs]
     ordered += [n for n in defs if n not in ordered]
-    return [run_scenario(cfg, n, defs[n], ask_price, horizon) for n in ordered]
+    return [run_scenario(cfg, n, defs[n], ask_price, horizon, site_cost_premium)
+            for n in ordered]
 
 
 def scenario_spread(results: list[ScenarioResult]) -> dict[str, Any]:

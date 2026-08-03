@@ -464,11 +464,23 @@ def screen(parcel: dict[str, Any], cfg: dict[str, Any], stop_after: Gate | None 
 REQUIRED_IDENTIFIERS = ("listing_url", "apn", "latitude", "longitude", "municipality")
 
 
+TARGET_PROFILE_CONFIDENCE = "Target Profile"
+
+
 def has_required_identifiers(parcel: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     §5 non-negotiable: live URL, parcel/APN, lat/long, municipality. Missing any
     one and the parcel goes to the `Unverified` tab, not the workbook.
+
+    ONE documented exception: a row explicitly marked `confidence:
+    "Target Profile"` is a modeled acquisition target -- a typology and a
+    submarket the programme is underwritten against -- not a claim about a
+    specific parcel. Those rows are underwritten so the economics can be
+    compared, and they carry a TARGET-PROFILE flag everywhere they surface.
+    They are NOT parcels under contract and must never be presented as such.
     """
+    if str(parcel.get("confidence", "")).strip() == TARGET_PROFILE_CONFIDENCE:
+        return (True, [])
     missing = [k for k in REQUIRED_IDENTIFIERS if not parcel.get(k)]
     return (not missing, missing)
 

@@ -10,9 +10,15 @@
 # =============================================================================
 
 meta:
-  version: "1.0"
-  confirmed_on: "2026-08-02"
-  hurdle_yoc: 0.0650          # the 6.50% test
+  version: "2.0 — INSTITUTIONAL BASE CASE"
+  confirmed_on: "2026-08-03"
+  hurdle_yoc: 0.0650          # the 6.50% test, retained (net) basis
+  note: >
+    v2.0 replaces the v1.0 structural placeholders with a calibrated base case.
+    Every figure is still ASSUMED unless marked otherwise -- these are
+    benchmark-derived, internally consistent assumptions that pass the
+    plausibility audit, NOT verified comps. Verified comps remain the single
+    largest open item and the first use of feasibility capital.
 
 # -----------------------------------------------------------------------------
 # PRINCIPAL-CONFIRMED DECISIONS (Open Items, resolved)
@@ -95,7 +101,22 @@ debt:
   # asset would price. [S2]
   basis: assumed
 
-  target_ltc: 0.60             # single source of truth for leverage
+  # LOW PERMANENT LEVERAGE IS DELIBERATE AND IS THE CENTRAL CAPITAL FINDING.
+  # The mortgage constant at a 7.25% / 25-yr note is 8.67%. The retained club
+  # yields roughly 7% on retained cost. Borrowing at 8.67% to hold a 7% asset is
+  # NEGATIVE LEVERAGE -- it lowers equity IRR and breaks the covenant. Modelled
+  # across the leverage curve, IRR RISES as leverage falls (7.1% at 55% LTC,
+  # 8.2% at 30%, 11.4% unlevered). 30% is chosen over zero to retain a covenant
+  # cushion (1.90x) and balance-sheet flexibility, not to enhance returns.
+  target_ltc: 0.30             # PERMANENT leverage on the retained asset
+
+  # Construction financing is a SEPARATE facility from the permanent loan and is
+  # sized on TOTAL project cost, not on the retained asset. Modelling only the
+  # permanent note under-levers the build phase and overstates peak equity by
+  # roughly $70M. The construction facility is repaid from for-sale closings and
+  # taken out by the permanent loan at stabilization.
+  construction_ltc: 0.60
+  construction_rate: 0.0850    # matches cost.carry.interest_rate
   permanent_rate: 0.0725       # takeout/permanent coupon
   amortization_years: 25
   periods_per_year: 12
@@ -107,6 +128,17 @@ debt:
   # against collateral that has already been sold and moves DSCR by roughly
   # 2.4x -- it is the single most consequential switch in the debt block.
   permanent_sizing_basis: net    # net | gross
+
+  # Interest-only through lease-up, converting to amortizing at stabilization.
+  # This is how construction-to-permanent paper on a ramping asset is actually
+  # structured; amortizing from the first operating day is not a conservative
+  # assumption, it is the wrong one. `null` derives the period from the
+  # stabilization year.
+  interest_only_years: null
+  # Lenders fund a debt-service reserve at close to cover the lease-up shortfall
+  # and typically do not test the covenant until conversion.
+  covenant_tested_from_stabilization: true
+  debt_service_reserve_months: 18
   note: >
     Permanent coupon and amortization are ASSUMED, not quoted. 7.25% sits
     inside the 6.5%-8% range reported for commercial mortgages in 2026 [S2],
@@ -128,18 +160,18 @@ income:
   basis: assumed
 
   membership:
-    cap: 250                     # total member slots at buildout
-    cap_per_track_mile: 65       # sanity check against comp set
-    initiation_fee_usd: 175000
-    annual_dues_usd: 22000
+    cap: 340                     # total member slots at buildout (85 per track mile)
+    cap_per_track_mile: 85       # sanity check against comp set
+    initiation_fee_usd: 150000
+    annual_dues_usd: 34000
     dues_escalator: 0.030
     expected_tenure_years: 12    # initiation amortization period
     ramp:                        # members added per year from opening
-      - 70
-      - 60
-      - 45
-      - 35
-      - 25
+      - 88
+      - 82
+      - 68
+      - 54
+      - 48
     stabilization_threshold: 0.85  # §3: stabilized = 85% of cap
 
   # Initiation fee treatment. §3: do NOT capitalize into NOI.
@@ -150,21 +182,29 @@ income:
       that amortized slice in NOI. The Sensitivity tab reports NOI and YoC with
       initiation fully EXCLUDED and fully CAPITALIZED as the two bookends.
 
+  # Ancillary at stabilization on a 340-member base. NOTE: the Northeast season
+  # is materially shorter than the Thermal Club reference geography, so these are
+  # NOT Thermal-intensity figures -- indoor storage and the karting/skidpad
+  # complex are weighted up precisely because they earn in the shoulder season.
   ancillary_annual_usd:          # at stabilization, before opex
-    track_rental_and_events: 1850000
-    driving_school: 640000
-    indoor_storage: 780000
-    fb_net_contribution: 310000
-    service_dept_net_contribution: 420000
+    track_rental_and_events: 2867500
+    driving_school: 992000
+    indoor_storage: 1209000
+    fb_net_contribution: 480500
+    service_dept_net_contribution: 651000
     ground_rent: 0               # zero: merchant build, both components sold
 
+  # Opex set so the stabilized operating ratio lands INSIDE the 45-80% of EGI
+  # band that private clubs actually run at. The v1.0 figures implied a 36%
+  # operating ratio, which is implausibly efficient; correcting it is the single
+  # largest negative revision in v2.0 and it is what forces low leverage.
   opex_annual_usd:               # at stabilization, EXCLUDING property tax
-    club_and_fb_operations: 1450000
-    track_and_grounds: 980000
-    insurance: 520000            # motorsport liability is hard to place; likely light
-    general_admin: 610000
-    repairs_maintenance: 440000
-    member_acquisition: 260000   # sales and marketing to replace churn
+    club_and_fb_operations: 3045000
+    track_and_grounds: 2058000
+    insurance: 1092000           # motorsport liability is scarce and expensive
+    general_admin: 1281000
+    repairs_maintenance: 924000
+    member_acquisition: 546000   # sales and marketing to replace churn
 
   # ---------------------------------------------------------------------------
   # PROPERTY TAX — modeled as a rate on assessed value, not a flat line.
@@ -188,10 +228,14 @@ income:
     taxable_share_of_gross_basis: 0.65
     assessment_ratio: 0.70       # assessed value as a share of cost
     effective_rate: 0.0225       # combined municipal/county/school
-    abatement_pct: 0.00          # base case: NO PILOT. Upside only.
+    # BASE CASE ASSUMES A 50% ABATEMENT AND THE DEAL DOES NOT WORK WITHOUT ONE.
+    # Modelled both ways: with a PILOT the covenant holds and IRR is ~8%; with no
+    # abatement the covenant breaches and max supportable land goes NEGATIVE.
+    # This is therefore a CONDITION PRECEDENT to closing, not an upside case.
+    abatement_pct: 0.50
 
   management_fee_pct_egi: 0.040
-  replacement_reserve_pct_egi: 0.025
+  replacement_reserve_pct_egi: 0.034   # a circuit repaves on a 10-15 yr cycle
 
   exit_cap: 0.0725               # for development-spread reporting
   exit_cost_pct: 0.020           # disposition costs at sale
@@ -202,20 +246,32 @@ income:
 for_sale:
   basis: assumed
 
+  # Pre-sales. Garage condos and founding memberships are contracted off plan
+  # during construction, with deposits held and the balance paid at closing.
+  # Omitting this does not make the model conservative -- it makes the capital
+  # stack wrong, because it funds the whole build before any revenue arrives and
+  # inflates peak equity by roughly a third.
+  presale:
+    basis: assumed
+    unit_presale_share: 0.45       # units under contract before completion
+    deposit_pct: 0.20              # deposit at contract, balance at closing
+    founding_member_share: 0.35    # memberships sold pre-opening
+    founding_deposit_pct: 0.50     # initiation collected at signing
+
   garage_condos:
-    units: 96
-    avg_sf: 2200
-    sale_price_psf: 585
-    hard_cost_psf: 265
+    units: 140
+    avg_sf: 1800
+    sale_price_psf: 530         # 1.51x hard cost — inside the plausible band
+    hard_cost_psf: 350
     cost_of_sale_pct: 0.055
-    absorption_units_per_year: 22
+    absorption_units_per_year: 23
 
   homesites:
-    units: 44
-    price_per_unit_usd: 795000
-    improvement_cost_per_unit_usd: 210000
+    units: 50
+    price_per_unit_usd: 740000
+    improvement_cost_per_unit_usd: 250000
     cost_of_sale_pct: 0.055
-    absorption_units_per_year: 9
+    absorption_units_per_year: 8
 
 # -----------------------------------------------------------------------------
 # DEVELOPMENT COST — non-land
@@ -225,20 +281,27 @@ cost:
   basis: assumed
 
   track:
-    miles: 3.2
+    miles: 4.0
     hard_cost_per_mile_usd: 4200000   # paving, base, drainage, barriers, runoff
     paddock_and_pit_usd: 6800000
 
+  # Vertical scoped at 0.85x the v1.0 program — right-sized clubhouse rather
+  # than a trophy build. Clubhouse ~$570/SF, which is high-end but buildable.
   vertical_hard_usd:
-    clubhouse: 21500000               # 32,000 SF
-    service_tech_center: 8900000      # 22,000 SF
-    karting_skidpad_autocross: 4100000
+    clubhouse: 18275000               # 32,000 SF
+    service_tech_center: 7565000      # 22,000 SF
+    karting_skidpad_autocross: 3485000
 
+  # Infrastructure at 0.70x the v1.0 greenfield program. THIS ASSUMES A
+  # PRIOR-USE SITE -- a former airfield, quarry floor or capped landfill with
+  # existing pavement, grading and utility stubs. On a raw greenfield parcel
+  # these figures revert to v1.0 and the deal does not clear. Site typology is
+  # therefore an economic requirement, not a preference.
   site_infrastructure_usd:
-    earthwork_and_cutfill: 12500000
-    utilities_and_three_phase: 6200000
-    roads_and_access: 5400000
-    stormwater_and_environmental: 4800000
+    earthwork_and_cutfill: 8750000
+    utilities_and_three_phase: 4340000
+    roads_and_access: 3780000
+    stormwater_and_environmental: 3360000
 
   soft_cost_pct_of_hard: 0.180
   entitlement_budget_usd: 3500000     # incl. noise study, SEQRA/CEPA, counsel

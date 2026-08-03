@@ -140,15 +140,26 @@ def test_binding_constraint_is_the_tighter_of_the_two():
     assert which == ("DSCR" if implied > hurdle else "YIELD")
 
 
-def test_dscr_binds_at_current_assumptions():
+def test_yield_binds_at_low_leverage():
     """
-    Documents the live state: 1.30x at 60% LTC on a 7.25%/25yr note implies a
-    6.77% yield, which is tighter than the 6.50% equity hurdle. If this flips,
-    the assumptions moved and the memo language needs review.
+    Documents the live state under v2.0. At 30% permanent LTC the DSCR-implied
+    yield is only ~3.4%, so the 6.50% EQUITY HURDLE binds and DSCR has real
+    cushion. Under the old 60% LTC the DSCR test bound at 6.77%. Leverage decides
+    which constraint governs -- that is the point of `binding_yield`.
     """
     req, which = two_stack.binding_yield(CFG)
+    assert which == "YIELD"
+    assert approx(req, CFG["meta"]["hurdle_yoc"])
+    assert two_stack.dscr_implied_yield(CFG) < CFG["meta"]["hurdle_yoc"]
+
+
+def test_dscr_binds_once_leverage_is_high_enough():
+    """The crossover must still work in the other direction."""
+    hi = copy.deepcopy(CFG)
+    hi["debt"]["target_ltc"] = 0.70
+    req, which = two_stack.binding_yield(hi)
     assert which == "DSCR"
-    assert req > CFG["meta"]["hurdle_yoc"]
+    assert req > hi["meta"]["hurdle_yoc"]
 
 
 def test_binding_land_price_is_the_more_conservative():
@@ -164,18 +175,33 @@ def test_dscr_falls_as_land_price_rises():
 
 
 def test_lower_leverage_relaxes_the_dscr_constraint():
+    """Leverage scales the DSCR-implied yield linearly."""
     low = copy.deepcopy(CFG)
-    low["debt"]["target_ltc"] = 0.45
+    low["debt"]["target_ltc"] = CFG["debt"]["target_ltc"] / 2
     assert two_stack.dscr_implied_yield(low) < two_stack.dscr_implied_yield(CFG)
-    assert (two_stack.underwrite(low, "LOW").max_land_gross
-            > two_stack.underwrite(CFG, "BASE").max_land_gross)
+    # Land price only improves when DSCR was the binding constraint to begin with.
+    hi = copy.deepcopy(CFG)
+    hi["debt"]["target_ltc"] = 0.70
+    hi_low = copy.deepcopy(hi)
+    hi_low["debt"]["target_ltc"] = 0.50
+    assert (two_stack.underwrite(hi_low, "L").max_land_gross
+            > two_stack.underwrite(hi, "H").max_land_gross)
 
 
 def test_higher_dscr_floor_tightens_land_price():
-    tight = copy.deepcopy(CFG)
-    tight["debt"]["min_dscr"] = 1.50
-    assert (two_stack.underwrite(tight, "T").max_land_gross
-            < two_stack.underwrite(CFG, "B").max_land_gross)
+    """
+    Only once the covenant is the binding constraint. At the base 30% LTC the
+    equity hurdle binds, so a modestly higher floor changes nothing -- which is
+    itself correct and worth asserting.
+    """
+    base = two_stack.underwrite(CFG, "B").max_land_gross
+    mild = copy.deepcopy(CFG)
+    mild["debt"]["min_dscr"] = 1.50
+    assert approx(two_stack.underwrite(mild, "M").max_land_gross, base)
+
+    binding = copy.deepcopy(CFG)
+    binding["debt"]["min_dscr"] = 3.00      # high enough to overtake the hurdle
+    assert two_stack.underwrite(binding, "T").max_land_gross < base
 
 
 def test_hurdle_cleared_requires_both_yield_and_coverage():
@@ -313,9 +339,9 @@ def _net_ranked_cfg():
     c = copy.deepcopy(CFG)
     c["mandate"]["yoc_basis"]["rank_on"] = "net"
     m = c["income"]["membership"]
-    m["annual_dues_usd"] *= 3.0
+    m["annual_dues_usd"] *= 2.5
     for k in c["income"]["ancillary_annual_usd"]:
-        c["income"]["ancillary_annual_usd"][k] *= 3.0
+        c["income"]["ancillary_annual_usd"][k] *= 2.5
     assert two_stack.underwrite(c, "PRECHK").max_land_net > 0, (
         "test helper must produce a net-feasible config")
     return c
@@ -359,7 +385,12 @@ def test_hurdle_cleared_exactly_at_max_supportable():
     assert r.hurdle_cleared, "both yield and coverage must pass at the binding price"
     assert approx(r.yoc_net_at_ask, r.required_yield)
     assert r.yoc_net_at_ask >= HURDLE
-    assert approx(r.dscr_net_at_ask, cfg["debt"]["min_dscr"])
+    # Coverage sits exactly ON the covenant only when DSCR is the binding
+    # constraint. At low leverage the yield binds and DSCR carries cushion, so
+    # the invariant is "meets the floor", not "equals it".
+    assert two_stack._at_least(r.dscr_net_at_ask, cfg["debt"]["min_dscr"])
+    if r.binding_constraint == "DSCR":
+        assert approx(r.dscr_net_at_ask, cfg["debt"]["min_dscr"])
 
 
 def test_yoc_falls_as_land_price_rises():

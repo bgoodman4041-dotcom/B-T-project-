@@ -327,8 +327,16 @@ def build_cost_stack(
     cfg: dict[str, Any],
     for_sale: ForSaleResult,
     track_cost_per_mile: float | None = None,
+    site_cost_premium: float = 0.0,
 ) -> CostStack:
-    """`track_cost_per_mile` override exists so the sensitivity grid can flex it."""
+    """
+    `track_cost_per_mile` override exists so the sensitivity grid can flex it.
+
+    `site_cost_premium` carries the SITE-SPECIFIC delta to non-land cost --
+    remediation, blasting, utility extension, less the credit for existing
+    pavement. Without it every candidate site solves to an identical land price,
+    which is the single fastest way to lose a reader's trust in a site ranking.
+    """
     cost = cfg["cost"]
     tr = cost["track"]
     per_mile = track_cost_per_mile if track_cost_per_mile is not None else tr["hard_cost_per_mile_usd"]
@@ -339,6 +347,7 @@ def build_cost_stack(
         + sum(cost["vertical_hard_usd"].values())
         + sum(cost["site_infrastructure_usd"].values())
         + for_sale.total_vertical_cost
+        + site_cost_premium
     )
     soft = hard * cost["soft_cost_pct_of_hard"]
     contingency = (hard + soft) * cost["contingency_pct"]
@@ -600,6 +609,7 @@ def underwrite(
     initiation_mode: InitiationMode | None = None,
     track_cost_per_mile: float | None = None,
     horizon: int = 10,
+    site_cost_premium: float = 0.0,
 ) -> UnderwritingResult:
     """Run both stacks on one parcel and solve the land price."""
     hurdle = cfg["meta"]["hurdle_yoc"]
@@ -620,7 +630,7 @@ def underwrite(
     year5_noi = years[min(5, horizon) - 1].noi
 
     for_sale = project_for_sale(cfg)
-    cost = build_cost_stack(cfg, for_sale, track_cost_per_mile)
+    cost = build_cost_stack(cfg, for_sale, track_cost_per_mile, site_cost_premium)
 
     # Solve at the binding constraint, and keep the two components visible.
     max_gross = max_supportable_land_price(

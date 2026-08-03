@@ -61,6 +61,10 @@ PHYSICAL: list[Field] = [
     Field("assemblage_possible", "Assemblage Required", "bool", "Physical"),
     Field("assemblage_adjacent_acres", "Assemblage Adjacent Acres", "float", "Physical"),
     Field("expansion_land_adjacent_acres", "Expansion Land Adjacent (ac)", "float", "Physical"),
+    Field("site_cost_premium_usd", "Site Cost Premium / (Credit)", "usd", "Physical",
+          note="Site-specific delta to non-land cost: earthwork, utilities, "
+               "remediation, blasting, less the value of existing pavement"),
+    Field("site_cost_basis_note", "Site Cost Basis Note", "str", "Physical"),
 ]
 
 NOISE_ENTITLEMENT: list[Field] = [

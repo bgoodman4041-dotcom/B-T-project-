@@ -102,8 +102,9 @@ class SourcesAndUses:
     incentives: float
     equity_required: float
     total_sources: float
-    debt_capacity: float = 0.0      # LTC cap; loan drawn is min(cap, gap)
-    funding_surplus: float = 0.0    # sources exceeding uses -- debt goes undrawn
+    debt_capacity: float = 0.0          # permanent LTC cap
+    funding_surplus: float = 0.0        # sources exceeding uses -- debt undrawn
+    construction_facility: float = 0.0  # build-phase loan, sized on total cost
 
     @property
     def equity_share(self) -> float:
@@ -128,8 +129,9 @@ class CashFlowResult:
     exit_net_proceeds: float = 0.0
     debt_balance_at_exit: float = 0.0
     equity_at_exit: float = 0.0
-    profit_on_cost: float = 0.0
-    value_to_cost: float = 0.0
+    profit_on_cost: float = 0.0          # exit net proceeds less RETAINED cost
+    value_to_cost: float = 0.0           # exit net proceeds / retained (net) cost
+    retained_cost: float = 0.0
     equity_multiple: float = 0.0
     equity_irr: float | None = None
     breakeven_exit_cap: float | None = None
@@ -216,6 +218,7 @@ def project_cash_flow(
     land_price: float,
     horizon_operating_years: int = 12,
     uw: UnderwritingResult | None = None,
+    site_cost_premium: float = 0.0,
 ) -> CashFlowResult:
     """
     Build the full development and operating timeline at a stated land price.
@@ -228,7 +231,7 @@ def project_cash_flow(
     exit_cap = cfg["income"]["exit_cap"]
 
     for_sale = project_for_sale(cfg)
-    cost: CostStack = build_cost_stack(cfg, for_sale)
+    cost: CostStack = build_cost_stack(cfg, for_sale, None, site_cost_premium)
     gross_basis = cost.gross_basis(land_price)
 
     dev_years = max(1, int(round(cfg["cost"]["carry"]["development_years"])))
@@ -245,6 +248,11 @@ def project_cash_flow(
     basis_for_debt = (gross_basis if sizing_basis == "gross"
                       else cost.net_basis(land_price, for_sale.net_proceeds))
     loan_cap = d["target_ltc"] * max(0.0, basis_for_debt)
+
+    # Construction facility: sized on TOTAL cost, drawn during the build, repaid
+    # from for-sale closings and taken out by the permanent note. A different
+    # loan from a different lender against different collateral.
+    construction_facility = d.get("construction_ltc", 0.0) * max(0.0, gross_basis)
     annual_tax = property_tax_annual(cfg, gross_basis)
     fs_cash_per_year = for_sale.net_proceeds / sellout_years
 
@@ -252,34 +260,65 @@ def project_cash_flow(
     # Debt is a PLUG capped by leverage, not an independent source stacked on
     # top of sale proceeds. Treating it as additive was funding the same dollars
     # twice and produced a nonsensical zero-equity answer.
-    total_initiation = float(sum(
-        (schedule[i] - (schedule[i - 1] if i >= 1 else 0)) * fee
-        for i in range(horizon_operating_years)
-    ))
+    total_initiation = float(schedule[horizon_operating_years - 1] * fee)
     deficit_probe = _operating_deficit(cfg, income, annual_tax, horizon_operating_years)
     uses_probe = (land_price + cost.non_land_subtotal
                   + cost.carry_dollars(land_price) + deficit_probe)
     non_debt_sources = for_sale.net_proceeds + total_initiation + cost.incentives
     funding_gap = uses_probe - non_debt_sources
+    # Permanent debt outstanding after the for-sale component has repaid the
+    # construction facility, capped by permanent leverage on the retained asset.
     loan = min(loan_cap, max(0.0, funding_gap))
 
-    amort = amortization_schedule(loan, d["permanent_rate"], d["amortization_years"],
-                                 d.get("periods_per_year", 12), horizon_operating_years)
+    # Interest-only through lease-up, then amortizing. Debt service during the
+    # I/O period is interest at the coupon; principal begins at conversion.
+    io_years = d.get("interest_only_years")
+    if io_years is None:
+        from .two_stack import stabilization_year as _sy
+        io_years = max(0, _sy(cfg, horizon=horizon_operating_years) - 1)
+    io_years = int(min(io_years, horizon_operating_years))
+
+    amort_tail = amortization_schedule(
+        loan, d["permanent_rate"], d["amortization_years"],
+        d.get("periods_per_year", 12), horizon_operating_years - io_years)
+    io_payment = loan * d["permanent_rate"]
+    amort = [(io_payment, loan)] * io_years + amort_tail
+
+    # ---- Pre-sale proceeds during construction ------------------------------
+    ps = cfg["for_sale"].get("presale", {})
+    presale_share = ps.get("unit_presale_share", 0.0)
+    deposit_pct = ps.get("deposit_pct", 0.0)
+    founding_share = ps.get("founding_member_share", 0.0)
+    founding_dep = ps.get("founding_deposit_pct", 0.0)
+
+    # Deposits on pre-contracted units, collected across construction.
+    presale_deposits = for_sale.net_proceeds * presale_share * deposit_pct
+    # Founding memberships signed pre-opening, deposit portion collected now.
+    total_init = float(schedule[-1] * fee)
+    founding_deposits = total_init * founding_share * founding_dep
+    construction_inflow_per_year = (presale_deposits + founding_deposits) / dev_years
+
+    # Deposits already taken are not collected again later.
+    fs_cash_per_year = (for_sale.net_proceeds - presale_deposits) / sellout_years
 
     periods: list[PeriodCash] = []
     cumulative = 0.0
 
     # ---- Construction phase -------------------------------------------------
     draw_per_year = (cost.non_land_subtotal + cost.carry_dollars(land_price)) / dev_years
-    debt_draw_per_year = loan / dev_years
+    # The construction facility funds the build; the permanent note replaces it
+    # at stabilization rather than adding to it.
+    debt_draw_per_year = construction_facility / dev_years
     for y in range(1, dev_years + 1):
         land_pay = -land_price if y == 1 else 0.0
-        cf = -draw_per_year + land_pay + debt_draw_per_year
+        dep_fs = presale_deposits / dev_years
+        dep_init = founding_deposits / dev_years
+        cf = -draw_per_year + land_pay + debt_draw_per_year + construction_inflow_per_year
         cumulative += cf
         periods.append(PeriodCash(
             year=y, phase="construction", members=0,
             noi_pretax=0.0, property_tax=0.0, noi_after_tax=0.0,
-            initiation_cash=0.0, for_sale_net_cash=0.0,
+            initiation_cash=dep_init, for_sale_net_cash=dep_fs,
             construction_draw=-draw_per_year, land_payment=land_pay,
             debt_draw=debt_draw_per_year, debt_service=0.0,
             net_cash_flow=cf, cumulative_cash=cumulative, dscr=None,
@@ -289,12 +328,16 @@ def project_cash_flow(
     dscr_by_year: dict[int, float] = {}
     cumulative_deficit = 0.0
     deficit_years = 0
+    construction_repay_remaining = max(0.0, construction_facility - loan)
 
     for oy in range(1, horizon_operating_years + 1):
         cal_year = dev_years + oy
         yr = income[oy - 1]
         joins = schedule[oy - 1] - (schedule[oy - 2] if oy >= 2 else 0)
-        init_cash = joins * fee
+        # Founding deposits were collected during construction; collect only the
+        # remainder as members convert.
+        init_cash = joins * fee - (founding_deposits / horizon_operating_years
+                                   if founding_deposits else 0.0)
         fs_cash = fs_cash_per_year if oy <= sellout_years else 0.0
 
         nat = yr.noi - annual_tax
@@ -303,7 +346,11 @@ def project_cash_flow(
             deficit_years += 1
 
         ds, _bal = amort[oy - 1]
-        cf = nat + init_cash + fs_cash - ds
+        # For-sale closings first retire the construction facility down to the
+        # permanent loan balance; only the excess is available to equity.
+        repay = min(fs_cash, max(0.0, construction_repay_remaining))
+        construction_repay_remaining -= repay
+        cf = nat + init_cash + (fs_cash - repay) - ds
         cumulative += cf
 
         cover = (nat / ds) if ds > 0 else None
@@ -347,6 +394,7 @@ def project_cash_flow(
         total_sources=sources_wo_equity + equity_required,
         debt_capacity=loan_cap,
         funding_surplus=surplus,
+        construction_facility=construction_facility,
     )
 
     # ---- Exit ---------------------------------------------------------------
@@ -358,11 +406,18 @@ def project_cash_flow(
     debt_bal = amort[horizon_operating_years - 1][1]
     equity_exit = exit_net - debt_bal
 
-    profit_on_cost = exit_net - gross_basis
-    value_to_cost = (exit_net / gross_basis) if gross_basis > 0 else 0.0
+    # Value is tested against the RETAINED asset's cost, not the gross basis.
+    # The gross basis includes garage condos and homesites that have been sold
+    # and are no longer owned; comparing the club's exit value to a denominator
+    # containing sold collateral is meaningless and understated value/cost by
+    # roughly 2x. The retained cost is the net basis.
+    retained_cost = cost.net_basis(land_price, for_sale.net_proceeds)
+    profit_on_cost = exit_net - retained_cost
+    value_to_cost = (exit_net / retained_cost) if retained_cost > 0 else 0.0
 
-    # The exit cap at which value equals cost -- the widening the deal survives.
-    be_cap = (exit_noi / gross_basis) if gross_basis > 0 and exit_noi > 0 else None
+    # The exit cap at which value equals the retained cost -- the widening the
+    # deal survives before it is worth less than it cost to keep.
+    be_cap = (exit_noi / retained_cost) if retained_cost > 0 and exit_noi > 0 else None
 
     # ---- Equity return ------------------------------------------------------
     # Equity is the residual claimant on the whole timeline: it funds every
@@ -398,6 +453,7 @@ def project_cash_flow(
         equity_at_exit=equity_exit,
         profit_on_cost=profit_on_cost,
         value_to_cost=value_to_cost,
+        retained_cost=retained_cost,
         equity_multiple=multiple,
         equity_irr=irr(equity_flows),
         breakeven_exit_cap=be_cap,
@@ -408,12 +464,19 @@ def project_cash_flow(
     )
 
 
-def covenant_report(cf: CashFlowResult, min_dscr: float) -> dict[str, Any]:
+def covenant_report(cf: CashFlowResult, min_dscr: float,
+                    tested_from_year: int | None = None) -> dict[str, Any]:
     """
-    Which years breach the covenant. The stabilized year is rarely the binding
-    one -- coverage is tightest early, when opex is full and the ramp is not.
+    Which years breach the covenant.
+
+    `tested_from_year` reflects the common structure where the covenant is not
+    tested until conversion, with a funded debt-service reserve covering
+    lease-up. Coverage BEFORE that year is still reported -- it drives the
+    reserve -- it just is not a default.
     """
-    breaches = {y: v for y, v in cf.dscr_by_year.items() if v < min_dscr}
+    tested = {y: v for y, v in cf.dscr_by_year.items()
+              if tested_from_year is None or y >= tested_from_year}
+    breaches = {y: v for y, v in tested.items() if v < min_dscr}
     return {
         "min_dscr": cf.min_dscr,
         "min_dscr_year": cf.min_dscr_year,
@@ -422,4 +485,6 @@ def covenant_report(cf: CashFlowResult, min_dscr: float) -> dict[str, Any]:
         "breach_count": len(breaches),
         "worst_breach": min(breaches.values()) if breaches else None,
         "passes_every_year": not breaches,
+        "tested_from_year": tested_from_year,
+        "min_dscr_tested": min(tested.values()) if tested else None,
     }

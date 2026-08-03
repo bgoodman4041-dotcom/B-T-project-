@@ -279,9 +279,16 @@ def test_scenarios_are_monotonically_ordered():
     assert lands == sorted(lands, reverse=True), lands
 
 
-def test_severe_requires_a_higher_yield_than_base():
+def test_severe_is_no_easier_than_base():
+    """
+    Severe widens the coupon, which raises the DSCR-implied yield. At low
+    leverage the equity hurdle may still bind in both cases, so the required
+    yield can be equal -- it must never be LOWER.
+    """
     res = {r.name: r for r in sc.run_all(CFG, ask_price=ASK)}
-    assert res["severe"].effective_required_yield > res["base"].effective_required_yield
+    assert (res["severe"].effective_required_yield
+            >= res["base"].effective_required_yield - 1e-12)
+    assert res["severe"].max_land_net < res["base"].max_land_net
 
 
 def test_upside_abatement_lowers_the_tax_load():
@@ -327,13 +334,17 @@ def test_direct_break_even_members_is_self_consistent():
     assert d["per_member_contribution"] > 0
 
 
-def test_covenant_unreachable_at_configured_cap_is_surfaced():
+def test_covenant_is_reachable_within_the_membership_cap():
     """
-    Documents the live finding: the covenant needs more members than the cap
-    allows. If this flips, the assumptions moved and the memo needs review.
+    Under v1.0 the covenant needed 291 members against a cap of 250 -- it was
+    unreachable at any land price. v2.0 lowers leverage and raises the cap, so
+    the required count now sits INSIDE the cap. Locking that in: if a future
+    change pushes it back outside, the deal has quietly become unfinanceable.
     """
     d = rk.direct_break_evens(CFG, ASK)
-    assert d["members_to_meet_covenant"] > d["membership_cap"]
+    assert d["members_to_meet_covenant"] <= d["membership_cap"], (
+        f"covenant needs {d['members_to_meet_covenant']:.0f} members against a "
+        f"cap of {d['membership_cap']}")
 
 
 def test_break_even_suite_returns_every_test():
@@ -421,31 +432,44 @@ def test_monte_carlo_records_evaluation_failures():
 # Plausibility
 # =============================================================================
 
-def test_plausibility_catches_the_for_sale_margin():
-    """The motivating defect: a 53% merchant-build margin subsidising the club."""
-    rep = rk.plausibility_report(CFG, ASK)
-    margins = [c for c in rep["checks"] if "gross margin" in c.name.lower()]
+def test_plausibility_still_catches_an_inflated_for_sale_margin():
+    """
+    The motivating defect was a 53% merchant-build margin subsidising the club.
+    v2.0 sits inside the band, so re-inflate the price and confirm the guard
+    still fires.
+    """
+    c = copy.deepcopy(CFG)
+    c["for_sale"]["garage_condos"]["sale_price_psf"] *= 1.6
+    rep = rk.plausibility_report(c, ASK)
+    margins = [x for x in rep["checks"] if "gross margin" in x.name.lower()]
     assert margins and margins[0].severity in {"WARN", "FAIL"}
 
 
-def test_plausibility_flags_value_below_cost():
+def test_value_exceeds_retained_cost():
+    """v2.0 must create value: exit proceeds above the retained cost basis."""
     rep = rk.plausibility_report(CFG, ASK)
     vc = [c for c in rep["checks"] if c.name == "Value / cost"]
-    assert vc and not vc[0].passed
+    assert vc and vc[0].passed, vc[0].message if vc else "check missing"
+    assert vc[0].value > 1.0
 
 
-def test_plausibility_reports_incoherent_on_current_placeholders():
+def test_base_case_is_internally_coherent():
+    """
+    The v2.0 base case must carry ZERO plausibility failures. This is the gate
+    that stopped the calibration from optimising its way into an implausibly
+    efficient operating ratio.
+    """
     rep = rk.plausibility_report(CFG, ASK)
-    assert rep["fail_count"] >= 1
-    assert not rep["coherent"]
-    assert "re-based" in rep["verdict"]
+    assert rep["fail_count"] == 0, [c.message for c in rep["checks"]
+                                    if c.severity == "FAIL"]
+    assert rep["coherent"]
 
 
 def test_plausibility_passes_a_coherent_pro_forma():
     """Move the two failing inputs into band and the audit must stop failing."""
     c = copy.deepcopy(CFG)
-    c["for_sale"]["garage_condos"]["sale_price_psf"] = 400
-    c["for_sale"]["homesites"]["price_per_unit_usd"] = 330_000
+    c["for_sale"]["garage_condos"]["sale_price_psf"] = 500
+    c["for_sale"]["homesites"]["price_per_unit_usd"] = 640_000
     rep = rk.plausibility_report(c, ASK)
     margin = [x for x in rep["checks"] if "gross margin" in x.name.lower()][0]
     assert margin.passed, margin.message

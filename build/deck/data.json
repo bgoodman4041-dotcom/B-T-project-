@@ -1,0 +1,345 @@
+{
+ "today": "2026-08-03",
+ "program": {
+  "miles": 4.0,
+  "cap": 340,
+  "init": 150000,
+  "dues": 34000,
+  "condos": 140,
+  "condo_sf": 1800,
+  "condo_psf": 530,
+  "condo_cost_psf": 350,
+  "homes": 50,
+  "home_price": 740000,
+  "per_mile": 85.0,
+  "stab": 4,
+  "dev": 4,
+  "ramp": [
+   88,
+   82,
+   68,
+   54,
+   48
+  ]
+ },
+ "econ": {
+  "gross_basis": 303706433.328125,
+  "noi": 8378258.703771631,
+  "peak_equity": 98051445.33125001,
+  "peak_year": 4,
+  "irr": 0.08835290046680178,
+  "em": 2.488591549876354,
+  "vc": 1.2103751466789046,
+  "profit": 29984187.617142767,
+  "be_cap": 0.08954305932063325,
+  "exit_cap": 0.0725,
+  "min_dscr": 2.0178050061250445,
+  "covenant": 1.3,
+  "breaches": 0,
+  "retained": 142527233.328125,
+  "exit_val": 172511420.94526777,
+  "fs_proceeds": 161179200.0,
+  "init_cash": 51000000.0,
+  "perm_debt": 42758169.9984375,
+  "constr": 182223859.996875,
+  "equity_resid": 54326171.89382538,
+  "total_uses": 309263541.8922629,
+  "land": 14000000.0,
+  "nonland": 221032790.0,
+  "carry": 68673643.32812501,
+  "deficit": 5557108.564137855,
+  "tau": 0.005118749999999999,
+  "req": 0.065,
+  "ltc": 0.3,
+  "mc": 0.08673682369165958,
+  "perm_rate": 0.0725,
+  "amort": 25,
+  "retained_yield": 0.058783563731173216
+ },
+ "hnw": 520000,
+ "scen": [
+  {
+   "name": "upside",
+   "label": "Upside \u2014 pricing power, PILOT secured",
+   "irr": 0.16512163945381014,
+   "em": 4.763766280572884,
+   "vc": 2.522017432859883,
+   "land": 104679321.72567454,
+   "dscr": 5.752078781954791,
+   "verdict": "CLEARS",
+   "peak": 86425152.29039998
+  },
+  {
+   "name": "base",
+   "label": "Base \u2014 as configured",
+   "irr": 0.08835290046680178,
+   "em": 2.488591549876354,
+   "vc": 1.2103751466789046,
+   "land": -5654434.007415175,
+   "dscr": 2.0178050061250445,
+   "verdict": "CLEARS",
+   "peak": 98051445.33125001
+  },
+  {
+   "name": "downside",
+   "label": "Downside \u2014 soft cycle, slow lease-up",
+   "irr": -0.31781185501294673,
+   "em": 0.0548500939708049,
+   "vc": 0.28788732732660016,
+   "land": -111289127.1443617,
+   "dscr": 0.36965310935642404,
+   "verdict": "COVENANT FAILS",
+   "peak": 158767433.87932518
+  },
+  {
+   "name": "severe",
+   "label": "Severe \u2014 recession, entitlement drag, cost shock",
+   "irr": null,
+   "em": 0.0,
+   "vc": -0.027585690446834035,
+   "land": -204300625.26177543,
+   "dscr": -0.19627550300641103,
+   "verdict": "COVENANT FAILS",
+   "peak": 339527606.52928424
+  }
+ ],
+ "lev": [
+  {
+   "ltc": 0.0,
+   "irr": 0.11699829050985874,
+   "dscr": null
+  },
+  {
+   "ltc": 0.15,
+   "irr": 0.10141687202765157,
+   "dscr": 4.035610012250089
+  },
+  {
+   "ltc": 0.3,
+   "irr": 0.08835290046680178,
+   "dscr": 2.0178050061250445
+  },
+  {
+   "ltc": 0.45,
+   "irr": 0.08261877065710513,
+   "dscr": 1.3452033374166963
+  },
+  {
+   "ltc": 0.6,
+   "irr": 0.07723435285156666,
+   "dscr": 1.0089025030625223
+  },
+  {
+   "ltc": 0.7,
+   "irr": 0.07461697273067577,
+   "dscr": 0.888687586421892
+  }
+ ],
+ "sites": [
+  {
+   "id": "01-EPCAL",
+   "muni": "Riverhead / Calverton",
+   "county": "Suffolk, NY",
+   "acres": 560.0,
+   "prior": "airport airfield",
+   "ask": 14000000.0,
+   "premium": -9500000.0,
+   "drive": 95,
+   "irr": 0.08835290046680178,
+   "dscr": 2.0178050061250445,
+   "score": 63.9,
+   "why": "Airport airfield gives it an inherited noise floor; infrastructure cost at 100% and physical suitability at 97%",
+   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "note": "CREDIT: existing runway pavement usable as base course; municipal water/sewer at boundary; offset by Phase II and AOC remediation allowance",
+   "zoning": "special_permit",
+   "months": 30,
+   "abate": "NY IDA PILOT \u2014 strong precedent"
+  },
+  {
+   "id": "02-QUARRY-9W",
+   "muni": "Town of Newburgh vicinity",
+   "county": "Orange, NY",
+   "acres": 415.0,
+   "prior": "reclaimed quarry",
+   "ask": 11500000.0,
+   "premium": 6200000.0,
+   "drive": 72,
+   "irr": 0.0682519394698288,
+   "dscr": 1.7089173959675508,
+   "score": 58.0,
+   "why": "Catchment at 96% and physical suitability at 91%",
+   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "note": "PREMIUM: shallow rock requires blasting across circuit alignment; offset partially by natural bowl geometry reducing berm cost and by on-site aggregate for base course",
+   "zoning": "special_permit",
+   "months": 26,
+   "abate": "NY IDA PILOT"
+  },
+  {
+   "id": "04-CUMBERLAND",
+   "muni": "Vineland / Millville vicinity",
+   "county": "Cumberland, NJ",
+   "acres": 480.0,
+   "prior": "capped landfill",
+   "ask": 5400000.0,
+   "premium": 12800000.0,
+   "drive": 95,
+   "irr": 0.06644206929591642,
+   "dscr": 1.6729356848345205,
+   "score": 56.5,
+   "why": "Capped landfill gives it an inherited noise floor; infrastructure cost at 92% and physical suitability at 87%",
+   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "note": "PREMIUM: no load-bearing construction over cap, circuit alignment must route around it; differential settlement monitoring; LSRP oversight and post-closure permit modification",
+   "zoning": "special_permit",
+   "months": 34,
+   "abate": "NJ EDA / Brownfield reimbursement"
+  },
+  {
+   "id": "03-THOMPSON",
+   "muni": "Thompson / Putnam vicinity",
+   "county": "Windham, CT",
+   "acres": 395.0,
+   "prior": "existing motorsport",
+   "ask": 7200000.0,
+   "premium": -3100000.0,
+   "drive": 105,
+   "irr": 0.08752973524787128,
+   "dscr": 1.9879522783494956,
+   "score": 54.8,
+   "why": "Deal control at 89% and infrastructure cost at 88%",
+   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "note": "CREDIT: established motorsport use and inherited noise floor shorten entitlement; existing access and partial grading; offset by wetland avoidance design",
+   "zoning": "special_permit",
+   "months": 22,
+   "abate": "CT municipal tax fixing agreement"
+  },
+  {
+   "id": "05-LITCHFIELD",
+   "muni": "Torrington / Winchester vicinity",
+   "county": "Litchfield, CT",
+   "acres": 355.0,
+   "prior": "golf course",
+   "ask": 9600000.0,
+   "premium": 2400000.0,
+   "drive": 68,
+   "irr": 0.07616087070134758,
+   "dscr": 1.8162148224578716,
+   "score": 54.5,
+   "why": "Deal control at 100% and infrastructure cost at 98%",
+   "kill": "A map amendment with no as-of-right fallback",
+   "note": "PREMIUM: assemblage closing risk and turf-chemical soil management; offset by pre-graded fairway corridors, municipal utilities and existing recreational entitlement",
+   "zoning": "map_amendment_required",
+   "months": 40,
+   "abate": "CT enterprise / municipal agreement"
+  }
+ ],
+ "bev": {
+  "need_cov": 265.95236865915064,
+  "need_opex": 176.53148807329424,
+  "cap": 340,
+  "at_stab": 292,
+  "dues_cov": 19901.484724808874,
+  "dues_base": 34000
+ },
+ "tornado": [
+  {
+   "driver": "hard cost factor",
+   "swing": 67699137.0
+  },
+  {
+   "driver": "cap factor",
+   "swing": 43307472.59954199
+  },
+  {
+   "driver": "dues factor",
+   "swing": 33261818.014720082
+  },
+  {
+   "driver": "opex factor",
+   "swing": 32366975.697993755
+  },
+  {
+   "driver": "condo psf factor",
+   "swing": 27163337.476057947
+  },
+  {
+   "driver": "ancillary factor",
+   "swing": 17839383.364296257
+  }
+ ],
+ "mc": {
+  "n": 4000,
+  "p_net": 0.0,
+  "p_cov": 0.0,
+  "p50": -93413794.53443265,
+  "p10": -126354313.09155571,
+  "p90": -62314465.02256778
+ },
+ "plaus": {
+  "fails": 0,
+  "warns": 1,
+  "ok": 6
+ },
+ "ramp_years": [
+  {
+   "y": 1,
+   "members": 88,
+   "noi": -3670850.352941176
+  },
+  {
+   "y": 2,
+   "members": 170,
+   "noi": 1222936.4
+  },
+  {
+   "y": 3,
+   "members": 238,
+   "noi": 5477153.348799999
+  },
+  {
+   "y": 4,
+   "members": 292,
+   "noi": 9038046.576693647
+  },
+  {
+   "y": 5,
+   "members": 340,
+   "noi": 12376545.952885602
+  },
+  {
+   "y": 6,
+   "members": 340,
+   "noi": 12629777.33147217
+  },
+  {
+   "y": 7,
+   "members": 340,
+   "noi": 12890605.651416332
+  },
+  {
+   "y": 8,
+   "members": 340,
+   "noi": 13159258.820958823
+  },
+  {
+   "y": 9,
+   "members": 340,
+   "noi": 13435971.585587587
+  },
+  {
+   "y": 10,
+   "members": 340,
+   "noi": 13720985.733155215
+  },
+  {
+   "y": 11,
+   "members": 340,
+   "noi": 14014550.305149876
+  },
+  {
+   "y": 12,
+   "members": 340,
+   "noi": 14316921.814304372
+  }
+ ],
+ "tranche1": 4250000
+}

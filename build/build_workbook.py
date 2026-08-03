@@ -108,6 +108,41 @@ def _finish(ws: Worksheet, freeze: str = "A2", widths: dict[str, int] | None = N
         ws.column_dimensions[col].width = w
 
 
+def _governing_verdict(cfg: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """
+    Grade the lead site on the tests that actually govern a merchant build with
+    a retained amenity: equity IRR, covenant coverage from conversion, and exit
+    value against RETAINED cost.
+    """
+    lead = next((p for p in rows if p.get("ask_price")), None)
+    if not lead:
+        return {"clears": False, "verdict": "No underwritten site with an ask price."}
+    ask = float(lead["ask_price"])
+    prem = float(lead.get("site_cost_premium_usd") or 0.0)
+    cf = cf_mod.project_cash_flow(cfg, ask, horizon_operating_years=12,
+                                  site_cost_premium=prem)
+    stab = two_stack.stabilization_year(cfg)
+    dev = int(round(cfg["cost"]["carry"]["development_years"]))
+    cov = cf_mod.covenant_report(cfg and cf, cfg["debt"]["min_dscr"],
+                                 tested_from_year=dev + stab)
+    irr = cf.equity_irr
+    clears = (cov["passes_every_year"] and irr is not None and irr > 0
+              and cf.value_to_cost >= 1.0)
+    return {
+        "clears": clears,
+        "verdict": (
+            f"{'CLEARS' if clears else 'DOES NOT CLEAR'} on {lead['parcel_id']}: "
+            f"equity IRR {irr:.1%} and {cf.equity_multiple:.2f}x multiple over 12 "
+            f"operating years; minimum DSCR {cov['min_dscr_tested']:.2f}x against a "
+            f"{cfg['debt']['min_dscr']:.2f}x covenant with {cov['breach_count']} breach "
+            f"year(s); exit value {cf.value_to_cost:.2f}x retained cost; peak equity "
+            f"${cf.peak_equity_requirement:,.0f} in year {cf.peak_funding_year}."
+            if irr is not None else
+            f"DOES NOT CLEAR on {lead['parcel_id']}: no positive equity return."
+        ),
+    }
+
+
 # =============================================================================
 # Tab: Executive Summary
 # =============================================================================
@@ -127,15 +162,30 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     )
     ws["A2"].font = NOTE_FONT
 
-    # Program-level feasibility banner. If the program cannot clear on the
-    # ranking basis, that fact outranks any parcel ranking beneath it.
-    ws["A4"] = "PROGRAM FEASIBILITY"
+    # Two verdicts, and the distinction matters. The GOVERNING tests are project
+    # return, covenant coverage and value against retained cost. The gross-basis
+    # yield test is reported below them because holding stabilised club NOI
+    # against a basis that includes SOLD garage condos and homesites is not a
+    # conservative test, it is an incoherent one. Showing only the gross verdict
+    # made a financeable programme read as dead.
+    gov = _governing_verdict(cfg, rows)
+    ws["A4"] = "GOVERNING TESTS — project return, covenant, value vs retained cost"
     ws["A4"].font = SEC_FONT
-    ws["A5"] = diag["verdict"]
+    ws["A5"] = gov["verdict"]
     ws["A5"].alignment = Alignment(wrap_text=True, vertical="top")
-    ws["A5"].fill = GREEN if diag["program_feasible"] else RED
-    ws.merge_cells("A5:J7")
-    ws.row_dimensions[5].height = 18
+    ws["A5"].fill = GREEN if gov["clears"] else RED
+    ws.merge_cells("A5:J6")
+
+    ws["A7"] = "SECONDARY — gross-basis yield on cost (see business plan §13)"
+    ws["A7"].font = SEC_FONT
+    ws["A8"] = diag["verdict"] + (
+        "  NOTE: this test charges the retained club with the full cost of "
+        "garage condos and homesites that are SOLD. It is reported for continuity "
+        "with the original mandate and is not the governing test.")
+    ws["A8"].alignment = Alignment(wrap_text=True, vertical="top")
+    ws["A8"].font = NOTE_FONT
+    ws.merge_cells("A8:J9")
+    ws.row_dimensions[5].height = 16
 
     for i, (label, val, fmt) in enumerate([
         ("Stabilized NOI", diag["stabilized_noi"], FMT_USD),
@@ -147,13 +197,13 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         ("Equity hurdle", diag["hurdle"], FMT_PCT),
         ("DSCR-implied yield", diag["dscr_implied_yield"], FMT_PCT),
         ("Required yield (binding)", diag["required_yield"], FMT_PCT),
-    ], start=9):
+    ], start=11):
         ws.cell(row=i, column=1, value=label).font = BODY_FONT
         c = ws.cell(row=i, column=3, value=_safe(val))
         c.number_format = fmt
         c.font = Font(name="Calibri", size=10, bold=True)
 
-    start = 17
+    start = 21
     ws.cell(row=start - 1, column=1, value="TOP 10 RANKED").font = SEC_FONT
     headers = [
         "Rank", "Parcel ID", "Municipality", "County", "ST", "Acres", "Prior Use",
@@ -804,7 +854,8 @@ def _tab_unverified(wb: Workbook, rows: list[dict[str, Any]]) -> None:
 # Tab: Scenarios  (correlated downside, not one-at-a-time)
 # =============================================================================
 
-def _tab_scenarios(wb: Workbook, cfg: dict[str, Any], ask: float | None) -> None:
+def _tab_scenarios(wb: Workbook, cfg: dict[str, Any], ask: float | None,
+                   premium: float = 0.0) -> None:
     ws = wb.create_sheet("Scenarios")
     ws["A1"] = "SCENARIO MATRIX — CORRELATED STRESS"
     ws["A1"].font = Font(name="Calibri", size=14, bold=True)
@@ -813,7 +864,7 @@ def _tab_scenarios(wb: Workbook, cfg: dict[str, Any], ask: float | None) -> None
                 "soft cycle they arrive together.")
     ws["A2"].font = NOTE_FONT
 
-    results = sc.run_all(cfg, ask_price=ask)
+    results = sc.run_all(cfg, ask_price=ask, site_cost_premium=premium)
     headers = ["Scenario", "Description", "Required yield + tax", "Binding",
                "Max land — GROSS", "Max land — NET", "Min DSCR (any yr)", "DSCR breach yrs",
                "Peak equity", "Equity multiple", "Equity IRR", "Value / cost",
@@ -1180,13 +1231,18 @@ def enrich(parcels: list[dict[str, Any]], cfg: dict[str, Any]) -> tuple[list[dic
             continue
 
         sr = gates.screen(p, cfg)
+        if str(p.get("confidence", "")).strip() == gates.TARGET_PROFILE_CONFIDENCE:
+            sr.flags.insert(0, "TARGET-PROFILE — modeled acquisition target, NOT a "
+                               "parcel under contract; identifiers pending county GIS")
         p["killed_at_gate"] = sr.killed_at.name if sr.killed_at else ""
         p["rejection_reasons"] = " | ".join(sr.reasons)
         p["flags"] = " | ".join(sr.flags)
 
         uw = None
         if sr.survived:
-            uw = two_stack.underwrite(cfg, p["parcel_id"], ask_price=p.get("ask_price"))
+            premium = float(p.get("site_cost_premium_usd") or 0.0)
+            uw = two_stack.underwrite(cfg, p["parcel_id"], ask_price=p.get("ask_price"),
+                                      site_cost_premium=premium)
             p.update({
                 "stabilized_noi": uw.stabilized_noi,
                 "stabilization_year": uw.stabilization_year,
@@ -1251,7 +1307,9 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     # and coverage through time, margin of safety, driver attribution,
     # distribution of outcomes, and an internal-consistency audit.
     ref_land = next((p.get("ask_price") for p in survivors if p.get("ask_price")), 0.0) or 0.0
-    _tab_scenarios(wb, cfg, ref_land or None)
+    ref_premium = next((float(p.get("site_cost_premium_usd") or 0.0)
+                        for p in survivors if p.get("ask_price")), 0.0)
+    _tab_scenarios(wb, cfg, ref_land or None, ref_premium)
     _tab_cashflow(wb, cfg, ref_land)
     _tab_breakeven(wb, cfg, ref_land)
     _tab_tornado(wb, cfg)
