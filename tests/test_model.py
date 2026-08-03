@@ -38,7 +38,7 @@ def test_max_land_price_round_trips_to_binding_yield_gross():
     """
     r = two_stack.underwrite(CFG, "RT-GROSS")
     y = two_stack.yield_on_cost(
-        r.stabilized_noi, r.max_land_gross, r.cost, r.for_sale, "gross"
+        r.stabilized_noi, r.max_land_gross, r.cost, r.for_sale, "gross", CFG
     )
     assert approx(y, r.required_yield), f"gross round-trip gave {y:.8f}"
 
@@ -46,7 +46,7 @@ def test_max_land_price_round_trips_to_binding_yield_gross():
 def test_max_land_price_round_trips_to_binding_yield_net():
     r = two_stack.underwrite(CFG, "RT-NET")
     y = two_stack.yield_on_cost(
-        r.stabilized_noi, r.max_land_net, r.cost, r.for_sale, "net"
+        r.stabilized_noi, r.max_land_net, r.cost, r.for_sale, "net", CFG
     )
     assert approx(y, r.required_yield), f"net round-trip gave {y:.8f}"
 
@@ -55,7 +55,7 @@ def test_yield_only_land_price_still_round_trips_to_the_hurdle():
     """The isolated equity-hurdle solve must remain exact at 6.50%."""
     r = two_stack.underwrite(CFG, "RT-YIELD")
     y = two_stack.yield_on_cost(
-        r.stabilized_noi, r.max_land_gross_yield_only, r.cost, r.for_sale, "gross"
+        r.stabilized_noi, r.max_land_gross_yield_only, r.cost, r.for_sale, "gross", CFG
     )
     assert approx(y, HURDLE), f"yield-only round-trip gave {y:.8f}, expected {HURDLE}"
 
@@ -64,8 +64,13 @@ def test_net_basis_supports_more_land_than_gross():
     """For-sale proceeds offset the basis, so net must support a higher price."""
     r = two_stack.underwrite(CFG, "CMP")
     assert r.max_land_net > r.max_land_gross
-    # The gap should be roughly the proceeds discounted by the carry factor.
-    expected_gap = r.for_sale.net_proceeds / (1 + r.cost.carry_factor)
+    # With an ad-valorem tax the gap is the proceeds scaled by h/(h+tau) and
+    # then discounted by the carry factor -- the tax is levied on the gross
+    # basis, so it does not shrink when proceeds offset the net basis.
+    tau = two_stack.tax_load(CFG)
+    h = r.required_yield
+    expected_gap = (h * (r.for_sale.net_proceeds + r.cost.incentives)
+                    / ((h + tau) * (1 + r.cost.carry_factor)))
     assert approx(r.max_land_net - r.max_land_gross, expected_gap, tol=1e-9)
 
 
@@ -122,7 +127,7 @@ def test_dscr_round_trips_at_max_supportable_land():
     implied = two_stack.dscr_implied_yield(CFG)
     for basis in ("gross", "net"):
         land = two_stack.max_supportable_land_price(
-            r.stabilized_noi, r.cost, r.for_sale, implied, basis)
+            r.stabilized_noi, r.cost, r.for_sale, implied, basis, CFG)
         got = two_stack.dscr_at(r.stabilized_noi, land, r.cost, r.for_sale, CFG, basis)
         assert approx(got, CFG["debt"]["min_dscr"]), f"{basis}: got {got}"
 
@@ -178,6 +183,26 @@ def test_hurdle_cleared_requires_both_yield_and_coverage():
     r = two_stack.underwrite(CFG, "BOTH", ask_price=1.0)
     if r.hurdle_cleared:
         assert r.dscr_cleared, "hurdle_cleared must not be True while DSCR fails"
+
+
+def test_boundary_comparison_tolerates_float_error():
+    """
+    A deal solved to sit exactly ON its covenant must pass. Coverage computes to
+    1.2999999999999998 against a 1.30 floor, and an exact `>=` reported that
+    compliant deal as a breach.
+    """
+    assert two_stack._at_least(1.2999999999999998, 1.30)
+    assert two_stack._at_least(1.30, 1.30)
+    assert not two_stack._at_least(1.29, 1.30)
+    assert not two_stack._at_least(float("nan"), 1.30)
+    assert two_stack._at_least(0.06499999999999999, 0.065)
+
+
+def test_deal_exactly_on_both_floors_is_reported_as_clearing():
+    cfg = _net_ranked_cfg()
+    r0 = two_stack.underwrite(cfg, "P")
+    r = two_stack.underwrite(cfg, "AT", ask_price=r0.max_land_net)
+    assert r.dscr_cleared and r.hurdle_cleared
 
 
 def test_dscr_reported_on_both_bases():
@@ -276,15 +301,23 @@ def test_for_sale_vertical_cost_lands_in_hard_cost():
 
 def _net_ranked_cfg():
     """
-    Config copy that ranks on the NET basis.
+    Config copy that ranks on the NET basis AND actually clears it.
 
-    The placeholder assumptions produce a NEGATIVE max supportable land price on
-    the gross basis, so the >20% feasibility boundary cannot be exercised there
-    -- every ask is infeasible by definition. Net basis is positive, which lets
-    us test the boundary arithmetic against real config rather than a fixture.
+    The placeholder assumptions are infeasible on both bases once property tax
+    is charged, so the >20% boundary and the at-the-money identity cannot be
+    exercised on them -- every ask is infeasible by definition. Scaling revenue
+    up until the net basis clears lets the boundary arithmetic be tested against
+    real config rather than a hand-built fixture. The multiplier is a test
+    device; it is not an assumption about the program.
     """
     c = copy.deepcopy(CFG)
     c["mandate"]["yoc_basis"]["rank_on"] = "net"
+    m = c["income"]["membership"]
+    m["annual_dues_usd"] *= 3.0
+    for k in c["income"]["ancillary_annual_usd"]:
+        c["income"]["ancillary_annual_usd"][k] *= 3.0
+    assert two_stack.underwrite(c, "PRECHK").max_land_net > 0, (
+        "test helper must produce a net-feasible config")
     return c
 
 

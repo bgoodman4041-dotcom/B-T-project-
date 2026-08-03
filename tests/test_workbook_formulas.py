@@ -94,6 +94,9 @@ def main() -> int:
         ("DSCR-implied yield", cell("DSCR-implied yield"),
          two_stack.dscr_implied_yield(cfg)),
         ("REQUIRED YIELD (binding)", cell("REQUIRED YIELD (binding)"), py.required_yield),
+        ("TAX LOAD (tau)", cell("TAX LOAD (tau)"), two_stack.tax_load(cfg)),
+        ("EFFECTIVE TEST (required + tau)", cell("EFFECTIVE TEST (required + tau)"),
+         py.required_yield + two_stack.tax_load(cfg)),
     ]
 
     failed = 0
@@ -133,9 +136,13 @@ def main() -> int:
             ]
             if isinstance(ask, (int, float)):
                 per_parcel += [
-                    (6, "DSCR gross", two_stack.dscr_at(
+                    (4, "property tax", two_stack.property_tax_annual(
+                        cfg, py.cost.gross_basis(float(ask)))),
+                    (5, "NOI after tax", two_stack.noi_after_tax(
+                        py.stabilized_noi, cfg, py.cost.gross_basis(float(ask)))),
+                    (8, "DSCR gross", two_stack.dscr_at(
                         py.stabilized_noi, float(ask), py.cost, py.for_sale, cfg, "gross")),
-                    (7, "DSCR net", two_stack.dscr_at(
+                    (9, "DSCR net", two_stack.dscr_at(
                         py.stabilized_noi, float(ask), py.cost, py.for_sale, cfg, "net")),
                 ]
             for offset, label, expected in per_parcel:

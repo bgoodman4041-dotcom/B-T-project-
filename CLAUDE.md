@@ -41,15 +41,35 @@ The income and cost assumptions in `config/underwriting_inputs.yaml` are
 `basis: assumed` exists so the model runs end to end. They have not been
 researched.
 
-On those placeholders the program is **infeasible on the gross basis**:
-stabilized NOI of ~$8.1M against a non-land cost basis of ~$200.9M means NOI
-must reach ~$16.7M (2.06×) before *free land* clears the binding test. The
-maximum supportable land price is about **−$103.5M** gross, **+$18.5M** net.
+On those placeholders the program **fails on both bases, and it is not close**:
 
-**The DSCR covenant binds before the equity hurdle.** 1.30× at 60% LTC on an
-assumed 7.25% / 25-year note implies a **6.77%** required yield, not 6.50%.
-Every land price is solved at 6.77%. If leverage, coupon, or amortization
-move, so does the binding test — check `binding_constraint` before quoting.
+| | |
+|---|---|
+| Equity hurdle | 6.50% |
+| DSCR-implied yield (1.30× @ 60% LTC) | **6.77%** — binds |
+| Property tax load (τ) | **+1.02%** |
+| **Effective test the deal must earn** | **7.79%** |
+| Max supportable land — gross | **−$119.3M** |
+| Max supportable land — net | **−$13.4M** |
+| NOI required at zero land | $19.2M vs $7.8M actual (**2.46×**) |
+| Peak equity requirement | **$193.4M** in year 4 |
+| Min DSCR across the hold | **−0.61×** (year 1 of operations) |
+| Value / cost at a 7.25% exit cap | **0.32×** |
+| Members needed for the covenant | **291 against a cap of 250** |
+| P(clears) across 4,000 Monte Carlo draws | **0%** |
+| Internal-consistency audit | **2 FAIL, 3 WARN** |
+
+Three findings dominate, and none of them is about a parcel:
+
+1. **DSCR binds before the equity hurdle, and property tax binds on top of
+   both.** An ad-valorem tax is mathematically equivalent to adding τ to the
+   required yield, so the real test is 7.79%, not 6.50%.
+2. **The covenant is unreachable at the configured membership cap.** It needs
+   291 members; the cap is 250. No land price fixes that.
+3. **The pro forma is not internally coherent.** The for-sale stack carries a
+   53% gross margin against a 10–35% merchant-build band, which is the only
+   reason the net basis ever looked survivable — Stack A was subsidising an
+   income stack that cannot cover its own opex.
 
 That is a program finding, not a parcel finding, and no site in the three-state
 search can cure it. **Run `comp-analyst` and re-base the revenue assumptions
@@ -70,13 +90,17 @@ model/two_stack.py                Two-stack model; closed-form max supportable l
 model/gates.py                    Gates 1-5 screening funnel
 model/scoring.py                  Composite 100-point ranking (§11 weights)
 model/schema.py                   119-column parcel schema; CSV intake coercion
-build/build_workbook.py           11-tab xlsx, live formulas on the Underwriting tab
+build/build_workbook.py           17-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
 data/sources.csv                  Citation register. Every claim traces here; assumptions are NOT sourced.
-tests/test_model.py               70 tests; fast
-tests/test_workbook_formulas.py   Excel-vs-Python drift test; slow
+model/cashflow.py                 Timeline, sources/uses, peak funding, DSCR by year, IRR
+model/scenarios.py                Base/Downside/Severe/Upside correlated bundles
+model/risk.py                     Break-evens, tornado, Monte Carlo, plausibility audit
+tests/test_model.py               72 tests; fast
+tests/test_analytics.py           56 tests; tax, cashflow, scenarios, risk
+tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
 .claude/skills/track-radar/       The `run track radar` entry point
 ```
@@ -93,16 +117,23 @@ carry_years = max(development_years, sellout_years)       (merchant build)
 gross_basis(L) = (L + S) × (1 + k)
 net_basis(L)   = gross_basis(L) − for_sale_net_proceeds − incentives
 
-Two constraints, made commensurable:
+Three constraints, made commensurable as yields:
     h_equity = the 6.50% hurdle
     h_dscr   = min_DSCR × LTC × mortgage_constant       (DSCR-implied yield)
     h        = max(h_equity, h_dscr)                    (the binding test)
+    τ        = taxable_share × assessment × rate × (1−abatement)
 
-Inverting YoC = NOI / basis = h for the land price L:
-    gross:  L* = NOI / (h × (1 + k)) − S
-    net:    L* = (NOI / h + P + G) / (1 + k) − S
+Property tax is ad valorem, so NOI depends on the basis. That does NOT break
+the closed form — because tax is proportional, it is equivalent to adding τ
+to the required yield:
 
-DSCR = NOI / (LTC × basis × mortgage_constant), reported on both bases.
+    (NOI₀ − τ·B) / B = h    ⟹    B = NOI₀ / (h + τ)
+
+Inverting for the land price L, with y = h + τ:
+    gross:  G* = NOI₀ / y                    then  L* = G*/(1+k) − S
+    net:    G* = (NOI₀ + h·(P+Γ)) / y        then  L* = G*/(1+k) − S
+
+DSCR = NOI_after_tax / (LTC × basis × mortgage_constant), on both bases.
 ```
 
 Both exact, no solver. Carry accrues on land too, which is why it multiplies
@@ -138,6 +169,25 @@ cannot carry the vertical even if the dirt were free.
 - **Never write inf or nan into a worksheet.** Coverage is infinite when there
   is no basis to lever; Excel cannot represent it and the file will not open.
   Everything numeric goes through `_safe()`.
+- **Property tax is not a footnote — it is τ added to the required yield.**
+  A zero tax line on a $200M NY/CT/NJ asset is simply wrong. The τ identity is
+  what keeps the solve closed-form; do not replace it with a flat opex line.
+- **Test the covenant in every year, not at stabilization.** Coverage is
+  tightest in the first operating year, when opex is full and the ramp is not.
+  `cashflow.covenant_report` reports every breach year.
+- **Peak funding is not residual equity.** The trough is what must be written
+  in checks ($193M here); the residual is what stays in at the end ($6.5M).
+  Conflating them understated the check by two orders of magnitude.
+- **Debt is a plug, not an additive source.** Sizing it at LTC × basis *and*
+  counting sale proceeds separately funds the same dollars twice.
+- **Size the permanent loan on the retained asset.** For-sale closings retire
+  construction debt, so lending against a gross basis that includes sold
+  collateral overstates coverage by ~2.4×. See `permanent_sizing_basis`.
+- **Compare against thresholds with tolerance, never `>=` on raw floats.** A
+  deal solved to sit exactly on its covenant computes to 1.2999999999999998 and
+  an exact comparison called it a breach. Use `_at_least`.
+- **Scenarios move drivers together; the tornado moves them one at a time.**
+  They answer different questions. Never quote a one-at-a-time flex as downside.
 - **Never invent a dBA limit.** An unpublished ordinance is a research task and
   a named phone call, not a number.
 - **The four identifiers are non-negotiable.** Live URL, APN, lat/long,
@@ -153,8 +203,9 @@ cannot carry the vertical even if the dirt were free.
 python3 build/build_workbook.py --parcels data/parcels.csv --out dist/
 python3 build/build_memo.py --parcels data/parcels.csv --rank 1 --out dist/
 
-python3 tests/test_model.py               # 70 tests, fast
-python3 tests/test_workbook_formulas.py   # Excel vs Python, slow
+python3 tests/test_model.py               # 72 tests, fast
+python3 tests/test_analytics.py           # 56 tests, fast
+python3 tests/test_workbook_formulas.py   # Excel vs Python, 29 checks, slow
 ```
 
 Run `test_model.py` after any change to the math — the round-trip identity

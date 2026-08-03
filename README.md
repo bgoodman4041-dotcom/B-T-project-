@@ -13,7 +13,8 @@ Say **`run track radar`** to execute a full cycle.
 ```bash
 pip install pyyaml openpyxl reportlab
 
-python3 tests/test_model.py                                       # 70 tests
+python3 tests/test_model.py                                       # 72 tests
+python3 tests/test_analytics.py                                   # 56 tests
 python3 build/build_workbook.py --parcels data/parcels.example.csv --out dist/
 python3 build/build_memo.py --parcels data/parcels.example.csv --rank 1 --out dist/
 ```
@@ -41,7 +42,11 @@ real filter: noise and entitlement viability. Expect 80–90% mortality.
 supportable land price* — the price at which yield on cost lands exactly on
 6.50%. That number is the deliverable; the ask is only measured against it.
 
-**Delivers** an 11-tab Excel workbook with live formulas and a one-page IC memo.
+**Stress-tests** it four ways: correlated scenario bundles, break-evens, a
+driver tornado, and a Monte Carlo — plus an internal-consistency audit that
+catches pro formas which cannot be true.
+
+**Delivers** a 17-tab Excel workbook with live formulas and a one-page IC memo.
 
 ---
 
@@ -64,19 +69,32 @@ The income and cost assumptions in `config/underwriting_inputs.yaml` are
 **structural placeholders**, not estimates — every block marked
 `basis: assumed` exists so the model runs end to end.
 
-On those placeholders the program **fails before land is priced at all**:
-stabilized NOI of ~$8.1M against a ~$200.9M non-land basis needs to reach
-~$16.7M (2.06×) for *free land* to clear the binding test.
+On those placeholders the program **fails on both bases, and not narrowly**:
 
 ```
-binding test:                     6.77%  (DSCR, not the 6.50% hurdle)
-max supportable land — gross:   −$103,455,052
-max supportable land — net:     +$18,487,126
+equity hurdle                     6.50%
+DSCR-implied yield                6.77%   <- binds
+property tax load (tau)          +1.02%
+effective test                    7.79%   <- what the deal must earn
+
+max supportable land — gross:  −$119,320,987
+max supportable land — net:     −$13,405,866
+peak equity requirement:        $193,432,618  (year 4)
+min DSCR across the hold:              −0.61x
+value / cost @ 7.25% exit cap:          0.32x
+members needed for covenant:      291  (cap is 250)
+P(clears), 4,000 MC draws:                 0%
 ```
 
-The **DSCR covenant binds before the equity hurdle**: 1.30× at 60% LTC on an
-assumed 7.25% / 25-year note implies a 6.77% required yield. Land prices are
-solved at 6.77%, not 6.50%.
+Three findings, none about a parcel:
+
+1. **DSCR binds before the hurdle, and property tax binds on top.** An
+   ad-valorem tax is equivalent to adding τ to the required yield — the real
+   test is 7.79%.
+2. **The covenant is unreachable at the configured cap** — 291 members needed
+   against 250 available.
+3. **The pro forma is not internally coherent.** A 53% for-sale gross margin
+   against a 10–35% band was the only reason the net basis looked survivable.
 
 That is a program finding, not a parcel finding. Run `comp-analyst` and re-base
 the revenue assumptions before treating any ranking as actionable.
@@ -101,9 +119,15 @@ See `.claude/agents/`. Full specification in `docs/SPEC.md`; working rules in
 ## Tests
 
 ```bash
-python3 tests/test_model.py               # fast — round-trips, DSCR, gates, scoring
-python3 tests/test_workbook_formulas.py   # slow — evaluates the real xlsx, Excel vs Python
+python3 tests/test_model.py               # fast — round-trips, DSCR, tax, gates, scoring
+python3 tests/test_analytics.py           # fast — cashflow, scenarios, break-evens, MC
+python3 tests/test_workbook_formulas.py   # slow — evaluates the real xlsx, 29 checks
 ```
+
+The analytics suite leans on identities rather than golden numbers: an
+ad-valorem tax must equal adding τ to the yield, sources must equal uses, an
+amortizing note must retire to zero at term, and a Monte Carlo with every
+driver pinned at neutral must reproduce the base case to the cent.
 
 The second one exists because the Excel formulas and the Python model once
 disagreed: the sheet derived members at stabilization as `cap × 85%` while

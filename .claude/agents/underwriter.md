@@ -33,6 +33,35 @@ by name in every memo, and re-check it whenever leverage or loan pricing moves.
 
 Coupon and amortization behind the covenant are ASSUMED, not quoted. Say so.
 
+## Three constraints, not one
+
+Yield, covenant, and tax are all yields once expressed properly:
+
+    h_dscr    = min_DSCR x LTC x mortgage_constant
+    tau       = taxable_share x assessment x rate x (1 - abatement)
+    effective = max(6.50%, h_dscr) + tau
+
+At current assumptions that is **7.79%**, not 6.50%. Quote the effective test.
+
+## What a yield alone will never tell you
+
+Run `model/cashflow.py` before forming a view. Stabilized yield is silent on:
+
+- **Peak funding.** The trough here is $193M in year 4, against $6.5M of
+  residual equity. The check you write is the trough, not the residual.
+- **Coverage in every year.** The covenant is tested from conversion. Minimum
+  DSCR across the hold is -0.61x in the first operating year against a
+  stabilized figure that looked like 0.96x. Report `covenant_report`.
+- **Whether the asset is worth what it cost.** Value/cost at the assumed exit
+  cap, and the cap rate at which value equals cost.
+
+Then run `model/scenarios.py` and `model/risk.py`. Never present a one-at-a-time
+flex as downside -- drivers co-move in stress, which is what the bundles are
+for. Lead the downside with the SEVERE case, not the base.
+
+Before quoting any land price, run `risk.plausibility_report`. If the pro forma
+is not internally coherent, the land price is arithmetic on nonsense.
+
 ## Rules you do not bend
 
 - **Never capitalize initiation fees into NOI.** Amortize over expected member

@@ -29,7 +29,8 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
-from model import gates, scoring, two_stack
+from model import cashflow as cf_mod
+from model import gates, risk as rk, scenarios as sc, scoring, two_stack
 from model.schema import PARCEL_SCHEMA, coerce
 
 # -----------------------------------------------------------------------------
@@ -426,6 +427,18 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     incent = put_input("Capital incentives (IDA/PILOT/EDA)", cost["incentives_usd"], FMT_USD0,
                        "base case zero — upside only")
 
+    # --- Property tax --------------------------------------------------------
+    r += 1
+    _section(ws, r, "PROPERTY TAX (ad valorem)", 3); r += 1
+    pt = cfg["income"]["property_tax"]
+    tax_share = put_input("Taxable share of gross basis", pt["taxable_share_of_gross_basis"],
+                          FMT_PCT, "sold units are separately assessed to their owners")
+    assess = put_input("Assessment ratio", pt["assessment_ratio"], FMT_PCT)
+    eff_rate = put_input("Effective tax rate", pt["effective_rate"], FMT_PCT)
+    abate = put_input("Abatement (PILOT/EDA)", pt["abatement_pct"], FMT_PCT)
+    tau = put_formula("TAX LOAD (tau)", f"={tax_share}*{assess}*{eff_rate}*(1-{abate})",
+                      FMT_PCT, "adds directly to the required yield")
+
     # --- Debt and coverage ---------------------------------------------------
     r += 1
     _section(ws, r, "DEBT AND COVERAGE", 3); r += 1
@@ -444,6 +457,8 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
                              "the yield the covenant alone demands")
     required_ref = put_formula("REQUIRED YIELD (binding)", f"=MAX({hurdle_ref},{dscr_yield})",
                                FMT_PCT, "the tighter of hurdle and covenant")
+    effective_ref = put_formula("EFFECTIVE TEST (required + tau)", f"={required_ref}+{tau}",
+                                FMT_PCT, "what the deal must actually earn")
     ws.cell(row=r, column=1, value="Binding constraint").font = BODY_FONT
     bc = ws.cell(row=r, column=2, value=f'=IF({dscr_yield}>{hurdle_ref},"DSCR","YIELD")')
     bc.border, bc.font = BORDER, Font(name="Calibri", size=10, bold=True)
@@ -459,6 +474,7 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         "Parcel ID", "Municipality", "Ask price",
         "Max supportable land — GROSS", "Max supportable land — NET",
         "Gross cost basis @ ask", "Net cost basis @ ask",
+        "Property tax @ ask", "NOI after tax @ ask",
         "YoC @ ask — GROSS", "YoC @ ask — NET",
         "DSCR @ ask — GROSS", "DSCR @ ask — NET",
         "Headroom vs ask (ranking basis)", "Ask ÷ max supportable",
@@ -487,30 +503,36 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         #   gross: NOI / (y*(1+k)) - S
         #   net:   (NOI/y + P + G) / (1+k) - S
         # DSCR is NOI over debt service, with the loan sized as LTC x basis.
+        # Ad-valorem tax is equivalent to adding tau to the required yield, so
+        # the inversions divide by (required + tau) rather than netting tax out
+        # of NOI first. YoC and DSCR at the ask net it explicitly.
         f = {
-            hdr + 4: f"={noi}/({required_ref}*(1+{k}))-{S}",
-            hdr + 5: f"=({noi}/{required_ref}+{fs_net}+{incent})/(1+{k})-{S}",
+            hdr + 4: f"={noi}/({effective_ref}*(1+{k}))-{S}",
+            hdr + 5: f"=(({noi}+{required_ref}*({fs_net}+{incent}))/{effective_ref})"
+                     f"/(1+{k})-{S}",
             hdr + 6: f"=({A}+{S})*(1+{k})",
             hdr + 7: f"=({A}+{S})*(1+{k})-{fs_net}-{incent}",
-            hdr + 8: f"=IF({L}{hdr + 6}<=0,\"n/a\",{noi}/{L}{hdr + 6})",
-            hdr + 9: f"=IF({L}{hdr + 7}<=0,\"n/a\",{noi}/{L}{hdr + 7})",
-            hdr + 10: f"=IF({L}{hdr + 6}<=0,\"n/a\",{noi}/({ltc}*{L}{hdr + 6}*{mc}))",
-            hdr + 11: f"=IF({L}{hdr + 7}<=0,\"n/a\",{noi}/({ltc}*{L}{hdr + 7}*{mc}))",
+            hdr + 8: f"={tau}*MAX(0,{L}{hdr + 6})",
+            hdr + 9: f"={noi}-{L}{hdr + 8}",
+            hdr + 10: f"=IF({L}{hdr + 6}<=0,\"n/a\",{L}{hdr + 9}/{L}{hdr + 6})",
+            hdr + 11: f"=IF({L}{hdr + 7}<=0,\"n/a\",{L}{hdr + 9}/{L}{hdr + 7})",
+            hdr + 12: f"=IF({L}{hdr + 6}<=0,\"n/a\",{L}{hdr + 9}/({ltc}*{L}{hdr + 6}*{mc}))",
+            hdr + 13: f"=IF({L}{hdr + 7}<=0,\"n/a\",{L}{hdr + 9}/({ltc}*{L}{hdr + 7}*{mc}))",
         }
         max_ref = f"{L}{hdr + 4}" if rank_basis == "gross" else f"{L}{hdr + 5}"
-        yoc_ref = f"{L}{hdr + 8}" if rank_basis == "gross" else f"{L}{hdr + 9}"
-        dscr_ref = f"{L}{hdr + 10}" if rank_basis == "gross" else f"{L}{hdr + 11}"
-        f[hdr + 12] = f"={max_ref}-{A}"
-        f[hdr + 13] = f"=IF({max_ref}<=0,\"n/a\",{A}/{max_ref})"
-        f[hdr + 14] = f"=IF({max_ref}<=0,\"YES\",IF({A}>{max_ref}*1.2,\"YES\",\"no\"))"
-        f[hdr + 15] = (
+        yoc_ref = f"{L}{hdr + 10}" if rank_basis == "gross" else f"{L}{hdr + 11}"
+        dscr_ref = f"{L}{hdr + 12}" if rank_basis == "gross" else f"{L}{hdr + 13}"
+        f[hdr + 14] = f"={max_ref}-{A}"
+        f[hdr + 15] = f"=IF({max_ref}<=0,\"n/a\",{A}/{max_ref})"
+        f[hdr + 16] = f"=IF({max_ref}<=0,\"YES\",IF({A}>{max_ref}*1.2,\"YES\",\"no\"))"
+        f[hdr + 17] = (
             f"=IF(AND(ISNUMBER({yoc_ref}),ISNUMBER({dscr_ref}),"
             f"{yoc_ref}>={hurdle_ref},{dscr_ref}>={min_dscr}),\"YES\",\"no\")"
         )
 
-        pct_rows = {hdr + 8, hdr + 9, hdr + 13}
-        dscr_rows = {hdr + 10, hdr + 11}
-        text_rows = {hdr + 14, hdr + 15}
+        pct_rows = {hdr + 10, hdr + 11, hdr + 15}
+        dscr_rows = {hdr + 12, hdr + 13}
+        text_rows = {hdr + 16, hdr + 17}
         for row_i, formula in f.items():
             cell = ws.cell(row=row_i, column=col, value=formula)
             cell.border = BORDER
@@ -526,19 +548,19 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
 
     if top:
         end = get_column_letter(3 + len(top))
-        yoc_rng = f"D{hdr + 8}:{end}{hdr + 9}"
+        yoc_rng = f"D{hdr + 10}:{end}{hdr + 11}"
         ws.conditional_formatting.add(yoc_rng, CellIsRule(
             operator="greaterThanOrEqual", formula=[str(hurdle)], fill=GREEN))
         ws.conditional_formatting.add(yoc_rng, CellIsRule(
             operator="lessThan", formula=[str(hurdle * 0.85)], fill=RED))
-        dscr_rng = f"D{hdr + 10}:{end}{hdr + 11}"
+        dscr_rng = f"D{hdr + 12}:{end}{hdr + 13}"
         ws.conditional_formatting.add(dscr_rng, CellIsRule(
             operator="greaterThanOrEqual", formula=[str(cfg["debt"]["min_dscr"])], fill=GREEN))
         ws.conditional_formatting.add(dscr_rng, CellIsRule(
             operator="lessThan", formula=[str(cfg["debt"]["min_dscr"])], fill=RED))
-        ws.conditional_formatting.add(f"D{hdr + 14}:{end}{hdr + 14}", CellIsRule(
+        ws.conditional_formatting.add(f"D{hdr + 16}:{end}{hdr + 16}", CellIsRule(
             operator="equal", formula=['"YES"'], fill=RED))
-        ws.conditional_formatting.add(f"D{hdr + 15}:{end}{hdr + 15}", CellIsRule(
+        ws.conditional_formatting.add(f"D{hdr + 17}:{end}{hdr + 17}", CellIsRule(
             operator="equal", formula=['"YES"'], fill=GREEN))
 
     ws.freeze_panes = "D1"
@@ -776,6 +798,370 @@ def _tab_unverified(wb: Workbook, rows: list[dict[str, Any]]) -> None:
                 note="§5: a parcel missing any of URL / APN / lat-long / municipality lands here, not in the universe.")
 
 
+
+
+# =============================================================================
+# Tab: Scenarios  (correlated downside, not one-at-a-time)
+# =============================================================================
+
+def _tab_scenarios(wb: Workbook, cfg: dict[str, Any], ask: float | None) -> None:
+    ws = wb.create_sheet("Scenarios")
+    ws["A1"] = "SCENARIO MATRIX — CORRELATED STRESS"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = ("A two-axis grid assumes its axes are independent. They are not. These bundles "
+                "move dues, ramp, pricing, absorption, cost and cap rate together, because in a "
+                "soft cycle they arrive together.")
+    ws["A2"].font = NOTE_FONT
+
+    results = sc.run_all(cfg, ask_price=ask)
+    headers = ["Scenario", "Description", "Required yield + tax", "Binding",
+               "Max land — GROSS", "Max land — NET", "Min DSCR (any yr)", "DSCR breach yrs",
+               "Peak equity", "Equity multiple", "Equity IRR", "Value / cost",
+               "Sell-out (yrs)", "Verdict"]
+    _header_row(ws, headers, row=4)
+
+    for i, r in enumerate(results, start=5):
+        vals = [r.name.upper(), r.label, r.effective_required_yield, r.binding_constraint,
+                r.max_land_gross, r.max_land_net, r.min_dscr_any_year,
+                r.covenant_breach_years, r.peak_equity, r.equity_multiple,
+                r.equity_irr, r.value_to_cost, r.sellout_years, r.verdict]
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row=i, column=c, value=_safe(v))
+            cell.font = BODY_FONT
+            cell.border = BORDER
+        ws.cell(row=i, column=3).number_format = FMT_PCT
+        for col in (5, 6, 9):
+            ws.cell(row=i, column=col).number_format = FMT_USD
+        for col in (7, 10, 12):
+            ws.cell(row=i, column=col).number_format = "0.00x"
+        ws.cell(row=i, column=11).number_format = FMT_PCT
+        ws.cell(row=i, column=13).number_format = FMT_DEC
+        ws.cell(row=i, column=14).fill = GREEN if r.verdict == "CLEARS" else RED
+
+    last = 4 + len(results)
+    sp = sc.scenario_spread(results)
+    row = last + 2
+    ws.cell(row=row, column=1, value="SPREAD ACROSS SCENARIOS").font = SEC_FONT
+    for lbl, v, fmt in [
+        ("Max land (net) — best case", sp["max_land_net_high"], FMT_USD),
+        ("Max land (net) — worst case", sp["max_land_net_low"], FMT_USD),
+        ("Swing", sp["swing"], FMT_USD),
+        ("Scenarios clearing GROSS", f"{sp['scenarios_clearing_gross']} of {sp['total_scenarios']}", None),
+        ("Scenarios clearing NET", f"{sp['scenarios_clearing_net']} of {sp['total_scenarios']}", None),
+        ("Scenarios where covenant holds", f"{sp['scenarios_covenant_ok']} of {sp['total_scenarios']}", None),
+    ]:
+        row += 1
+        ws.cell(row=row, column=1, value=lbl).font = BODY_FONT
+        c = ws.cell(row=row, column=3, value=_safe(v))
+        c.font = Font(name="Calibri", size=10, bold=True)
+        if fmt:
+            c.number_format = fmt
+    row += 2
+    ws.cell(row=row, column=1, value=(
+        "A land-price swing wider than the deal itself means the assumptions, not the site, "
+        "are driving the recommendation.")).font = NOTE_FONT
+
+    _finish(ws, freeze="C5", ncols=len(headers), nrows=last, header_row=4,
+            widths={"A": 12, "B": 38, "C": 18, "D": 10, "E": 19, "F": 19, "G": 16,
+                    "H": 14, "I": 17, "J": 15, "K": 12, "L": 12, "M": 13, "N": 26})
+
+
+# =============================================================================
+# Tab: Cash Flow & Funding
+# =============================================================================
+
+def _tab_cashflow(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+    ws = wb.create_sheet("Cash Flow & Funding")
+    cf = cf_mod.project_cash_flow(cfg, land_price, horizon_operating_years=12)
+    su = cf.sources_uses
+
+    ws["A1"] = "DEVELOPMENT CASH FLOW, PEAK FUNDING AND COVERAGE BY YEAR"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = (f"At a ${land_price:,.0f} land price. Stabilized yield is silent on peak funding "
+                f"and on coverage in every year but one — both are shown here.")
+    ws["A2"].font = NOTE_FONT
+
+    row = 4
+    ws.cell(row=row, column=1, value="SOURCES AND USES").font = SEC_FONT
+    row += 1
+    for lbl, v in [
+        ("Land", su.land), ("Non-land cost (S)", su.non_land_cost), ("Carry", su.carry),
+        ("Operating deficit funded", su.operating_deficit_funded),
+        ("TOTAL USES", su.total_uses), ("", None),
+        ("For-sale net proceeds", su.for_sale_net_proceeds),
+        ("Initiation fee cash", su.initiation_cash),
+        ("Debt drawn", su.debt), ("  Debt capacity at LTC", su.debt_capacity),
+        ("Incentives", su.incentives),
+        ("Residual equity", su.equity_required),
+        ("TOTAL SOURCES", su.total_sources),
+    ]:
+        if lbl:
+            ws.cell(row=row, column=1, value=lbl).font = (
+                Font(name="Calibri", size=10, bold=True) if lbl.isupper() else BODY_FONT)
+            c = ws.cell(row=row, column=3, value=_safe(v))
+            c.number_format = FMT_USD
+            c.border = BORDER
+        row += 1
+
+    row += 1
+    ws.cell(row=row, column=1, value="FUNDING AND RETURN").font = SEC_FONT
+    row += 1
+    for lbl, v, fmt in [
+        ("PEAK EQUITY REQUIREMENT", cf.peak_equity_requirement, FMT_USD),
+        ("  deepest in year", cf.peak_funding_year, FMT_NUM),
+        ("Total contributions", cf.total_contributions, FMT_USD),
+        ("Total distributions", cf.total_distributions, FMT_USD),
+        ("Equity multiple", cf.equity_multiple, "0.00x"),
+        ("Equity IRR", cf.equity_irr, FMT_PCT),
+        ("Cumulative operating deficit", cf.cumulative_operating_deficit, FMT_USD),
+        ("Years with negative NOI", cf.deficit_years, FMT_NUM),
+        ("Min DSCR across the hold", cf.min_dscr, "0.00x"),
+        ("  in year", cf.min_dscr_year, FMT_NUM),
+        ("Exit value", cf.exit_value, FMT_USD),
+        ("Exit net proceeds", cf.exit_net_proceeds, FMT_USD),
+        ("Value / cost", cf.value_to_cost, "0.00x"),
+        ("Profit on cost", cf.profit_on_cost, FMT_USD),
+        ("Break-even exit cap (value = cost)", cf.breakeven_exit_cap, FMT_PCT),
+    ]:
+        ws.cell(row=row, column=1, value=lbl).font = (
+            Font(name="Calibri", size=10, bold=True) if lbl.isupper() else BODY_FONT)
+        c = ws.cell(row=row, column=3, value=_safe(v))
+        c.number_format = fmt
+        c.border = BORDER
+        row += 1
+
+    row += 2
+    hdr = row
+    headers = ["Year", "Phase", "Members", "NOI pre-tax", "Property tax", "NOI after tax",
+               "Initiation cash", "For-sale cash", "Construction draw", "Land",
+               "Debt draw", "Debt service", "Net cash flow", "Cumulative", "DSCR"]
+    _header_row(ws, headers, row=hdr)
+    for i, pd in enumerate(cf.periods, start=hdr + 1):
+        vals = [pd.year, pd.phase, pd.members, pd.noi_pretax, -pd.property_tax if pd.phase == "operating" else 0,
+                pd.noi_after_tax, pd.initiation_cash, pd.for_sale_net_cash,
+                pd.construction_draw, pd.land_payment, pd.debt_draw, pd.debt_service,
+                pd.net_cash_flow, pd.cumulative_cash, pd.dscr]
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row=i, column=c, value=_safe(v))
+            cell.font = BODY_FONT
+            cell.border = BORDER
+        for col in range(4, 15):
+            ws.cell(row=i, column=col).number_format = FMT_USD
+        ws.cell(row=i, column=15).number_format = "0.00x"
+
+    end = hdr + len(cf.periods)
+    ws.conditional_formatting.add(f"O{hdr+1}:O{end}", CellIsRule(
+        operator="lessThan", formula=[str(cfg["debt"]["min_dscr"])], fill=RED))
+    ws.conditional_formatting.add(f"O{hdr+1}:O{end}", CellIsRule(
+        operator="greaterThanOrEqual", formula=[str(cfg["debt"]["min_dscr"])], fill=GREEN))
+    ws.conditional_formatting.add(f"N{hdr+1}:N{end}", CellIsRule(
+        operator="lessThan", formula=["0"], fill=AMBER))
+
+    _finish(ws, freeze=f"C{hdr+1}", ncols=len(headers), nrows=end, header_row=hdr,
+            widths={"A": 7, "B": 14, "C": 9, **{get_column_letter(i): 16 for i in range(4, 16)}})
+
+
+# =============================================================================
+# Tab: Break-Even
+# =============================================================================
+
+def _tab_breakeven(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+    ws = wb.create_sheet("Break-Even")
+    ws["A1"] = "BREAK-EVEN — HOW WRONG CAN THE ASSUMPTIONS BE"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = ("The distance to break-even is the real margin of safety. UNREACHABLE means no "
+                "achievable value of that driver alone flips the test.")
+    ws["A2"].font = NOTE_FONT
+
+    d = rk.direct_break_evens(cfg, land_price)
+    row = 4
+    ws.cell(row=row, column=1, value="STATED IN THE UNITS THE PRINCIPAL THINKS IN").font = SEC_FONT
+    row += 1
+    for lbl, v, fmt in [
+        ("Members at stabilization (modeled)", d["members_at_stabilization"], FMT_NUM),
+        ("Membership cap", d["membership_cap"], FMT_NUM),
+        ("Members needed to cover opex + tax", d["members_to_cover_opex_and_tax"], FMT_NUM),
+        ("Members needed to meet the DSCR covenant", d["members_to_meet_covenant"], FMT_NUM),
+        ("Annual dues (modeled)", d["dues_base"], FMT_USD),
+        ("Annual dues needed to meet the covenant", d["dues_to_meet_covenant"], FMT_USD),
+        ("Annual debt service", d["annual_debt_service"], FMT_USD),
+        ("Annual property tax", d["annual_property_tax"], FMT_USD),
+        ("Fixed cost incl. tax", d["fixed_cost_incl_tax"], FMT_USD),
+        ("Contribution per member", d["per_member_contribution"], FMT_USD),
+    ]:
+        ws.cell(row=row, column=1, value=lbl).font = BODY_FONT
+        c = ws.cell(row=row, column=4, value=_safe(v))
+        c.number_format, c.border = fmt, BORDER
+        c.font = Font(name="Calibri", size=10, bold=True)
+        row += 1
+
+    need = d["members_to_meet_covenant"]
+    cap = d["membership_cap"]
+    if need and need > cap:
+        row += 1
+        cell = ws.cell(row=row, column=1, value=(
+            f"The covenant requires {need:,.0f} members against a cap of {cap:,.0f}. "
+            f"It is not reachable at this membership cap on these assumptions — the cap, the "
+            f"dues, or the leverage has to move."))
+        cell.font = Font(name="Calibri", size=10, bold=True)
+        cell.fill = RED
+        row += 1
+
+    row += 2
+    hdr = row
+    headers = ["Test", "Driver", "Break-even value", "Move required from base", "Reachable", "Note"]
+    _header_row(ws, headers, row=hdr)
+    for i, be in enumerate(rk.break_even_suite(cfg, land_price), start=hdr + 1):
+        if be.reachable:
+            val = (f"{be.break_even_value:+.0f} bps" if be.driver in rk.RATE_DRIVERS
+                   else f"{be.break_even_value:.3f}x base")
+            move = (f"{be.headroom_pct:+.0f} bps" if be.driver in rk.RATE_DRIVERS
+                    else f"{be.headroom_pct:+.1%}")
+        else:
+            val, move = "UNREACHABLE", "—"
+        vals = [be.metric, be.driver, val, move, "yes" if be.reachable else "NO", be.note]
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row=i, column=c, value=v)
+            cell.font = BODY_FONT
+            cell.border = BORDER
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        if not be.reachable:
+            ws.cell(row=i, column=5).fill = RED
+
+    end = hdr + len(rk.break_even_suite(cfg, land_price))
+    _finish(ws, freeze=f"A{hdr+1}", ncols=len(headers), nrows=end, header_row=hdr,
+            widths={"A": 24, "B": 24, "C": 20, "D": 24, "E": 11, "F": 70})
+
+
+# =============================================================================
+# Tab: Tornado
+# =============================================================================
+
+def _tab_tornado(wb: Workbook, cfg: dict[str, Any]) -> None:
+    ws = wb.create_sheet("Tornado")
+    ws["A1"] = "DRIVER SENSITIVITY — WHERE TO SPEND DILIGENCE DOLLARS"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    swing = cfg["tornado"]["swing_pct"]
+    bps = cfg["tornado"]["rate_swing_bps"]
+    ws["A2"] = (f"Each driver flexed +/-{swing:.0%} ({bps:.0f} bps for rate drivers), one at a "
+                f"time, ranked by how far it moves the maximum supportable land price. "
+                f"Univariate by design — Scenarios handles correlated stress.")
+    ws["A2"].font = NOTE_FONT
+
+    bars, base, name = rk.tornado(cfg)
+    ws["A4"] = f"Base {name} = ${base:,.0f}"
+    ws["A4"].font = SEC_FONT
+
+    headers = ["Rank", "Driver", "Low input", "High input", "Value at low", "Value at high",
+               "Swing", "Share of total swing"]
+    _header_row(ws, headers, row=6)
+    total = sum(b.swing_abs for b in bars) or 1.0
+    for i, b in enumerate(bars, start=1):
+        r = 6 + i
+        lo_in = f"{b.low_input:+.0f} bps" if b.driver in rk.RATE_DRIVERS else f"{b.low_input:.2f}x"
+        hi_in = f"{b.high_input:+.0f} bps" if b.driver in rk.RATE_DRIVERS else f"{b.high_input:.2f}x"
+        vals = [i, b.driver, lo_in, hi_in, b.low_value, b.high_value, b.swing_abs,
+                b.swing_abs / total]
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row=r, column=c, value=_safe(v))
+            cell.font = BODY_FONT
+            cell.border = BORDER
+        for col in (5, 6, 7):
+            ws.cell(row=r, column=col).number_format = FMT_USD
+        ws.cell(row=r, column=8).number_format = FMT_PCT
+
+    end = 6 + len(bars)
+    ws.conditional_formatting.add(f"G7:G{end}", ColorScaleRule(
+        start_type="min", start_color="FFFFFF", end_type="max", end_color="FCA5A5"))
+    _finish(ws, freeze="A7", ncols=len(headers), nrows=end, header_row=6,
+            widths={"A": 6, "B": 24, "C": 14, "D": 14, "E": 18, "F": 18, "G": 18, "H": 20})
+
+
+# =============================================================================
+# Tab: Monte Carlo
+# =============================================================================
+
+def _tab_monte_carlo(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+    ws = wb.create_sheet("Monte Carlo")
+    ws["A1"] = "MONTE CARLO — PROBABILITY THE PROGRAM CLEARS"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    mc = rk.monte_carlo(cfg, land_price)
+    ws["A2"] = (f"{mc.iterations:,} joint draws, triangular distributions. Drivers are drawn "
+                f"INDEPENDENTLY, which understates the tail because real drivers co-move in "
+                f"stress — read this with the Scenarios tab, not instead of it.")
+    ws["A2"].font = NOTE_FONT
+    ws["A3"] = ("Several driver modes are deliberately adverse to the base case, so the median "
+                "draw sits below the base case by construction. This is not an unbiased "
+                "estimate of the base case; it is a stress distribution.")
+    ws["A3"].font = NOTE_FONT
+
+    row = 5
+    for lbl, v, fmt in [
+        ("P(clears GROSS basis)", mc.p_feasible_gross, FMT_PCT),
+        ("P(clears NET basis)", mc.p_feasible_net, FMT_PCT),
+        ("P(DSCR covenant holds every year)", mc.p_covenant_holds, FMT_PCT),
+        ("Mean max supportable land (net)", mc.mean, FMT_USD),
+        ("Standard deviation", mc.stdev, FMT_USD),
+        ("Draws that failed to evaluate", mc.failures, FMT_NUM),
+    ]:
+        ws.cell(row=row, column=1, value=lbl).font = BODY_FONT
+        c = ws.cell(row=row, column=4, value=_safe(v))
+        c.number_format, c.border = fmt, BORDER
+        c.font = Font(name="Calibri", size=10, bold=True)
+        if fmt == FMT_PCT and isinstance(v, float):
+            c.fill = GREEN if v >= 0.6 else (AMBER if v >= 0.25 else RED)
+        row += 1
+
+    row += 1
+    ws.cell(row=row, column=1, value="DISTRIBUTION OF MAX SUPPORTABLE LAND (NET)").font = SEC_FONT
+    row += 1
+    _header_row(ws, ["Percentile", "Max supportable land — net"], row=row)
+    pr = row
+    for k in ("p5", "p10", "p25", "p50", "p75", "p90", "p95"):
+        row += 1
+        ws.cell(row=row, column=1, value=k.upper()).font = BODY_FONT
+        c = ws.cell(row=row, column=2, value=_safe(mc.percentiles.get(k)))
+        c.number_format, c.border = FMT_USD, BORDER
+    _finish(ws, freeze=f"A{pr+1}", ncols=2, nrows=row, header_row=pr,
+            widths={"A": 34, "B": 28})
+
+
+# =============================================================================
+# Tab: Plausibility
+# =============================================================================
+
+def _tab_plausibility(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+    ws = wb.create_sheet("Plausibility")
+    ws["A1"] = "INTERNAL CONSISTENCY AUDIT"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = ("Changes no number. Catches the failure mode where every input block looks "
+                "defensible alone and the combination is impossible.")
+    ws["A2"].font = NOTE_FONT
+
+    rep = rk.plausibility_report(cfg, land_price)
+    ws["A4"] = rep["verdict"]
+    ws["A4"].alignment = Alignment(wrap_text=True, vertical="top")
+    ws["A4"].fill = GREEN if rep["coherent"] and not rep["warn_count"] else (
+        AMBER if rep["coherent"] else RED)
+
+    headers = ["Severity", "Check", "Value", "Plausible band", "Why it matters"]
+    _header_row(ws, headers, row=6)
+    for i, c in enumerate(rep["checks"], start=7):
+        band = f"{c.band[0]:,.4g} to {c.band[1]:,.4g}"
+        vals = [c.severity, c.name, c.value, band, c.message]
+        for j, v in enumerate(vals, start=1):
+            cell = ws.cell(row=i, column=j, value=_safe(v))
+            cell.font = BODY_FONT
+            cell.border = BORDER
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+        sev = ws.cell(row=i, column=1)
+        sev.fill = {"OK": GREEN, "WARN": AMBER, "FAIL": RED}[c.severity]
+
+    end = 6 + len(rep["checks"])
+    _finish(ws, freeze="A7", ncols=len(headers), nrows=end, header_row=6,
+            widths={"A": 10, "B": 28, "C": 14, "D": 20, "E": 85})
+
+
 # =============================================================================
 # Orchestration
 # =============================================================================
@@ -861,6 +1247,16 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     _tab_comps(wb)
     _tab_land_comps(wb)
     _tab_risk(wb, universe)
+    # Analytical depth beyond the eleven §9 tabs: correlated downside, funding
+    # and coverage through time, margin of safety, driver attribution,
+    # distribution of outcomes, and an internal-consistency audit.
+    ref_land = next((p.get("ask_price") for p in survivors if p.get("ask_price")), 0.0) or 0.0
+    _tab_scenarios(wb, cfg, ref_land or None)
+    _tab_cashflow(wb, cfg, ref_land)
+    _tab_breakeven(wb, cfg, ref_land)
+    _tab_tornado(wb, cfg)
+    _tab_monte_carlo(wb, cfg, ref_land)
+    _tab_plausibility(wb, cfg, ref_land)
     _tab_sources(wb, sources or _default_sources())
     _tab_unverified(wb, unverified)
 

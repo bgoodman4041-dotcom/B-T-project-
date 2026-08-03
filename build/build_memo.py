@@ -40,7 +40,8 @@ from reportlab.platypus import (
 )
 
 from build.build_workbook import enrich, load_parcels_csv
-from model import two_stack
+from model import cashflow as cf_mod
+from model import risk as rk, scenarios as sc, two_stack
 
 SERIF = "Times-Roman"
 SERIF_B = "Times-Bold"
@@ -111,6 +112,12 @@ def build_memo(
     rank_basis = cfg["mandate"]["yoc_basis"]["rank_on"]
     sources = sources or _default_sources()
 
+    ask = parcel.get("ask_price") or 0.0
+    cf = cf_mod.project_cash_flow(cfg, ask, horizon_operating_years=12)
+    cov = cf_mod.covenant_report(cf, cfg["debt"]["min_dscr"])
+    spread = sc.scenario_spread(sc.run_all(cfg, ask_price=ask or None))
+    plaus = rk.plausibility_report(cfg, ask)
+
     pid = parcel.get("parcel_id", "UNKNOWN")
     muni = parcel.get("municipality", "—")
     county = parcel.get("county", "—")
@@ -155,8 +162,9 @@ def build_memo(
     site_bits = [
         bullet("Parcel", f"{pid} &middot; APN {parcel.get('apn', '—')} &middot; "
                          f"{parcel.get('latitude', '—')}, {parcel.get('longitude', '—')}"),
-        bullet("Acreage", f"{acres:,.0f} contiguous developable acres" if acres else "unresolved"),
-        bullet("Prior use", str(parcel.get("prior_use", "—")).replace("_", " ")),
+        bullet("Acreage / prior use",
+               (f"{acres:,.0f} contiguous developable acres" if acres else "unresolved")
+               + " &middot; " + str(parcel.get("prior_use", "—")).replace("_", " ")),
         bullet("Nearest residence",
                f"{parcel.get('nearest_residence_ft'):,.0f} ft &middot; "
                f"{parcel.get('residences_within_1mi', '—')} residences within one mile"
@@ -174,17 +182,17 @@ def build_memo(
     m = cfg["income"]["membership"]
     story.append(Paragraph("PROGRAM", S_H))
     story.extend([
-        bullet("Circuit", f"{tr['miles']:.1f} miles configurable pavement"),
-        bullet("Garage condominiums",
-               f"{fs['garage_condos']['units']} units @ {fs['garage_condos']['avg_sf']:,} SF "
-               f"&middot; {_usd(fs['garage_condos']['sale_price_psf'])}/SF"),
-        bullet("Homesites", f"{fs['homesites']['units']} units @ "
-                            f"{_usd(fs['homesites']['price_per_unit_usd'])}"),
+        bullet("Program",
+               f"{tr['miles']:.1f} mi circuit &middot; "
+               f"{fs['garage_condos']['units']} garage condos @ "
+               f"{fs['garage_condos']['avg_sf']:,} SF / "
+               f"{_usd(fs['garage_condos']['sale_price_psf'])}/SF &middot; "
+               f"{fs['homesites']['units']} homesites @ "
+               f"{_usd(fs['homesites']['price_per_unit_usd'])}"),
         bullet("Membership", f"{m['cap']} cap &middot; "
                              f"{_usd(m['initiation_fee_usd'])} initiation &middot; "
-                             f"{_usd(m['annual_dues_usd'])} dues"),
-        bullet("Hold structure", "Merchant build — garage condos and homesites both sold; "
-                                 "for-sale proceeds offset the net basis only"),
+                             f"{_usd(m['annual_dues_usd'])} dues &middot; merchant build, "
+                             f"both for-sale components sold"),
     ])
 
     # --- Underwriting --------------------------------------------------------
@@ -212,7 +220,37 @@ def build_memo(
                f"gross {_x(parcel.get('dscr_gross_at_ask'))} &middot; "
                f"net {_x(parcel.get('dscr_net_at_ask'))} &middot; "
                f"covenant floor {diag['min_dscr']:.2f}&times;"),
+        bullet("Property tax", f"{_usd(diag['property_tax_annual'])}/yr &mdash; "
+                               f"{diag['tax_load']:.2%} of gross basis, which adds directly "
+                               f"to the required yield"),
     ])
+
+    # --- Downside ------------------------------------------------------------
+    story.append(Paragraph("DOWNSIDE AND COVERAGE", S_H))
+    story.extend([
+        bullet("Peak equity requirement",
+               f"{_usd(cf.peak_equity_requirement)} in year {cf.peak_funding_year} &mdash; "
+               f"before condo closings and initiation fees arrive"),
+        bullet("Minimum DSCR across the hold",
+               f"{_x(cf.min_dscr)} in year {cf.min_dscr_year} against a "
+               f"{diag['min_dscr']:.2f}&times; floor &middot; "
+               f"{cov['breach_count']} breach year(s) of {len(cf.dscr_by_year)}"),
+        bullet("Value vs cost",
+               f"{cf.value_to_cost:.2f}&times; at a {cfg['income']['exit_cap']:.2%} exit cap "
+               f"&middot; break-even exit cap "
+               f"{(f'{cf.breakeven_exit_cap:.2%}' if cf.breakeven_exit_cap else 'n/a')}"),
+        bullet("Scenario range (max land, net)",
+               f"{_usd(spread['max_land_net_high'])} best case to "
+               f"{_usd(spread['max_land_net_low'])} severe &middot; "
+               f"{spread['scenarios_clearing_gross']} of {spread['total_scenarios']} "
+               f"scenarios clear the gross test"),
+    ])
+    if plaus["fail_count"]:
+        story.append(Paragraph(
+            f"{DIAMOND}&nbsp;<b>Internal consistency:</b> {plaus['fail_count']} implausible "
+            f"and {plaus['warn_count']} questionable input relationship(s). "
+            f"{[c.name for c in plaus['checks'] if c.severity == 'FAIL'][0]} is the worst.",
+            S_BULLET))
     story.append(Paragraph(
         "Initiation fees are amortized over expected member tenure, not capitalized into NOI; "
         "the workbook Sensitivity tab carries the fully-excluded and fully-capitalized "
@@ -224,11 +262,11 @@ def build_memo(
     story.append(Paragraph("PATH TO CONTROL", S_H))
     story.extend([
         bullet("Owner", f"{parcel.get('owner_name') or '—'} &middot; "
-                        f"{str(parcel.get('owner_type', '—')).replace('_', ' ')}"),
-        bullet("Days on market", str(parcel.get("days_on_market", "—"))),
+                        f"{str(parcel.get('owner_type', '—')).replace('_', ' ')} &middot; "
+                        f"{parcel.get('days_on_market', '—')} DOM &middot; abatement path "
+                        f"{parcel.get('tax_abatement_path') or 'unresolved'}"),
         bullet("Structure", "24-month option with entitlement contingency; extension fees "
                             "credited to purchase price at closing"),
-        bullet("Abatement path", str(parcel.get("tax_abatement_path") or "unresolved")),
     ])
 
     # --- Risks ---------------------------------------------------------------
@@ -237,7 +275,7 @@ def build_memo(
     if infeasible:
         flags.insert(0, "PROGRAM-INFEASIBLE — revenue assumptions unverified and below the "
                         "level required to clear the hurdle")
-    for f in flags[:5]:
+    for f in flags[:3]:
         story.append(Paragraph(f"{DIAMOND}&nbsp;{f}", S_BULLET))
     if not flags:
         story.append(Paragraph(f"{DIAMOND}&nbsp;No screen flags raised.", S_BULLET))
@@ -245,9 +283,13 @@ def build_memo(
     # --- Ask -----------------------------------------------------------------
     story.append(Paragraph("ASK", S_H))
     if infeasible:
-        ask_txt = ("Approval to commission the verified comp study (§7) and re-base dues, "
-                   "membership cap, and ancillary revenue against it. No capital at risk, no "
-                   "site under control, until the program clears the hurdle on paper.")
+        ask_txt = (
+            "Approval to commission the verified comp study (§7) and re-base dues, membership "
+            "cap, ancillary revenue and the for-sale margin against it. Diligence priority is "
+            "set by the Tornado tab, not by intuition. No capital at risk and no site under "
+            "control until the program clears the binding test on paper, the covenant holds in "
+            "every year of the hold rather than at stabilization only, and the internal "
+            "consistency audit is clean.")
     else:
         ask_txt = (f"Approval to execute a 24-month option on {pid} at or below "
                    f"{_usd(parcel.get('max_land_gross'))}, and to fund Phase I, a boundary "

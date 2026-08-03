@@ -99,6 +99,14 @@ debt:
   permanent_rate: 0.0725       # takeout/permanent coupon
   amortization_years: 25
   periods_per_year: 12
+
+  # Which cost basis sizes the PERMANENT loan on the retained club.
+  # `net` is the economically correct treatment for a merchant build: condo and
+  # homesite closings retire construction debt, so the permanent note is
+  # secured only by the retained income asset. Sizing it on `gross` lends
+  # against collateral that has already been sold and moves DSCR by roughly
+  # 2.4x -- it is the single most consequential switch in the debt block.
+  permanent_sizing_basis: net    # net | gross
   note: >
     Permanent coupon and amortization are ASSUMED, not quoted. 7.25% sits
     inside the 6.5%-8% range reported for commercial mortgages in 2026 [S2],
@@ -150,17 +158,43 @@ income:
     service_dept_net_contribution: 420000
     ground_rent: 0               # zero: merchant build, both components sold
 
-  opex_annual_usd:               # at stabilization
+  opex_annual_usd:               # at stabilization, EXCLUDING property tax
     club_and_fb_operations: 1450000
     track_and_grounds: 980000
-    insurance: 520000
+    insurance: 520000            # motorsport liability is hard to place; likely light
     general_admin: 610000
     repairs_maintenance: 440000
+    member_acquisition: 260000   # sales and marketing to replace churn
+
+  # ---------------------------------------------------------------------------
+  # PROPERTY TAX — modeled as a rate on assessed value, not a flat line.
+  # ---------------------------------------------------------------------------
+  # NY, CT and NJ carry some of the highest effective commercial property tax
+  # rates in the country. A flat placeholder would be indefensible and a zero
+  # line is simply wrong, so tax scales with the basis actually built.
+  #
+  # This makes NOI a function of the basis, which would normally destroy the
+  # closed-form land solve. It does not: because tax is proportional to basis,
+  #
+  #     (NOI_0 - tau*B) / B = h    =>    B = NOI_0 / (h + tau)
+  #
+  # so an ad-valorem tax is exactly equivalent to ADDING tau to the required
+  # yield. The inversion stays exact. See model/two_stack.py::tax_load.
+  property_tax:
+    basis: assumed
+    # Share of the gross basis that stays on the club's tax bill. Sold garage
+    # condos and homesites are separately assessed to their owners once
+    # conveyed, so the retained club is not taxed on them.
+    taxable_share_of_gross_basis: 0.65
+    assessment_ratio: 0.70       # assessed value as a share of cost
+    effective_rate: 0.0225       # combined municipal/county/school
+    abatement_pct: 0.00          # base case: NO PILOT. Upside only.
 
   management_fee_pct_egi: 0.040
   replacement_reserve_pct_egi: 0.025
 
   exit_cap: 0.0725               # for development-spread reporting
+  exit_cost_pct: 0.020           # disposition costs at sale
 
 # -----------------------------------------------------------------------------
 # STACK A — FOR-SALE  (velocity, not yield)
@@ -248,3 +282,105 @@ sensitivity:
   annual_dues_usd: [16000, 19000, 22000, 25000, 28000]
   track_hard_cost_per_mile_usd: [3400000, 3800000, 4200000, 4600000, 5000000]
   absorption_years: [4, 5, 6, 7, 8]
+
+# -----------------------------------------------------------------------------
+# SCENARIOS — coherent bundles, not one-at-a-time flexes
+# -----------------------------------------------------------------------------
+# A two-axis grid implicitly assumes the axes are independent. They are not. A
+# soft cycle hits dues, absorption, condo pricing, construction cost and exit
+# cap AT THE SAME TIME, and correlated stress is what actually kills programs.
+# These bundles move the drivers together in the directions they historically
+# co-move. Multipliers apply to the base case above.
+scenarios:
+  basis: assumed
+
+  base:
+    label: "Base — as configured"
+
+  downside:
+    label: "Downside — soft cycle, slow lease-up"
+    dues_factor: 0.88
+    cap_factor: 0.84             # membership cap achieved
+    ancillary_factor: 0.80
+    condo_psf_factor: 0.88
+    homesite_price_factor: 0.88
+    absorption_slowdown: 1.45    # sell-out period multiplier
+    hard_cost_factor: 1.10
+    opex_factor: 1.06
+    exit_cap_bps: 75             # cap rate widening
+    perm_rate_bps: 75
+    ramp_stretch: 1.35           # ramp takes longer
+
+  severe:
+    label: "Severe — recession, entitlement drag, cost shock"
+    dues_factor: 0.78
+    cap_factor: 0.68
+    ancillary_factor: 0.62
+    condo_psf_factor: 0.75
+    homesite_price_factor: 0.72
+    absorption_slowdown: 2.10
+    hard_cost_factor: 1.22
+    opex_factor: 1.12
+    exit_cap_bps: 175
+    perm_rate_bps: 175
+    ramp_stretch: 1.80
+
+  upside:
+    label: "Upside — pricing power, PILOT secured"
+    dues_factor: 1.15
+    cap_factor: 1.00
+    ancillary_factor: 1.18
+    condo_psf_factor: 1.12
+    homesite_price_factor: 1.10
+    absorption_slowdown: 0.85
+    hard_cost_factor: 0.96
+    opex_factor: 0.97
+    exit_cap_bps: -50
+    perm_rate_bps: -50
+    ramp_stretch: 0.85
+    abatement_pct: 0.60          # IDA PILOT / EDA secured
+
+# -----------------------------------------------------------------------------
+# MONTE CARLO — distribution, not a point estimate
+# -----------------------------------------------------------------------------
+# Triangular distributions (low, mode, high) as multipliers on the base case.
+# Triangular is deliberate: it is the honest shape when you have a plausible
+# range and a best guess but no data to justify a variance.
+monte_carlo:
+  basis: assumed
+  iterations: 4000
+  seed: 20260803
+  drivers:
+    dues_factor:            [0.80, 1.00, 1.15]
+    cap_factor:             [0.65, 0.95, 1.00]
+    ancillary_factor:       [0.60, 1.00, 1.20]
+    condo_psf_factor:       [0.75, 1.00, 1.12]
+    hard_cost_factor:       [0.96, 1.05, 1.30]
+    opex_factor:            [0.95, 1.02, 1.15]
+    absorption_slowdown:    [0.85, 1.20, 2.20]
+    exit_cap_bps:           [-50, 25, 200]
+    perm_rate_bps:          [-50, 25, 200]
+
+# -----------------------------------------------------------------------------
+# TORNADO — one-at-a-time driver ranking
+# -----------------------------------------------------------------------------
+tornado:
+  basis: assumed
+  swing_pct: 0.15              # +/- applied to each multiplicative driver
+  rate_swing_bps: 100          # +/- applied to rate-style drivers
+
+# -----------------------------------------------------------------------------
+# PLAUSIBILITY BANDS — internal-consistency guardrails
+# -----------------------------------------------------------------------------
+# These do not change any number. They catch pro formas that do not hang
+# together -- the failure mode where each block looks defensible alone and the
+# combination is impossible. Bands are judgment, flagged as assumed.
+plausibility:
+  basis: assumed
+  for_sale_gross_margin: [0.10, 0.35]      # merchant-build norm
+  condo_price_to_cost_ratio: [1.25, 1.85]
+  opex_ratio_of_egi: [0.45, 0.80]          # private club operating ratio
+  property_tax_pct_of_egi: [0.05, 0.25]
+  members_per_track_mile: [40, 90]
+  reserve_per_track_mile_usd: [120000, 400000]
+  value_to_cost: [0.90, 1.60]

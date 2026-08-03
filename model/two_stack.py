@@ -24,10 +24,16 @@ where P is net for-sale proceeds after cost of sale and G is any capital
 incentive offset. Carry accrues on land too, which is why it multiplies the sum
 rather than sitting inside S.
 
-Inverting YoC = NOI / basis = h for L:
+Property tax is ad valorem, so NOI depends on the basis. That does NOT break
+the closed form -- because the tax is proportional, it is equivalent to adding
+tau to the required yield:
 
-    gross:  L* = NOI / (h x (1 + k)) - S
-    net:    L* = (NOI / h + P + G) / (1 + k) - S
+    (NOI_0 - tau*B) / B = h   =>   B = NOI_0 / (h + tau)
+
+Inverting for L, with y = h + tau:
+
+    gross:  G* = NOI_0 / y                        then L* = G*/(1+k) - S
+    net:    G* = (NOI_0 + h*(P + Y)) / y          then L* = G*/(1+k) - S
 
 Both are exact. No solver, no iteration.
 """
@@ -44,6 +50,19 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "underwriting_
 
 InitiationMode = Literal["amortized", "excluded", "capitalized"]
 YoCBasis = Literal["gross", "net"]
+
+# Pass/fail decisions compare floats against a threshold. A deal solved to sit
+# exactly ON its covenant lands a couple of ulps below it -- 1.2999999999999998
+# against a 1.30 floor -- and an exact `>=` then reports a compliant deal as a
+# breach. Every threshold comparison goes through `_at_least`.
+_BOUNDARY_TOL = 1e-9
+
+
+def _at_least(value: float, floor: float) -> bool:
+    """True when `value` meets `floor` within floating-point tolerance."""
+    if value != value:                      # nan never clears
+        return False
+    return value >= floor - abs(floor) * _BOUNDARY_TOL - _BOUNDARY_TOL
 
 
 # =============================================================================
@@ -363,8 +382,11 @@ class UnderwritingResult:
     ask_price: float | None
 
     stabilization_year: int
-    stabilized_noi: float
-    year5_noi: float
+    stabilized_noi: float            # PRE-TAX
+    year5_noi: float                 # PRE-TAX
+    tax_load: float                  # tau, as a fraction of gross basis
+    property_tax_at_max_land: float
+    stabilized_noi_after_tax: float
 
     cost: CostStack = field(repr=False)
     for_sale: ForSaleResult = field(repr=False)
@@ -397,6 +419,38 @@ class UnderwritingResult:
     @property
     def ranking_yoc(self) -> float | None:
         return self.yoc_gross_at_ask
+
+
+def tax_load(cfg: dict[str, Any]) -> float:
+    """
+    Ad-valorem property tax expressed as a fraction of the GROSS cost basis.
+
+        tau = taxable_share x assessment_ratio x effective_rate x (1 - abatement)
+
+    Because the tax is proportional to the basis, netting it out of NOI is
+    algebraically identical to adding tau to the required yield:
+
+        (NOI_0 - tau*B) / B = h   =>   B = NOI_0 / (h + tau)
+
+    That is why an omitted tax line does not just shave NOI -- it shifts the
+    entire required-yield test, and why the closed-form land solve survives.
+    """
+    pt = cfg["income"]["property_tax"]
+    return (
+        pt["taxable_share_of_gross_basis"]
+        * pt["assessment_ratio"]
+        * pt["effective_rate"]
+        * (1 - pt["abatement_pct"])
+    )
+
+
+def property_tax_annual(cfg: dict[str, Any], gross_basis: float) -> float:
+    """Annual tax bill at a given gross basis. Never negative."""
+    return tax_load(cfg) * max(0.0, gross_basis)
+
+
+def noi_after_tax(noi_pretax: float, cfg: dict[str, Any], gross_basis: float) -> float:
+    return noi_pretax - property_tax_annual(cfg, gross_basis)
 
 
 def mortgage_constant(rate: float, amort_years: float, periods_per_year: int = 12) -> float:
@@ -455,10 +509,12 @@ def dscr_at(
     same cost basis under test, so gross and net DSCR mirror gross and net YoC.
     """
     d = cfg["debt"]
-    b = (cost.gross_basis(land_price) if basis == "gross"
-         else cost.net_basis(land_price, for_sale.net_proceeds))
+    g = cost.gross_basis(land_price)
+    b = g if basis == "gross" else cost.net_basis(land_price, for_sale.net_proceeds)
     if b <= 0:
         return float("inf")      # no basis to lever: coverage is unbounded
+    # Property tax is an operating expense; coverage is tested after it.
+    noi = noi_after_tax(noi, cfg, g)
     mc = mortgage_constant(
         d["permanent_rate"], d["amortization_years"], d.get("periods_per_year", 12)
     )
@@ -474,24 +530,41 @@ def max_supportable_land_price(
     for_sale: ForSaleResult,
     hurdle: float,
     basis: YoCBasis,
+    cfg: dict[str, Any] | None = None,
 ) -> float:
     """
-    The price at which YoC equals the hurdle exactly. This number is the
-    deliverable -- the ask is only ever measured against it.
+    The price at which YoC equals the hurdle exactly, solved AFTER property tax.
+    This number is the deliverable -- the ask is only ever measured against it.
+
+    `noi` is PRE-TAX NOI. With tau = tax_load(cfg), the gross test
+
+        (NOI_0 - tau*G) / G = h
+
+    solves to G* = NOI_0 / (h + tau), and the net test
+
+        (NOI_0 - tau*G) / (G - P - Y) = h
+
+    solves to G* = (NOI_0 + h*(P + Y)) / (h + tau). Both then unwind through
+    the carry factor to a land price. Passing cfg=None sets tau to zero, which
+    isolates the pre-tax answer for diagnostics.
 
     Can and does go negative on weak sites: that means the income stack cannot
     carry the vertical even if the dirt were free. A negative result is a real
     answer, not an error, and gets reported as such.
     """
+    tau = tax_load(cfg) if cfg is not None else 0.0
+    denom = hurdle + tau
+    if denom <= 0:
+        raise ValueError("required yield plus tax load must be positive")
+
     if basis == "gross":
-        return noi / (hurdle * (1 + cost.carry_factor)) - cost.non_land_subtotal
-    if basis == "net":
-        return (
-            (noi / hurdle + for_sale.net_proceeds + cost.incentives)
-            / (1 + cost.carry_factor)
-            - cost.non_land_subtotal
-        )
-    raise ValueError(f"unknown basis: {basis}")
+        gross_star = noi / denom
+    elif basis == "net":
+        gross_star = (noi + hurdle * (for_sale.net_proceeds + cost.incentives)) / denom
+    else:
+        raise ValueError(f"unknown basis: {basis}")
+
+    return gross_star / (1 + cost.carry_factor) - cost.non_land_subtotal
 
 
 def yield_on_cost(
@@ -500,16 +573,23 @@ def yield_on_cost(
     cost: CostStack,
     for_sale: ForSaleResult,
     basis: YoCBasis,
+    cfg: dict[str, Any] | None = None,
 ) -> float:
-    """YoC at a stated land price. Negative basis returns -inf, not a crash."""
+    """
+    YoC at a stated land price, computed on NOI AFTER property tax. `noi` is
+    pre-tax. Negative basis returns -inf, not a crash.
+    """
+    g = cost.gross_basis(land_price)
     if basis == "gross":
-        b = cost.gross_basis(land_price)
+        b = g
     elif basis == "net":
         b = cost.net_basis(land_price, for_sale.net_proceeds)
     else:
         raise ValueError(f"unknown basis: {basis}")
     if b <= 0:
         return float("-inf")
+    if cfg is not None:
+        noi = noi_after_tax(noi, cfg, g)
     return noi / b
 
 
@@ -543,12 +623,14 @@ def underwrite(
     cost = build_cost_stack(cfg, for_sale, track_cost_per_mile)
 
     # Solve at the binding constraint, and keep the two components visible.
-    max_gross = max_supportable_land_price(stabilized_noi, cost, for_sale, required, "gross")
-    max_net = max_supportable_land_price(stabilized_noi, cost, for_sale, required, "net")
+    max_gross = max_supportable_land_price(
+        stabilized_noi, cost, for_sale, required, "gross", cfg)
+    max_net = max_supportable_land_price(
+        stabilized_noi, cost, for_sale, required, "net", cfg)
     max_gross_yield = max_supportable_land_price(
-        stabilized_noi, cost, for_sale, hurdle, "gross")
+        stabilized_noi, cost, for_sale, hurdle, "gross", cfg)
     max_gross_dscr = max_supportable_land_price(
-        stabilized_noi, cost, for_sale, dscr_implied_yield(cfg), "gross")
+        stabilized_noi, cost, for_sale, dscr_implied_yield(cfg), "gross", cfg)
 
     if ask_price is None:
         yg = yn = yg5 = yn5 = None
@@ -559,10 +641,10 @@ def underwrite(
         infeasible = False
         cleared = False
     else:
-        yg = yield_on_cost(stabilized_noi, ask_price, cost, for_sale, "gross")
-        yn = yield_on_cost(stabilized_noi, ask_price, cost, for_sale, "net")
-        yg5 = yield_on_cost(year5_noi, ask_price, cost, for_sale, "gross")
-        yn5 = yield_on_cost(year5_noi, ask_price, cost, for_sale, "net")
+        yg = yield_on_cost(stabilized_noi, ask_price, cost, for_sale, "gross", cfg)
+        yn = yield_on_cost(stabilized_noi, ask_price, cost, for_sale, "net", cfg)
+        yg5 = yield_on_cost(year5_noi, ask_price, cost, for_sale, "gross", cfg)
+        yn5 = yield_on_cost(year5_noi, ask_price, cost, for_sale, "net", cfg)
 
         exit_cap = cfg["income"]["exit_cap"]
         spread_g = (yg - exit_cap) * 10_000 if yg != float("-inf") else None
@@ -571,7 +653,7 @@ def underwrite(
         dscr_g = dscr_at(stabilized_noi, ask_price, cost, for_sale, cfg, "gross")
         dscr_n = dscr_at(stabilized_noi, ask_price, cost, for_sale, cfg, "net")
         dscr_on_rank = dscr_g if rank_basis == "gross" else dscr_n
-        dscr_ok = dscr_on_rank >= min_dscr
+        dscr_ok = _at_least(dscr_on_rank, min_dscr)
 
         max_on_rank = max_gross if rank_basis == "gross" else max_net
         headroom = max_on_rank - ask_price
@@ -580,7 +662,7 @@ def underwrite(
         infeasible = max_on_rank <= 0 or ask_price > max_on_rank * 1.20
         # "Cleared" now means BOTH tests pass: the equity hurdle and the
         # covenant. A deal that yields 6.6% but covers at 1.15x is not financeable.
-        cleared = ((yg if rank_basis == "gross" else yn) >= hurdle) and dscr_ok
+        cleared = _at_least(yg if rank_basis == "gross" else yn, hurdle) and dscr_ok
 
     return UnderwritingResult(
         parcel_id=parcel_id,
@@ -588,6 +670,10 @@ def underwrite(
         stabilization_year=stab_year,
         stabilized_noi=stabilized_noi,
         year5_noi=year5_noi,
+        tax_load=tax_load(cfg),
+        property_tax_at_max_land=property_tax_annual(cfg, cost.gross_basis(max_gross)),
+        stabilized_noi_after_tax=noi_after_tax(
+            stabilized_noi, cfg, cost.gross_basis(max_gross)),
         cost=cost,
         for_sale=for_sale,
         max_land_gross=max_gross,
@@ -689,12 +775,15 @@ def noi_required_for_feasibility(
     hurdle: float,
     basis: YoCBasis,
     land_price: float = 0.0,
+    cfg: dict[str, Any] | None = None,
 ) -> float:
-    """Stabilized NOI needed to hit the hurdle at a given land price."""
+    """PRE-TAX NOI needed to hit the hurdle at a given land price, after tax."""
+    tau = tax_load(cfg) if cfg is not None else 0.0
+    g = cost.gross_basis(land_price)
     if basis == "gross":
-        return hurdle * cost.gross_basis(land_price)
+        return hurdle * g + tau * g
     if basis == "net":
-        return hurdle * cost.net_basis(land_price, for_sale.net_proceeds)
+        return hurdle * cost.net_basis(land_price, for_sale.net_proceeds) + tau * g
     raise ValueError(f"unknown basis: {basis}")
 
 
@@ -713,7 +802,8 @@ def feasibility_diagnostic(cfg: dict[str, Any]) -> dict[str, Any]:
     implied = dscr_implied_yield(cfg)
 
     r = underwrite(cfg, parcel_id="DIAGNOSTIC")
-    required = noi_required_for_feasibility(r.cost, r.for_sale, req_yield, rank_basis, 0.0)
+    required = noi_required_for_feasibility(
+        r.cost, r.for_sale, req_yield, rank_basis, 0.0, cfg)
     actual = r.stabilized_noi
     max_land = r.max_land_gross if rank_basis == "gross" else r.max_land_net
 
@@ -731,7 +821,10 @@ def feasibility_diagnostic(cfg: dict[str, Any]) -> dict[str, Any]:
         "mortgage_constant": mortgage_constant(
             cfg["debt"]["permanent_rate"], cfg["debt"]["amortization_years"],
             cfg["debt"].get("periods_per_year", 12)),
+        "tax_load": tax_load(cfg),
         "stabilized_noi": actual,
+        "stabilized_noi_after_tax": r.stabilized_noi_after_tax,
+        "property_tax_annual": r.property_tax_at_max_land,
         "noi_required_at_zero_land": required,
         "noi_gap": required - actual,
         "noi_multiple_required": (required / actual) if actual > 0 else float("inf"),

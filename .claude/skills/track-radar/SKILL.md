@@ -29,11 +29,35 @@ mandate:
 Anything in that file marked `basis: assumed` is a placeholder, not an
 estimate. Say so whenever you report a number derived from one.
 
-## Step 0 — Check whether the program is even feasible
+## Step 0a — Is the pro forma internally coherent?
+
+```bash
+python3 -c "
+from model.two_stack import load_config
+from model.risk import plausibility_report
+print(plausibility_report(load_config())['verdict'])"
+```
+
+If this reports implausible relationships, stop. A land price computed on inputs
+that cannot all be true is arithmetic on nonsense. The live failure is a 53%
+for-sale gross margin subsidising an income stack that cannot cover its opex.
+
+## Step 0b — Check whether the program is even feasible
 
 ```bash
 python3 -c "from model.two_stack import load_config, feasibility_diagnostic; \
 print(feasibility_diagnostic(load_config())['verdict'])"
+```
+
+Remember the binding test is `max(hurdle, DSCR-implied) + tau`, currently
+**7.79%** — not 6.50%. Then run the downside and the funding profile:
+
+```bash
+python3 -c "
+from model.two_stack import load_config
+from model.scenarios import run_all, scenario_spread
+for r in run_all(load_config()): print(f'{r.name:9} {r.verdict}')
+print(scenario_spread(run_all(load_config())))"
 ```
 
 If this returns `PROGRAM-INFEASIBLE`, the income stack cannot carry the
