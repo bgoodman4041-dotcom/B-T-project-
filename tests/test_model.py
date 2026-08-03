@@ -30,20 +30,34 @@ def approx(a: float, b: float, tol: float = 1e-6) -> bool:
 # The round-trip identity — the test that matters
 # =============================================================================
 
-def test_max_land_price_round_trips_to_hurdle_gross():
+def test_max_land_price_round_trips_to_binding_yield_gross():
+    """
+    The solved land price must return the yield it was solved at. That is the
+    BINDING yield -- the tighter of the equity hurdle and the DSCR-implied
+    yield -- not the hurdle in isolation.
+    """
     r = two_stack.underwrite(CFG, "RT-GROSS")
     y = two_stack.yield_on_cost(
         r.stabilized_noi, r.max_land_gross, r.cost, r.for_sale, "gross"
     )
-    assert approx(y, HURDLE), f"gross round-trip gave {y:.8f}, expected {HURDLE}"
+    assert approx(y, r.required_yield), f"gross round-trip gave {y:.8f}"
 
 
-def test_max_land_price_round_trips_to_hurdle_net():
+def test_max_land_price_round_trips_to_binding_yield_net():
     r = two_stack.underwrite(CFG, "RT-NET")
     y = two_stack.yield_on_cost(
         r.stabilized_noi, r.max_land_net, r.cost, r.for_sale, "net"
     )
-    assert approx(y, HURDLE), f"net round-trip gave {y:.8f}, expected {HURDLE}"
+    assert approx(y, r.required_yield), f"net round-trip gave {y:.8f}"
+
+
+def test_yield_only_land_price_still_round_trips_to_the_hurdle():
+    """The isolated equity-hurdle solve must remain exact at 6.50%."""
+    r = two_stack.underwrite(CFG, "RT-YIELD")
+    y = two_stack.yield_on_cost(
+        r.stabilized_noi, r.max_land_gross_yield_only, r.cost, r.for_sale, "gross"
+    )
+    assert approx(y, HURDLE), f"yield-only round-trip gave {y:.8f}, expected {HURDLE}"
 
 
 def test_net_basis_supports_more_land_than_gross():
@@ -60,6 +74,117 @@ def test_carry_accrues_on_land_not_just_improvements():
     b0 = r.cost.gross_basis(0)
     b1 = r.cost.gross_basis(10_000_000)
     assert approx(b1 - b0, 10_000_000 * (1 + r.cost.carry_factor))
+
+
+# =============================================================================
+# DSCR — the covenant test that runs alongside the yield hurdle
+# =============================================================================
+
+def test_mortgage_constant_matches_closed_form():
+    """MC = m*i / (1 - (1+i)^-n). Verified against a hand calculation."""
+    mc = two_stack.mortgage_constant(0.0725, 25, 12)
+    i = 0.0725 / 12
+    n = 25 * 12
+    expected = 12 * i / (1 - (1 + i) ** -n)
+    assert approx(mc, expected)
+    # $1M at 7.25% over 25 years amortizes at roughly $86.7k/yr.
+    assert 0.086 < mc < 0.087
+
+
+def test_mortgage_constant_edge_cases():
+    # Zero coupon returns principal only.
+    assert approx(two_stack.mortgage_constant(0.0, 25, 12), 1 / 25)
+    # Longer amortization always lowers the constant.
+    assert two_stack.mortgage_constant(0.0725, 30) < two_stack.mortgage_constant(0.0725, 25)
+    # Higher coupon always raises it.
+    assert two_stack.mortgage_constant(0.09, 25) > two_stack.mortgage_constant(0.0725, 25)
+    try:
+        two_stack.mortgage_constant(0.07, 0)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("zero amortization must raise")
+
+
+def test_dscr_implied_yield_is_product_of_three_terms():
+    d = CFG["debt"]
+    mc = two_stack.mortgage_constant(
+        d["permanent_rate"], d["amortization_years"], d["periods_per_year"])
+    assert approx(two_stack.dscr_implied_yield(CFG), d["min_dscr"] * d["target_ltc"] * mc)
+
+
+def test_dscr_round_trips_at_max_supportable_land():
+    """
+    At the DSCR-solved land price, coverage must equal the covenant exactly.
+    This is the DSCR analogue of the yield round-trip identity.
+    """
+    r = two_stack.underwrite(CFG, "DSCR-RT")
+    implied = two_stack.dscr_implied_yield(CFG)
+    for basis in ("gross", "net"):
+        land = two_stack.max_supportable_land_price(
+            r.stabilized_noi, r.cost, r.for_sale, implied, basis)
+        got = two_stack.dscr_at(r.stabilized_noi, land, r.cost, r.for_sale, CFG, basis)
+        assert approx(got, CFG["debt"]["min_dscr"]), f"{basis}: got {got}"
+
+
+def test_binding_constraint_is_the_tighter_of_the_two():
+    req, which = two_stack.binding_yield(CFG)
+    hurdle = CFG["meta"]["hurdle_yoc"]
+    implied = two_stack.dscr_implied_yield(CFG)
+    assert req == max(hurdle, implied)
+    assert which == ("DSCR" if implied > hurdle else "YIELD")
+
+
+def test_dscr_binds_at_current_assumptions():
+    """
+    Documents the live state: 1.30x at 60% LTC on a 7.25%/25yr note implies a
+    6.77% yield, which is tighter than the 6.50% equity hurdle. If this flips,
+    the assumptions moved and the memo language needs review.
+    """
+    req, which = two_stack.binding_yield(CFG)
+    assert which == "DSCR"
+    assert req > CFG["meta"]["hurdle_yoc"]
+
+
+def test_binding_land_price_is_the_more_conservative():
+    r = two_stack.underwrite(CFG, "BIND")
+    assert r.max_land_gross == min(r.max_land_gross_yield_only, r.max_land_gross_dscr_only)
+
+
+def test_dscr_falls_as_land_price_rises():
+    r = two_stack.underwrite(CFG, "PROBE")
+    lo = two_stack.dscr_at(r.stabilized_noi, 5_000_000, r.cost, r.for_sale, CFG, "net")
+    hi = two_stack.dscr_at(r.stabilized_noi, 50_000_000, r.cost, r.for_sale, CFG, "net")
+    assert lo > hi
+
+
+def test_lower_leverage_relaxes_the_dscr_constraint():
+    low = copy.deepcopy(CFG)
+    low["debt"]["target_ltc"] = 0.45
+    assert two_stack.dscr_implied_yield(low) < two_stack.dscr_implied_yield(CFG)
+    assert (two_stack.underwrite(low, "LOW").max_land_gross
+            > two_stack.underwrite(CFG, "BASE").max_land_gross)
+
+
+def test_higher_dscr_floor_tightens_land_price():
+    tight = copy.deepcopy(CFG)
+    tight["debt"]["min_dscr"] = 1.50
+    assert (two_stack.underwrite(tight, "T").max_land_gross
+            < two_stack.underwrite(CFG, "B").max_land_gross)
+
+
+def test_hurdle_cleared_requires_both_yield_and_coverage():
+    """A deal that yields well but does not cover is not financeable."""
+    r = two_stack.underwrite(CFG, "BOTH", ask_price=1.0)
+    if r.hurdle_cleared:
+        assert r.dscr_cleared, "hurdle_cleared must not be True while DSCR fails"
+
+
+def test_dscr_reported_on_both_bases():
+    r = two_stack.underwrite(CFG, "TWO", ask_price=9_800_000)
+    assert r.dscr_gross_at_ask is not None and r.dscr_net_at_ask is not None
+    # Net basis is smaller, so coverage on it is always the higher number.
+    assert r.dscr_net_at_ask > r.dscr_gross_at_ask
 
 
 # =============================================================================
@@ -190,12 +315,18 @@ def test_negative_max_land_is_infeasible_at_any_ask():
 
 
 def test_hurdle_cleared_exactly_at_max_supportable():
-    """Round-trip through the full underwrite path, on a feasible basis."""
+    """
+    At the binding land price both tests sit exactly on their floor: the yield
+    clears the hurdle with room (because DSCR binds tighter) and coverage lands
+    on the covenant to the cent.
+    """
     cfg = _net_ranked_cfg()
     r0 = two_stack.underwrite(cfg, "PROBE")
     r = two_stack.underwrite(cfg, "AT-MAX", ask_price=r0.max_land_net)
-    assert r.hurdle_cleared
-    assert approx(r.yoc_net_at_ask, HURDLE)
+    assert r.hurdle_cleared, "both yield and coverage must pass at the binding price"
+    assert approx(r.yoc_net_at_ask, r.required_yield)
+    assert r.yoc_net_at_ask >= HURDLE
+    assert approx(r.dscr_net_at_ask, cfg["debt"]["min_dscr"])
 
 
 def test_yoc_falls_as_land_price_rises():

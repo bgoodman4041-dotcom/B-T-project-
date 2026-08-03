@@ -57,6 +57,21 @@ FMT_NUM = "#,##0"
 FMT_DEC = "#,##0.0"
 
 
+def _safe(v: Any) -> Any:
+    """
+    Excel has no representation for inf or nan; writing one yields a file that
+    will not open. Coverage is infinite whenever there is no basis to lever, and
+    a sensitivity cell is nan where the ramp breaks -- both are reachable, so
+    every numeric written to a sheet goes through here.
+    """
+    if isinstance(v, float):
+        if v != v:                      # nan
+            return "n/a"
+        if v in (float("inf"), float("-inf")):
+            return "n/m"
+    return v
+
+
 def _header_row(ws: Worksheet, labels: list[str], row: int = 1) -> None:
     for c, label in enumerate(labels, start=1):
         cell = ws.cell(row=row, column=c, value=label)
@@ -105,8 +120,9 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     ws["A1"] = "TRACK BOSS — CAR COMMUNITY SITE RADAR"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True)
     ws["A2"] = (
-        f"NY / CT / NJ  ·  {hurdle:.2%} YoC hurdle  ·  ranked on {rank_basis.upper()} basis  ·  "
-        f"generated {dt.date.today():%Y-%m-%d}"
+        f"NY / CT / NJ  ·  {hurdle:.2%} YoC hurdle  ·  {diag['min_dscr']:.2f}x min DSCR  ·  "
+        f"binding test {diag['required_yield']:.2%} ({diag['binding_constraint']})  ·  "
+        f"ranked on {rank_basis.upper()} basis  ·  generated {dt.date.today():%Y-%m-%d}"
     )
     ws["A2"].font = NOTE_FONT
 
@@ -127,9 +143,12 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         ("Non-land cost basis", diag["non_land_cost"], FMT_USD),
         ("For-sale net proceeds", diag["for_sale_net_proceeds"], FMT_USD),
         ("Max supportable land (ranking basis)", diag["max_supportable_land"], FMT_USD),
+        ("Equity hurdle", diag["hurdle"], FMT_PCT),
+        ("DSCR-implied yield", diag["dscr_implied_yield"], FMT_PCT),
+        ("Required yield (binding)", diag["required_yield"], FMT_PCT),
     ], start=9):
         ws.cell(row=i, column=1, value=label).font = BODY_FONT
-        c = ws.cell(row=i, column=3, value=val)
+        c = ws.cell(row=i, column=3, value=_safe(val))
         c.number_format = fmt
         c.font = Font(name="Calibri", size=10, bold=True)
 
@@ -138,7 +157,8 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     headers = [
         "Rank", "Parcel ID", "Municipality", "County", "ST", "Acres", "Prior Use",
         "Best Drive (min)", "Ask", "Max Land — Gross", "Max Land — Net",
-        "YoC @ Ask — Gross", "YoC @ Ask — Net", "Headroom", "Composite", "Grade",
+        "YoC @ Ask — Gross", "YoC @ Ask — Net", "DSCR @ Ask — Gross", "DSCR @ Ask — Net",
+        "Headroom", "Composite", "Grade",
         "Why this one wins", "What would kill it", "Link",
     ]
     _header_row(ws, headers, row=start)
@@ -149,21 +169,24 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
             i, r.get("parcel_id"), r.get("municipality"), r.get("county"), r.get("state"),
             r.get("contiguous_developable_acres"), r.get("prior_use"), r.get("best_drive_min"),
             r.get("ask_price"), r.get("max_land_gross"), r.get("max_land_net"),
-            r.get("yoc_gross_at_ask"), r.get("yoc_net_at_ask"), r.get("headroom_to_ask"),
+            r.get("yoc_gross_at_ask"), r.get("yoc_net_at_ask"),
+            r.get("dscr_gross_at_ask"), r.get("dscr_net_at_ask"), r.get("headroom_to_ask"),
             r.get("composite_score"), r.get("grade"),
             r.get("why_wins", ""), r.get("what_kills", ""), r.get("listing_url"),
         ]
         for c, v in enumerate(vals, start=1):
-            cell = ws.cell(row=rr, column=c, value=v)
+            cell = ws.cell(row=rr, column=c, value=_safe(v))
             cell.font = BODY_FONT
             cell.border = BORDER
-        for col in (9, 10, 11, 14):
+        for col in (9, 10, 11, 16):
             ws.cell(row=rr, column=col).number_format = FMT_USD
         for col in (12, 13):
             ws.cell(row=rr, column=col).number_format = FMT_PCT
-        ws.cell(row=rr, column=15).number_format = FMT_DEC
+        for col in (14, 15):
+            ws.cell(row=rr, column=col).number_format = "0.00x"
+        ws.cell(row=rr, column=17).number_format = FMT_DEC
         if r.get("listing_url"):
-            link = ws.cell(row=rr, column=19)
+            link = ws.cell(row=rr, column=21)
             link.hyperlink = r["listing_url"]
             link.font = Font(name="Calibri", size=10, color="2563EB", underline="single")
 
@@ -176,8 +199,13 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
                                                       fill=AMBER))
     ws.conditional_formatting.add(rng_yoc, CellIsRule(operator="lessThan",
                                                       formula=[str(hurdle * 0.85)], fill=RED))
+    rng_dscr = f"N{start + 1}:O{last}"
+    ws.conditional_formatting.add(rng_dscr, CellIsRule(
+        operator="greaterThanOrEqual", formula=[str(cfg["debt"]["min_dscr"])], fill=GREEN))
+    ws.conditional_formatting.add(rng_dscr, CellIsRule(
+        operator="lessThan", formula=[str(cfg["debt"]["min_dscr"])], fill=RED))
     ws.conditional_formatting.add(
-        f"O{start + 1}:O{last}",
+        f"Q{start + 1}:Q{last}",
         ColorScaleRule(start_type="num", start_value=35, start_color="FEE2E2",
                        mid_type="num", mid_value=60, mid_color="FEF3C7",
                        end_type="num", end_value=85, end_color="D1FAE5"),
@@ -185,8 +213,8 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
 
     _finish(ws, freeze=f"A{start + 1}", ncols=len(headers), nrows=last, header_row=start,
             widths={"A": 6, "B": 14, "C": 20, "D": 14, "E": 5, "F": 9, "G": 20,
-                    "H": 12, "I": 14, "J": 18, "K": 18, "L": 15, "M": 15, "N": 14,
-                    "O": 11, "P": 22, "Q": 50, "R": 50, "S": 32})
+                    "H": 12, "I": 14, "J": 18, "K": 18, "L": 15, "M": 15, "N": 13,
+                    "O": 13, "P": 14, "Q": 11, "R": 22, "S": 50, "T": 50, "U": 32})
 
 
 # =============================================================================
@@ -204,7 +232,7 @@ def _tab_universe(wb: Workbook, rows: list[dict[str, Any]]) -> None:
                 v = ", ".join(str(x) for x in v)
             elif isinstance(v, dict):
                 v = ", ".join(f"{k}:{x}" for k, x in v.items())
-            cell = ws.cell(row=i, column=c, value=v)
+            cell = ws.cell(row=i, column=c, value=_safe(v))
             cell.font = BODY_FONT
             if f.kind == "usd":
                 cell.number_format = FMT_USD
@@ -397,7 +425,30 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     k = put_formula("CARRY FACTOR  (k)", f"={rate}*{avg_out}*{carry_yrs}", "0.0000")
     incent = put_input("Capital incentives (IDA/PILOT/EDA)", cost["incentives_usd"], FMT_USD0,
                        "base case zero — upside only")
-    hurdle_ref = put_input("HURDLE YoC", hurdle, FMT_PCT)
+
+    # --- Debt and coverage ---------------------------------------------------
+    r += 1
+    _section(ws, r, "DEBT AND COVERAGE", 3); r += 1
+    dbt = cfg["debt"]
+    hurdle_ref = put_input("Equity hurdle YoC", hurdle, FMT_PCT)
+    min_dscr = put_input("Minimum DSCR", dbt["min_dscr"], "0.00",
+                         "confirmed by the principal")
+    ltc = put_input("Target LTC", dbt["target_ltc"], FMT_PCT)
+    perm_rate = put_input("Permanent coupon", dbt["permanent_rate"], FMT_PCT)
+    amort = put_input("Amortization (yrs)", dbt["amortization_years"], FMT_NUM)
+    ppy = put_input("Periods per year", dbt.get("periods_per_year", 12), FMT_NUM)
+    mc = put_formula(
+        "Mortgage constant", f"={ppy}*({perm_rate}/{ppy})/(1-(1+{perm_rate}/{ppy})^(-{amort}*{ppy}))",
+        "0.000000", "annual debt service per $1 of loan")
+    dscr_yield = put_formula("DSCR-implied yield", f"={min_dscr}*{ltc}*{mc}", FMT_PCT,
+                             "the yield the covenant alone demands")
+    required_ref = put_formula("REQUIRED YIELD (binding)", f"=MAX({hurdle_ref},{dscr_yield})",
+                               FMT_PCT, "the tighter of hurdle and covenant")
+    ws.cell(row=r, column=1, value="Binding constraint").font = BODY_FONT
+    bc = ws.cell(row=r, column=2, value=f'=IF({dscr_yield}>{hurdle_ref},"DSCR","YIELD")')
+    bc.border, bc.font = BORDER, Font(name="Calibri", size=10, bold=True)
+    bc.alignment = Alignment(horizontal="center")
+    r += 1
 
     # --- Per-parcel block ----------------------------------------------------
     r += 2
@@ -409,8 +460,9 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         "Max supportable land — GROSS", "Max supportable land — NET",
         "Gross cost basis @ ask", "Net cost basis @ ask",
         "YoC @ ask — GROSS", "YoC @ ask — NET",
+        "DSCR @ ask — GROSS", "DSCR @ ask — NET",
         "Headroom vs ask (ranking basis)", "Ask ÷ max supportable",
-        "PRICE-INFEASIBLE (>20% over)", "Clears hurdle",
+        "PRICE-INFEASIBLE (>20% over)", "Clears hurdle AND covenant",
     ]
     for i, lab in enumerate(labels, start=1):
         cell = ws.cell(row=hdr + i, column=1, value=lab)
@@ -430,31 +482,44 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         ask.number_format, ask.fill, ask.border = FMT_USD, INPUT_FILL, BORDER
 
         A = f"{L}{ask_row}"
-        # Closed-form inversions, written as Excel:
-        #   gross: NOI / (h*(1+k)) - S
-        #   net:   (NOI/h + P + G) / (1+k) - S
+        # Closed-form inversions, written as Excel. Solved at the REQUIRED
+        # yield -- the tighter of the equity hurdle and the DSCR-implied yield:
+        #   gross: NOI / (y*(1+k)) - S
+        #   net:   (NOI/y + P + G) / (1+k) - S
+        # DSCR is NOI over debt service, with the loan sized as LTC x basis.
         f = {
-            hdr + 4: f"={noi}/({hurdle_ref}*(1+{k}))-{S}",
-            hdr + 5: f"=({noi}/{hurdle_ref}+{fs_net}+{incent})/(1+{k})-{S}",
+            hdr + 4: f"={noi}/({required_ref}*(1+{k}))-{S}",
+            hdr + 5: f"=({noi}/{required_ref}+{fs_net}+{incent})/(1+{k})-{S}",
             hdr + 6: f"=({A}+{S})*(1+{k})",
             hdr + 7: f"=({A}+{S})*(1+{k})-{fs_net}-{incent}",
             hdr + 8: f"=IF({L}{hdr + 6}<=0,\"n/a\",{noi}/{L}{hdr + 6})",
             hdr + 9: f"=IF({L}{hdr + 7}<=0,\"n/a\",{noi}/{L}{hdr + 7})",
+            hdr + 10: f"=IF({L}{hdr + 6}<=0,\"n/a\",{noi}/({ltc}*{L}{hdr + 6}*{mc}))",
+            hdr + 11: f"=IF({L}{hdr + 7}<=0,\"n/a\",{noi}/({ltc}*{L}{hdr + 7}*{mc}))",
         }
         max_ref = f"{L}{hdr + 4}" if rank_basis == "gross" else f"{L}{hdr + 5}"
         yoc_ref = f"{L}{hdr + 8}" if rank_basis == "gross" else f"{L}{hdr + 9}"
-        f[hdr + 10] = f"={max_ref}-{A}"
-        f[hdr + 11] = f"=IF({max_ref}<=0,\"n/a\",{A}/{max_ref})"
-        f[hdr + 12] = f"=IF({max_ref}<=0,\"YES\",IF({A}>{max_ref}*1.2,\"YES\",\"no\"))"
-        f[hdr + 13] = f"=IF(ISNUMBER({yoc_ref}),IF({yoc_ref}>={hurdle_ref},\"YES\",\"no\"),\"no\")"
+        dscr_ref = f"{L}{hdr + 10}" if rank_basis == "gross" else f"{L}{hdr + 11}"
+        f[hdr + 12] = f"={max_ref}-{A}"
+        f[hdr + 13] = f"=IF({max_ref}<=0,\"n/a\",{A}/{max_ref})"
+        f[hdr + 14] = f"=IF({max_ref}<=0,\"YES\",IF({A}>{max_ref}*1.2,\"YES\",\"no\"))"
+        f[hdr + 15] = (
+            f"=IF(AND(ISNUMBER({yoc_ref}),ISNUMBER({dscr_ref}),"
+            f"{yoc_ref}>={hurdle_ref},{dscr_ref}>={min_dscr}),\"YES\",\"no\")"
+        )
 
+        pct_rows = {hdr + 8, hdr + 9, hdr + 13}
+        dscr_rows = {hdr + 10, hdr + 11}
+        text_rows = {hdr + 14, hdr + 15}
         for row_i, formula in f.items():
             cell = ws.cell(row=row_i, column=col, value=formula)
             cell.border = BORDER
             cell.font = BODY_FONT
-            if row_i in (hdr + 8, hdr + 9, hdr + 11):
+            if row_i in pct_rows:
                 cell.number_format = FMT_PCT
-            elif row_i in (hdr + 12, hdr + 13):
+            elif row_i in dscr_rows:
+                cell.number_format = "0.00x"
+            elif row_i in text_rows:
                 cell.alignment = Alignment(horizontal="center")
             else:
                 cell.number_format = FMT_USD
@@ -466,9 +531,14 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
             operator="greaterThanOrEqual", formula=[str(hurdle)], fill=GREEN))
         ws.conditional_formatting.add(yoc_rng, CellIsRule(
             operator="lessThan", formula=[str(hurdle * 0.85)], fill=RED))
-        ws.conditional_formatting.add(f"D{hdr + 12}:{end}{hdr + 12}", CellIsRule(
+        dscr_rng = f"D{hdr + 10}:{end}{hdr + 11}"
+        ws.conditional_formatting.add(dscr_rng, CellIsRule(
+            operator="greaterThanOrEqual", formula=[str(cfg["debt"]["min_dscr"])], fill=GREEN))
+        ws.conditional_formatting.add(dscr_rng, CellIsRule(
+            operator="lessThan", formula=[str(cfg["debt"]["min_dscr"])], fill=RED))
+        ws.conditional_formatting.add(f"D{hdr + 14}:{end}{hdr + 14}", CellIsRule(
             operator="equal", formula=['"YES"'], fill=RED))
-        ws.conditional_formatting.add(f"D{hdr + 13}:{end}{hdr + 13}", CellIsRule(
+        ws.conditional_formatting.add(f"D{hdr + 15}:{end}{hdr + 15}", CellIsRule(
             operator="equal", formula=['"YES"'], fill=GREEN))
 
     ws.freeze_panes = "D1"
@@ -520,7 +590,7 @@ def _tab_sensitivity(wb: Workbook, cfg: dict[str, Any]) -> None:
             hc.fill, hc.font = SEC_FILL, SEC_FONT
             hc.number_format = FMT_NUM
             for xi in range(len(grid["x_values"])):
-                cell = ws.cell(row=row, column=2 + xi, value=grid["cells"][yi][xi])
+                cell = ws.cell(row=row, column=2 + xi, value=_safe(grid["cells"][yi][xi]))
                 cell.number_format = FMT_USD
                 cell.border = BORDER
                 cell.font = BODY_FONT
@@ -571,7 +641,7 @@ def _simple_tab(wb: Workbook, name: str, headers: list[str], rows: list[list[Any
     _header_row(ws, headers, row=start)
     for i, row in enumerate(rows, start=start + 1):
         for c, v in enumerate(row, start=1):
-            cell = ws.cell(row=i, column=c, value=v)
+            cell = ws.cell(row=i, column=c, value=_safe(v))
             cell.font = BODY_FONT
             cell.border = BORDER
             cell.alignment = Alignment(vertical="top", wrap_text=True)
@@ -673,12 +743,17 @@ def _tab_risk(wb: Workbook, rows: list[dict[str, Any]]) -> None:
 
 
 def _tab_sources(wb: Workbook, sources: list[dict[str, Any]]) -> None:
-    headers = ["No.", "Source Name", "Cited For", "URL", "Accessed", "Tier"]
+    headers = ["No.", "Source Name", "Cited For", "URL", "Accessed", "Tier",
+               "Confidence", "Provenance Note"]
     data = [[s.get("no"), s.get("name"), s.get("cited_for"), s.get("url"),
-             s.get("accessed"), s.get("tier")] for s in sources]
-    ws = _simple_tab(wb, "Sources", headers, data,
-                     widths={"A": 6, "B": 34, "C": 50, "D": 55, "E": 12, "F": 8},
-                     note="§10: every claim in this workbook traces to a numbered row here.")
+             s.get("accessed"), s.get("tier"), s.get("confidence"), s.get("note")]
+            for s in sources]
+    ws = _simple_tab(
+        wb, "Sources", headers, data,
+        widths={"A": 6, "B": 30, "C": 55, "D": 45, "E": 12, "F": 20, "G": 22, "H": 60},
+        note=("§10: every claim in this workbook traces to a numbered row here. "
+              "Nothing in `config/underwriting_inputs.yaml` marked `basis: assumed` "
+              "is sourced — those are structural placeholders, not estimates."))
     for i in range(len(data)):
         cell = ws.cell(row=i + 3, column=4)
         if cell.value:
@@ -736,6 +811,11 @@ def enrich(parcels: list[dict[str, Any]], cfg: dict[str, Any]) -> tuple[list[dic
                 "yoc_gross_year5": uw.yoc_gross_year5,
                 "yoc_net_year5": uw.yoc_net_year5,
                 "dev_spread_gross_bps": uw.dev_spread_gross_bps,
+                "required_yield": uw.required_yield,
+                "binding_constraint": uw.binding_constraint,
+                "dscr_gross_at_ask": uw.dscr_gross_at_ask,
+                "dscr_net_at_ask": uw.dscr_net_at_ask,
+                "dscr_cleared": uw.dscr_cleared,
                 "headroom_to_ask": uw.headroom_gross,
                 "price_infeasible": uw.price_infeasible,
                 "hurdle_cleared": uw.hurdle_cleared,
@@ -791,16 +871,26 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     return path
 
 
+SOURCES_CSV = Path(__file__).resolve().parent.parent / "data" / "sources.csv"
+
+
 def _default_sources() -> list[dict[str, Any]]:
+    """
+    The citation register is data, not code. If it is missing, emit a single
+    row saying so rather than silently shipping an empty Sources tab.
+    """
+    if SOURCES_CSV.exists():
+        with SOURCES_CSV.open(newline="", encoding="utf-8") as fh:
+            return list(csv.DictReader(fh))
     return [{
-        "no": 1,
-        "name": "The Thermal Club",
-        "cited_for": ("Reference program — 426 private acres, over five miles of track, "
-                      "homesites/villas/luxury residences, clubhouse with dining, fitness, "
-                      "spa, and resort pools."),
-        "url": "https://www.thermal.cc/",
+        "no": 0,
+        "name": "MISSING CITATION REGISTER",
+        "cited_for": f"{SOURCES_CSV} not found — no claim in this workbook is traceable.",
+        "url": "",
         "accessed": f"{dt.date.today():%Y-%m-%d}",
-        "tier": "Primary",
+        "tier": "n/a",
+        "confidence": "Unverified",
+        "note": "Restore data/sources.csv before circulating this workbook.",
     }]
 
 

@@ -306,7 +306,8 @@ would kill it.**
 | **Hold structure** | **Merchant build** — garage condos and homesites both sold. Ground rent line is zero in the base case. |
 | **Acreage floor** | Band, not a point: **hard reject under 250 ac**; 250–350 permitted with a `SUB-SCALE` flag and a graduated physical-score penalty; 350–700 target. |
 | **Drive-time ceiling** | **120 minutes** maximum; 90 minutes scores full marks. |
-| **Capital stack** | **STILL OPEN.** 60% LTC assumed; equity check unsized; IDA/PILOT/EDA excluded from base case, modeled as upside. Must be confirmed before any IC submission. |
+| **Minimum DSCR** | **1.30×**, confirmed 2026-08-03. Enforced as a second hurdle alongside the 6.50% yield test; whichever implies the higher required yield binds. |
+| **Capital stack** | **STILL OPEN.** 60% LTC, 7.25% permanent coupon and 25-year amortization are all ASSUMED; equity check unsized; IDA/PILOT/EDA excluded from base case. Must be confirmed before any IC submission. |
 
 ---
 

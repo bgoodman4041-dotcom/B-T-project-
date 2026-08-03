@@ -86,6 +86,16 @@ def _pct(v: Any) -> str:
     return f"{float(v):.2%}"
 
 
+def _x(v: Any) -> str:
+    """Coverage multiple. Infinite coverage means there is no basis to lever."""
+    if v is None:
+        return "n/a"
+    v = float(v)
+    if v in (float("inf"), float("-inf")):
+        return "n/m"
+    return f"{v:.2f}&times;"
+
+
 def bullet(label: str, value: str) -> Paragraph:
     """Diamond bullet, bold label, plain value."""
     return Paragraph(f"{DIAMOND}&nbsp;<b>{label}:</b> {value}", S_BULLET)
@@ -98,7 +108,6 @@ def build_memo(
     sources: list[dict[str, Any]] | None = None,
     out_dir: Path | str = "dist",
 ) -> Path:
-    hurdle = cfg["meta"]["hurdle_yoc"]
     rank_basis = cfg["mandate"]["yoc_basis"]["rank_on"]
     sources = sources or _default_sources()
 
@@ -119,19 +128,23 @@ def build_memo(
     if infeasible:
         rec = (
             f"<b>DO NOT PROCEED TO CONTRACT ON CURRENT ASSUMPTIONS.</b> The program as "
-            f"modeled fails the {hurdle:.2%} test on the {rank_basis} basis before land is "
-            f"priced at all. Stabilized NOI of {_usd(diag['stabilized_noi'])} must reach "
+            f"modeled fails the binding {diag['required_yield']:.2%} test "
+            f"({diag['binding_constraint']}) on the {rank_basis} basis before land is priced "
+            f"at all. Stabilized NOI of {_usd(diag['stabilized_noi'])} must reach "
             f"{_usd(diag['noi_required_at_zero_land'])} "
-            f"({diag['noi_multiple_required']:.2f}&times;) merely to clear the hurdle on free "
+            f"({diag['noi_multiple_required']:.2f}&times;) merely to clear that test on free "
             f"land. This is a program problem, not a parcel problem, and no site in the "
             f"three-state search can cure it. Recommend re-basing the revenue assumptions "
             f"against the verified comp set before any site is put under control."
         )
     else:
         rec = (
-            f"<b>PROCEED TO OPTION.</b> {pid} clears the {hurdle:.2%} hurdle on the "
+            f"<b>PROCEED TO OPTION.</b> {pid} clears the binding "
+            f"{diag['required_yield']:.2%} test ({diag['binding_constraint']}) on the "
             f"{rank_basis} basis with {_usd(parcel.get('headroom_to_ask'))} of headroom "
-            f"between the ask and the maximum supportable land price."
+            f"between the ask and the maximum supportable land price, and covers at "
+            f"{_x(parcel.get('dscr_gross_at_ask'))} against a "
+            f"{diag['min_dscr']:.2f}&times; floor."
         )
     story.append(Paragraph("RECOMMENDATION", S_H))
     story.append(Paragraph(rec, S_BODY))
@@ -183,6 +196,11 @@ def build_memo(
                f"(membership at {m['stabilization_threshold']:.0%} of cap)"),
         bullet("Net cost basis (non-land)", _usd(diag["non_land_cost"])),
         bullet("For-sale net proceeds", _usd(diag["for_sale_net_proceeds"])),
+        bullet("Binding test",
+               f"{_pct(diag['required_yield'])} — {diag['binding_constraint']} "
+               f"({_pct(diag['hurdle'])} equity hurdle vs "
+               f"{_pct(diag['dscr_implied_yield'])} implied by "
+               f"{diag['min_dscr']:.2f}&times; DSCR at {cfg['debt']['target_ltc']:.0%} LTC)"),
         bullet("Max supportable land — gross basis", _usd(parcel.get("max_land_gross"))),
         bullet("Max supportable land — net basis", _usd(parcel.get("max_land_net"))),
         bullet("Ask", _usd(parcel.get("ask_price"))),
@@ -190,11 +208,17 @@ def build_memo(
                f"gross {_pct(parcel.get('yoc_gross_at_ask'))} &middot; "
                f"net {_pct(parcel.get('yoc_net_at_ask'))} &middot; "
                f"Year 5 gross {_pct(parcel.get('yoc_gross_year5'))}"),
+        bullet("DSCR at ask",
+               f"gross {_x(parcel.get('dscr_gross_at_ask'))} &middot; "
+               f"net {_x(parcel.get('dscr_net_at_ask'))} &middot; "
+               f"covenant floor {diag['min_dscr']:.2f}&times;"),
     ])
     story.append(Paragraph(
         "Initiation fees are amortized over expected member tenure, not capitalized into NOI; "
         "the workbook Sensitivity tab carries the fully-excluded and fully-capitalized "
-        "bookends. Model math, not a sourced figure. [1]", S_NOTE))
+        "bookends. Model math, not a sourced figure. Permanent coupon and amortization "
+        "behind the DSCR test are ASSUMED, not quoted, and leverage is unconfirmed — the "
+        "coverage figures move with all three. [1][2]", S_NOTE))
 
     # --- Path to Control -----------------------------------------------------
     story.append(Paragraph("PATH TO CONTROL", S_H))
@@ -262,14 +286,9 @@ def build_memo(
 
 
 def _default_sources() -> list[dict[str, Any]]:
-    return [{
-        "no": 1,
-        "name": "The Thermal Club",
-        "cited_for": ("reference program — 426 private acres, over five miles of track, "
-                      "homesites/villas/luxury residences, clubhouse with dining, fitness, "
-                      "spa, and resort pools."),
-        "url": "https://www.thermal.cc/",
-    }]
+    """Shared citation register — same rows the workbook's Sources tab uses."""
+    from build.build_workbook import _default_sources as reg
+    return reg()
 
 
 def main() -> None:

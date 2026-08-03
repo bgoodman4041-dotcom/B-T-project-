@@ -19,8 +19,12 @@ mandate:
 - **Acreage:** hard reject under 250 ac; 250–350 flagged `SUB-SCALE` with a
   graduated penalty; 350–700 is the target band
 - **Drive time:** 120 min ceiling, 90 min prize
-- **Capital stack:** UNRESOLVED — 60% LTC assumed, incentives excluded from
-  the base case. Flag this in every memo.
+- **Minimum DSCR:** **1.30×**, confirmed. Runs alongside the yield hurdle; the
+  tighter of the two binds and every land price solves at it.
+- **Capital stack:** UNRESOLVED — 60% LTC, 7.25% coupon and 25-year
+  amortization all assumed, incentives excluded from the base case. Because the
+  DSCR test depends on all three, the binding constraint itself is only as firm
+  as those assumptions. Flag this in every memo.
 
 Anything in that file marked `basis: assumed` is a placeholder, not an
 estimate. Say so whenever you report a number derived from one.

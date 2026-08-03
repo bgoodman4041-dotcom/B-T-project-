@@ -68,18 +68,47 @@ mandate:
         lon: -74.3260
     rule: min_of_origins        # a parcel is scored on its BEST origin
 
-  # ◆ Capital stack — NOT confirmed by principal. Assumed; flag in every memo.
+  # ◆ Capital stack — PARTIALLY confirmed. DSCR floor set by the principal
+  #   2026-08-03; leverage and pricing still open.
   capital_stack:
     basis: assumed
-    target_ltc: 0.60
     equity_check_usd: null       # principal has not sized the check
     incentives_in_base_case: false
     incentives_in_upside_case: true
     note: >
-      OPEN ITEM — unresolved. 60% LTC is a placeholder consistent with
-      construction debt on a single-asset recreational development with a
-      for-sale component. IDA/PILOT/EDA offsets are excluded from the base
-      case and modeled only as upside. Confirm before any IC submission.
+      OPEN ITEM — partially unresolved. Leverage and loan pricing live in the
+      `debt` block below and remain assumed; the minimum DSCR is confirmed.
+      IDA/PILOT/EDA offsets are excluded from the base case and modeled only
+      as upside. Confirm leverage and pricing before any IC submission.
+
+# -----------------------------------------------------------------------------
+# DEBT AND COVERAGE
+# -----------------------------------------------------------------------------
+# The DSCR floor is a hard covenant test that runs ALONGSIDE the yield hurdle.
+# Whichever is tighter binds. See model/two_stack.py::binding_yield.
+debt:
+  # CONFIRMED by the principal, 2026-08-03.
+  min_dscr: 1.30
+
+  # ASSUMED. Sits at the low end of the 1.30x-1.40x band lenders quote for
+  # non-multifamily commercial, which is where a special-purpose recreational
+  # asset would price. [S2]
+  basis: assumed
+
+  target_ltc: 0.60             # single source of truth for leverage
+  permanent_rate: 0.0725       # takeout/permanent coupon
+  amortization_years: 25
+  periods_per_year: 12
+  note: >
+    Permanent coupon and amortization are ASSUMED, not quoted. 7.25% sits
+    inside the 6.5%-8% range reported for commercial mortgages in 2026 [S2],
+    biased to the upper half because a private motorsport club is a
+    special-purpose asset with a thin resale market and no conforming agency
+    execution. A 25-year amortization is likewise assumed; special-purpose
+    collateral frequently draws 20-25 years rather than 30. Both must be
+    replaced with a real term sheet before IC. Loan is sized on the same cost
+    basis being tested, so DSCR is reported on the gross and net bases exactly
+    as YoC is.
 
 # -----------------------------------------------------------------------------
 # STACK B — INCOME / HELD  (the 6.5% test)

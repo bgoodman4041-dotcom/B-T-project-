@@ -18,6 +18,21 @@ ask is only ever measured against that number. Report both:
 
 The principal ranks on **gross**. Report both on every parcel regardless.
 
+## Two hurdles, not one
+
+The 6.50% yield test and the **1.30× minimum DSCR** both apply. Make them
+commensurable and take the tighter:
+
+    h_dscr = min_DSCR x LTC x mortgage_constant
+    binding = max(6.50%, h_dscr)
+
+At the current assumed debt terms the DSCR test binds at **6.77%**, so land
+prices solve at 6.77% and not at the hurdle. Never report a parcel as clearing
+on yield alone — `hurdle_cleared` requires both. State the binding constraint
+by name in every memo, and re-check it whenever leverage or loan pricing moves.
+
+Coupon and amortization behind the covenant are ASSUMED, not quoted. Say so.
+
 ## Rules you do not bend
 
 - **Never capitalize initiation fees into NOI.** Amortize over expected member

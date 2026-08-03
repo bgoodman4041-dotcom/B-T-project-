@@ -13,7 +13,7 @@ Say **`run track radar`** to execute a full cycle.
 ```bash
 pip install pyyaml openpyxl reportlab
 
-python3 tests/test_model.py                                       # 57 tests
+python3 tests/test_model.py                                       # 70 tests
 python3 build/build_workbook.py --parcels data/parcels.example.csv --out dist/
 python3 build/build_memo.py --parcels data/parcels.example.csv --rank 1 --out dist/
 ```
@@ -53,7 +53,8 @@ supportable land price* — the price at which yield on cost lands exactly on
 | Hold structure | Merchant build — condos and homesites both sold |
 | Acreage | Hard reject < 250 ac · 250–350 flagged `SUB-SCALE` · 350–700 target |
 | Drive time | 120 min ceiling, 90 min prize |
-| Capital stack | **Open** — 60% LTC assumed, incentives excluded from base case |
+| Minimum DSCR | **1.30×** confirmed — runs alongside the hurdle, tighter one binds |
+| Capital stack | **Open** — 60% LTC, 7.25% coupon, 25-yr amortization all assumed |
 
 ---
 
@@ -63,14 +64,19 @@ The income and cost assumptions in `config/underwriting_inputs.yaml` are
 **structural placeholders**, not estimates — every block marked
 `basis: assumed` exists so the model runs end to end.
 
-On those placeholders the program **fails the gross test before land is priced
-at all**: stabilized NOI of ~$8.1M against a ~$200.9M non-land basis needs to
-reach ~$16.0M (1.98×) for *free land* to clear 6.50%.
+On those placeholders the program **fails before land is priced at all**:
+stabilized NOI of ~$8.1M against a ~$200.9M non-land basis needs to reach
+~$16.7M (2.06×) for *free land* to clear the binding test.
 
 ```
-max supportable land — gross:   −$99,475,024
-max supportable land — net:     +$22,467,153
+binding test:                     6.77%  (DSCR, not the 6.50% hurdle)
+max supportable land — gross:   −$103,455,052
+max supportable land — net:     +$18,487,126
 ```
+
+The **DSCR covenant binds before the equity hurdle**: 1.30× at 60% LTC on an
+assumed 7.25% / 25-year note implies a 6.77% required yield. Land prices are
+solved at 6.77%, not 6.50%.
 
 That is a program finding, not a parcel finding. Run `comp-analyst` and re-base
 the revenue assumptions before treating any ranking as actionable.
@@ -95,7 +101,7 @@ See `.claude/agents/`. Full specification in `docs/SPEC.md`; working rules in
 ## Tests
 
 ```bash
-python3 tests/test_model.py               # fast — round-trip identities, gates, scoring
+python3 tests/test_model.py               # fast — round-trips, DSCR, gates, scoring
 python3 tests/test_workbook_formulas.py   # slow — evaluates the real xlsx, Excel vs Python
 ```
 

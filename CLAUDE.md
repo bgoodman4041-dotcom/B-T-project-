@@ -26,7 +26,8 @@ verify.
 | Hold structure | **Merchant build** — garage condos and homesites both sold |
 | Acreage floor | **Hard reject < 250 ac**; 250–350 flagged `SUB-SCALE` with a graduated penalty; 350–700 target band |
 | Drive-time ceiling | **120 min** max, 90 min prize |
-| Capital stack | **UNRESOLVED.** 60% LTC assumed, incentives excluded from base case. Flag in every memo. |
+| Minimum DSCR | **1.30×** (confirmed 2026-08-03). Runs alongside the yield hurdle; the tighter binds. |
+| Capital stack | **PARTIAL.** DSCR confirmed; 60% LTC, 7.25% coupon and 25-yr amortization all assumed. Flag in every memo. |
 
 Ranking on the gross basis is the hard test: income NOI must carry the entire
 development cost including the for-sale vertical, with no sell-out offset.
@@ -42,8 +43,13 @@ researched.
 
 On those placeholders the program is **infeasible on the gross basis**:
 stabilized NOI of ~$8.1M against a non-land cost basis of ~$200.9M means NOI
-must reach ~$16.0M (1.98×) before *free land* clears 6.50%. The maximum
-supportable land price is about **−$99.5M** gross, **+$22.5M** net.
+must reach ~$16.7M (2.06×) before *free land* clears the binding test. The
+maximum supportable land price is about **−$103.5M** gross, **+$18.5M** net.
+
+**The DSCR covenant binds before the equity hurdle.** 1.30× at 60% LTC on an
+assumed 7.25% / 25-year note implies a **6.77%** required yield, not 6.50%.
+Every land price is solved at 6.77%. If leverage, coupon, or amortization
+move, so does the binding test — check `binding_constraint` before quoting.
 
 That is a program finding, not a parcel finding, and no site in the three-state
 search can cure it. **Run `comp-analyst` and re-base the revenue assumptions
@@ -63,12 +69,13 @@ config/underwriting_inputs.yaml   Single source of truth. Change assumptions HER
 model/two_stack.py                Two-stack model; closed-form max supportable land price
 model/gates.py                    Gates 1-5 screening funnel
 model/scoring.py                  Composite 100-point ranking (§11 weights)
-model/schema.py                   114-column parcel schema; CSV intake coercion
+model/schema.py                   119-column parcel schema; CSV intake coercion
 build/build_workbook.py           11-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
-tests/test_model.py               57 tests; fast
+data/sources.csv                  Citation register. Every claim traces here; assumptions are NOT sourced.
+tests/test_model.py               70 tests; fast
 tests/test_workbook_formulas.py   Excel-vs-Python drift test; slow
 .claude/agents/                   The seven §8 agents
 .claude/skills/track-radar/       The `run track radar` entry point
@@ -86,9 +93,16 @@ carry_years = max(development_years, sellout_years)       (merchant build)
 gross_basis(L) = (L + S) × (1 + k)
 net_basis(L)   = gross_basis(L) − for_sale_net_proceeds − incentives
 
+Two constraints, made commensurable:
+    h_equity = the 6.50% hurdle
+    h_dscr   = min_DSCR × LTC × mortgage_constant       (DSCR-implied yield)
+    h        = max(h_equity, h_dscr)                    (the binding test)
+
 Inverting YoC = NOI / basis = h for the land price L:
     gross:  L* = NOI / (h × (1 + k)) − S
     net:    L* = (NOI / h + P + G) / (1 + k) − S
+
+DSCR = NOI / (LTC × basis × mortgage_constant), reported on both bases.
 ```
 
 Both exact, no solver. Carry accrues on land too, which is why it multiplies
@@ -116,6 +130,14 @@ cannot carry the vertical even if the dirt were free.
   `follows_absorption` off and the Sensitivity absorption axis goes flat.
   Re-calibrate `avg_outstanding_pct` when sell-out extends the period; 55%
   average exposure across a long tail overstates carry.
+- **DSCR is a second hurdle, not a footnote.** `binding_yield()` returns the
+  tighter of the equity hurdle and the DSCR-implied yield, and every land price
+  is solved at it. `hurdle_cleared` is True only when the yield test *and* the
+  covenant both pass — a deal that yields 6.6% but covers at 1.15× is not
+  financeable.
+- **Never write inf or nan into a worksheet.** Coverage is infinite when there
+  is no basis to lever; Excel cannot represent it and the file will not open.
+  Everything numeric goes through `_safe()`.
 - **Never invent a dBA limit.** An unpublished ordinance is a research task and
   a named phone call, not a number.
 - **The four identifiers are non-negotiable.** Live URL, APN, lat/long,
@@ -131,7 +153,7 @@ cannot carry the vertical even if the dirt were free.
 python3 build/build_workbook.py --parcels data/parcels.csv --out dist/
 python3 build/build_memo.py --parcels data/parcels.csv --rank 1 --out dist/
 
-python3 tests/test_model.py               # 57 tests, fast
+python3 tests/test_model.py               # 70 tests, fast
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow
 ```
 

@@ -440,6 +440,10 @@ def narrative(
             break
 
     if not kills and underwriting is not None and underwriting.ask_price is not None:
+        dscr = underwriting.dscr_gross_at_ask
+        if dscr is not None and not underwriting.dscr_cleared and dscr != float("inf"):
+            kills = (f"Debt service coverage of {dscr:.2f}x at the ask, below the "
+                     f"covenant floor — the deal is not financeable at this price")
         max_land = underwriting.max_land_gross
         if max_land <= 0:
             kills = ("The income stack cannot carry the vertical at any land price on the "

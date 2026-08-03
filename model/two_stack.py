@@ -369,13 +369,23 @@ class UnderwritingResult:
     cost: CostStack = field(repr=False)
     for_sale: ForSaleResult = field(repr=False)
 
+    # Land prices are solved at the BINDING yield -- the tighter of the equity
+    # hurdle and the DSCR-implied yield. `*_yield_only` isolates the hurdle so
+    # the two constraints can be reported separately.
     max_land_gross: float
     max_land_net: float
+    max_land_gross_yield_only: float
+    max_land_gross_dscr_only: float
+    required_yield: float
+    binding_constraint: str          # "YIELD" | "DSCR"
 
     yoc_gross_at_ask: float | None
     yoc_net_at_ask: float | None
     yoc_gross_year5: float | None
     yoc_net_year5: float | None
+    dscr_gross_at_ask: float | None
+    dscr_net_at_ask: float | None
+    dscr_cleared: bool
 
     dev_spread_gross_bps: float | None
     dev_spread_net_bps: float | None
@@ -387,6 +397,75 @@ class UnderwritingResult:
     @property
     def ranking_yoc(self) -> float | None:
         return self.yoc_gross_at_ask
+
+
+def mortgage_constant(rate: float, amort_years: float, periods_per_year: int = 12) -> float:
+    """
+    Annual debt service per dollar of loan on a fully-amortizing note.
+
+        MC = m * i / (1 - (1+i)^-n)      i = rate/m,  n = amort_years * m
+
+    Interest-only is the rate itself; a zero rate is straight principal return.
+    """
+    if amort_years <= 0:
+        raise ValueError("amortization_years must be positive")
+    m = periods_per_year
+    i = rate / m
+    n = amort_years * m
+    if i == 0:
+        return 1.0 / amort_years
+    return m * i / (1 - (1 + i) ** -n)
+
+
+def dscr_implied_yield(cfg: dict[str, Any]) -> float:
+    """
+    The yield on cost a deal must produce just to satisfy the DSCR covenant.
+
+        DSCR = NOI / (LTC x basis x MC) >= min_dscr
+          =>  NOI / basis >= min_dscr x LTC x MC
+
+    The right-hand side is a *yield*, directly comparable to the equity
+    hurdle -- which makes the two constraints commensurable and lets the
+    tighter one bind without a second inversion.
+    """
+    d = cfg["debt"]
+    mc = mortgage_constant(
+        d["permanent_rate"], d["amortization_years"], d.get("periods_per_year", 12)
+    )
+    return d["min_dscr"] * d["target_ltc"] * mc
+
+
+def binding_yield(cfg: dict[str, Any]) -> tuple[float, str]:
+    """Return (required yield, which constraint set it)."""
+    hurdle = cfg["meta"]["hurdle_yoc"]
+    implied = dscr_implied_yield(cfg)
+    return (implied, "DSCR") if implied > hurdle else (hurdle, "YIELD")
+
+
+def dscr_at(
+    noi: float,
+    land_price: float,
+    cost: CostStack,
+    for_sale: ForSaleResult,
+    cfg: dict[str, Any],
+    basis: YoCBasis,
+) -> float:
+    """
+    Debt service coverage at a stated land price. Loan is sized as LTC x the
+    same cost basis under test, so gross and net DSCR mirror gross and net YoC.
+    """
+    d = cfg["debt"]
+    b = (cost.gross_basis(land_price) if basis == "gross"
+         else cost.net_basis(land_price, for_sale.net_proceeds))
+    if b <= 0:
+        return float("inf")      # no basis to lever: coverage is unbounded
+    mc = mortgage_constant(
+        d["permanent_rate"], d["amortization_years"], d.get("periods_per_year", 12)
+    )
+    debt_service = d["target_ltc"] * b * mc
+    if debt_service <= 0:
+        return float("inf")
+    return noi / debt_service
 
 
 def max_supportable_land_price(
@@ -445,6 +524,8 @@ def underwrite(
     """Run both stacks on one parcel and solve the land price."""
     hurdle = cfg["meta"]["hurdle_yoc"]
     rank_basis: YoCBasis = cfg["mandate"]["yoc_basis"]["rank_on"]
+    required, binding = binding_yield(cfg)
+    min_dscr = cfg["debt"]["min_dscr"]
 
     years = project_income(cfg, years=horizon, initiation_mode=initiation_mode)
     stab_year = stabilization_year(cfg, horizon=horizon)
@@ -461,11 +542,18 @@ def underwrite(
     for_sale = project_for_sale(cfg)
     cost = build_cost_stack(cfg, for_sale, track_cost_per_mile)
 
-    max_gross = max_supportable_land_price(stabilized_noi, cost, for_sale, hurdle, "gross")
-    max_net = max_supportable_land_price(stabilized_noi, cost, for_sale, hurdle, "net")
+    # Solve at the binding constraint, and keep the two components visible.
+    max_gross = max_supportable_land_price(stabilized_noi, cost, for_sale, required, "gross")
+    max_net = max_supportable_land_price(stabilized_noi, cost, for_sale, required, "net")
+    max_gross_yield = max_supportable_land_price(
+        stabilized_noi, cost, for_sale, hurdle, "gross")
+    max_gross_dscr = max_supportable_land_price(
+        stabilized_noi, cost, for_sale, dscr_implied_yield(cfg), "gross")
 
     if ask_price is None:
         yg = yn = yg5 = yn5 = None
+        dscr_g = dscr_n = None
+        dscr_ok = False
         spread_g = spread_n = None
         headroom = None
         infeasible = False
@@ -480,12 +568,19 @@ def underwrite(
         spread_g = (yg - exit_cap) * 10_000 if yg != float("-inf") else None
         spread_n = (yn - exit_cap) * 10_000 if yn != float("-inf") else None
 
+        dscr_g = dscr_at(stabilized_noi, ask_price, cost, for_sale, cfg, "gross")
+        dscr_n = dscr_at(stabilized_noi, ask_price, cost, for_sale, cfg, "net")
+        dscr_on_rank = dscr_g if rank_basis == "gross" else dscr_n
+        dscr_ok = dscr_on_rank >= min_dscr
+
         max_on_rank = max_gross if rank_basis == "gross" else max_net
         headroom = max_on_rank - ask_price
         # §3: ask exceeding max supportable by >20% is PRICE-INFEASIBLE.
         # A non-positive max means no price clears -- infeasible by definition.
         infeasible = max_on_rank <= 0 or ask_price > max_on_rank * 1.20
-        cleared = (yg if rank_basis == "gross" else yn) >= hurdle
+        # "Cleared" now means BOTH tests pass: the equity hurdle and the
+        # covenant. A deal that yields 6.6% but covers at 1.15x is not financeable.
+        cleared = ((yg if rank_basis == "gross" else yn) >= hurdle) and dscr_ok
 
     return UnderwritingResult(
         parcel_id=parcel_id,
@@ -497,10 +592,17 @@ def underwrite(
         for_sale=for_sale,
         max_land_gross=max_gross,
         max_land_net=max_net,
+        max_land_gross_yield_only=max_gross_yield,
+        max_land_gross_dscr_only=max_gross_dscr,
+        required_yield=required,
+        binding_constraint=binding,
         yoc_gross_at_ask=yg,
         yoc_net_at_ask=yn,
         yoc_gross_year5=yg5,
         yoc_net_year5=yn5,
+        dscr_gross_at_ask=dscr_g,
+        dscr_net_at_ask=dscr_n,
+        dscr_cleared=dscr_ok,
         dev_spread_gross_bps=spread_g,
         dev_spread_net_bps=spread_n,
         headroom_gross=headroom,
@@ -607,15 +709,28 @@ def feasibility_diagnostic(cfg: dict[str, Any]) -> dict[str, Any]:
     """
     hurdle = cfg["meta"]["hurdle_yoc"]
     rank_basis: YoCBasis = cfg["mandate"]["yoc_basis"]["rank_on"]
+    req_yield, binding = binding_yield(cfg)
+    implied = dscr_implied_yield(cfg)
 
     r = underwrite(cfg, parcel_id="DIAGNOSTIC")
-    required = noi_required_for_feasibility(r.cost, r.for_sale, hurdle, rank_basis, 0.0)
+    required = noi_required_for_feasibility(r.cost, r.for_sale, req_yield, rank_basis, 0.0)
     actual = r.stabilized_noi
     max_land = r.max_land_gross if rank_basis == "gross" else r.max_land_net
+
+    test = (f"{hurdle:.2%} equity hurdle" if binding == "YIELD"
+            else f"{implied:.2%} DSCR-implied yield "
+                 f"({cfg['debt']['min_dscr']:.2f}x at {cfg['debt']['target_ltc']:.0%} LTC)")
 
     return {
         "basis": rank_basis,
         "hurdle": hurdle,
+        "dscr_implied_yield": implied,
+        "required_yield": req_yield,
+        "binding_constraint": binding,
+        "min_dscr": cfg["debt"]["min_dscr"],
+        "mortgage_constant": mortgage_constant(
+            cfg["debt"]["permanent_rate"], cfg["debt"]["amortization_years"],
+            cfg["debt"].get("periods_per_year", 12)),
         "stabilized_noi": actual,
         "noi_required_at_zero_land": required,
         "noi_gap": required - actual,
@@ -625,14 +740,15 @@ def feasibility_diagnostic(cfg: dict[str, Any]) -> dict[str, Any]:
         "non_land_cost": r.cost.non_land_subtotal,
         "for_sale_net_proceeds": r.for_sale.net_proceeds,
         "verdict": (
-            f"Program clears on {rank_basis} basis with "
-            f"${max_land:,.0f} of land headroom."
+            f"Program clears on {rank_basis} basis with ${max_land:,.0f} of land "
+            f"headroom. Binding test: {test}."
             if max_land > 0
             else (
                 f"PROGRAM-INFEASIBLE on {rank_basis} basis. Stabilized NOI of "
                 f"${actual:,.0f} must reach ${required:,.0f} "
-                f"({required / actual:.2f}x) before free land clears {hurdle:.2%}. "
-                f"No parcel can fix this -- the revenue or cost assumptions must move."
+                f"({required / actual:.2f}x) before free land clears the binding "
+                f"test ({test}). No parcel can fix this -- the revenue or cost "
+                f"assumptions must move."
             )
         ),
     }

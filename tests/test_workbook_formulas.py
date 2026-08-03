@@ -87,6 +87,13 @@ def main() -> int:
         ("Contingency", cell("Contingency"), py.cost.contingency),
         ("NON-LAND SUBTOTAL  (S)", cell("NON-LAND SUBTOTAL  (S)"), py.cost.non_land_subtotal),
         ("CARRY FACTOR  (k)", cell("CARRY FACTOR  (k)"), py.cost.carry_factor),
+        ("Mortgage constant", cell("Mortgage constant"),
+         two_stack.mortgage_constant(
+             cfg["debt"]["permanent_rate"], cfg["debt"]["amortization_years"],
+             cfg["debt"].get("periods_per_year", 12))),
+        ("DSCR-implied yield", cell("DSCR-implied yield"),
+         two_stack.dscr_implied_yield(cfg)),
+        ("REQUIRED YIELD (binding)", cell("REQUIRED YIELD (binding)"), py.required_yield),
     ]
 
     failed = 0
@@ -119,10 +126,19 @@ def main() -> int:
             pid = wb.cell(row=hdr - 3, column=col).value
             if not pid:
                 continue
-            for offset, label, expected in (
+            ask = wb.cell(row=hdr - 1, column=col).value
+            per_parcel = [
                 (0, "max land GROSS", py.max_land_gross),
                 (1, "max land NET", py.max_land_net),
-            ):
+            ]
+            if isinstance(ask, (int, float)):
+                per_parcel += [
+                    (6, "DSCR gross", two_stack.dscr_at(
+                        py.stabilized_noi, float(ask), py.cost, py.for_sale, cfg, "gross")),
+                    (7, "DSCR net", two_stack.dscr_at(
+                        py.stabilized_noi, float(ask), py.cost, py.for_sale, cfg, "net")),
+                ]
+            for offset, label, expected in per_parcel:
                 coord = f"{wb.cell(row=hdr + offset, column=col).column_letter}{hdr + offset}"
                 got = vals.get(coord)
                 if got is None:
