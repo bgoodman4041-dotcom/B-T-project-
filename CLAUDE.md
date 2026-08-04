@@ -65,6 +65,22 @@ benchmark-derived and internally consistent, NOT verified comps.
    private clubs run at. They were rejected. At a defensible ~48% ratio the
    honest answer is 8–9%.
 
+### The ten-year horizon and the IPO question
+
+Timing is derived, not asserted: entitlement 33 months + construction 42 months
+puts opening at **month 75** and stabilisation at **month 123 — year 10.2**.
+Year 10 is when the *first* asset finishes ramping.
+
+`model/roadmap.py::listing_readiness` tests the IPO question with arithmetic
+against screening thresholds. Result: **5 stabilised clubs** are needed
+($40M recurring NOI, $500M equity value, 4-asset diversification minimum).
+Ground-up at a 36-month cadence reaches that in **year 22**; acquiring existing
+facilities after club 1 opens reaches it in **year 12**. Neither is year 10.
+
+**Do not let the deck or plan promise a year-10 listing.** The strategy
+implication is real: club 1 is the proof, and growth beyond club 2 has to be
+acquisitive to reach listing scale inside a fund life.
+
 ### The gross-basis YoC test is retired
 
 The 6.50% gross-basis hurdle still reports **infeasible**, and that is expected:
@@ -89,8 +105,8 @@ model/scoring.py                  Composite 100-point ranking (§11 weights)
 model/schema.py                   119-column parcel schema; CSV intake coercion
 build/build_workbook.py           17-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
-build/build_business_plan.py      14-page formal business plan PDF
-build/deck/make_deck.js           16-slide investor deck (pptxgenjs)
+build/build_business_plan.py      19-page formal business plan PDF
+build/deck/make_deck.js           19-slide investor deck (pptxgenjs)
 data/sites_targets.csv            5 acquisition TARGET PROFILES — not parcels under contract
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
@@ -98,8 +114,9 @@ data/sources.csv                  Citation register. Every claim traces here; as
 model/cashflow.py                 Timeline, sources/uses, peak funding, DSCR by year, IRR
 model/scenarios.py                Base/Downside/Severe/Upside correlated bundles
 model/risk.py                     Break-evens, tornado, Monte Carlo, plausibility audit
+model/roadmap.py                  10-horizon milestones, platform scale, listing test, exit ladder
 tests/test_model.py               72 tests; fast
-tests/test_analytics.py           56 tests; tax, cashflow, scenarios, risk
+tests/test_analytics.py           67 tests; tax, cashflow, scenarios, risk, roadmap
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
 .claude/skills/track-radar/       The `run track radar` entry point

@@ -1,5 +1,5 @@
 {
- "today": "2026-08-03",
+ "today": "2026-08-04",
  "program": {
   "miles": 4.0,
   "cap": 340,
@@ -270,9 +270,7 @@
   "n": 4000,
   "p_net": 0.0,
   "p_cov": 0.0,
-  "p50": -93413794.53443265,
-  "p10": -126354313.09155571,
-  "p90": -62314465.02256778
+  "p50": -93413794.53443265
  },
  "plaus": {
   "fails": 0,
@@ -341,5 +339,282 @@
    "noi": 14316921.814304372
   }
  ],
- "tranche1": 4250000
+ "tranche1": 4250000,
+ "timing": {
+  "entitlement": 33,
+  "construction": 42,
+  "opening": 75,
+  "stabilised": 123,
+  "opening_year": 6.25,
+  "stabilised_year": 10.25
+ },
+ "milestones": [
+  {
+   "horizon": "1 month",
+   "month": 1,
+   "phase": "Phase 0 \u2014 Feasibility",
+   "objective": "Mandate and mobilisation",
+   "deliverables": [
+    "Comparable club study commissioned",
+    "Sourcing brief issued to Parcel Scout across NY/CT/NJ",
+    "Entitlement counsel and acoustic consultant shortlisted",
+    "Tranche 1 closed and escrowed"
+   ],
+   "gate": "Tranche 1 funded",
+   "kpi": "Study engaged; sourcing brief live",
+   "capital": "Tranche 1"
+  },
+  {
+   "horizon": "3 months",
+   "month": 3,
+   "phase": "Phase 0 \u2014 Feasibility",
+   "objective": "Revenue truth-test",
+   "deliverables": [
+    "Comparable club economics delivered: initiation ceiling, dues, condo $/SF against local flex, realised absorption",
+    "Model re-based against verified comps",
+    "150+ parcel universe assembled; Gates 1-2 run"
+   ],
+   "gate": "HARD GATE \u2014 if verified comps materially undercut the assumption base, the programme stops here and the balance of Tranche 1 is released",
+   "kpi": "Assumption register moves from ASSUMED to VERIFIED on revenue",
+   "capital": "Tranche 1"
+  },
+  {
+   "horizon": "6 months",
+   "month": 6,
+   "phase": "Phase 0 \u2014 Feasibility",
+   "objective": "Site shortlist and control path",
+   "deliverables": [
+    "Gates 3-5 complete; universe cut to a ranked shortlist of two",
+    "Acoustic pre-model against the actual municipal standard",
+    "Phase I environmental ordered on both finalists",
+    "LOI negotiated; option terms agreed in principle"
+   ],
+   "gate": "Two sites with identifiers, coordinates and clean title review",
+   "kpi": "Shortlist of 2 with signed LOIs",
+   "capital": "Tranche 1"
+  },
+  {
+   "horizon": "1 year",
+   "month": 12,
+   "phase": "Phase 1 \u2014 Entitlement",
+   "objective": "Control secured",
+   "deliverables": [
+    "Option executed on the lead site \u2014 entitlement-contingent, extension fees credited to purchase price",
+    "Municipal pre-application meeting held",
+    "IDA/EDA abatement conversation opened",
+    "Boundary, topographic and geotechnical survey complete"
+   ],
+   "gate": "Site under option WITHOUT acquisition risk",
+   "kpi": "Executed option; pre-application on record",
+   "capital": "Tranche 1"
+  },
+  {
+   "horizon": "18 months",
+   "month": 18,
+   "phase": "Phase 1 \u2014 Entitlement",
+   "objective": "Application filed",
+   "deliverables": [
+    "Special permit or map amendment application filed",
+    "Environmental review underway (SEQRA or CEPA)",
+    "Wetlands delineation and permitting commenced",
+    "Founding-member programme soft-launched to a curated list",
+    "Circuit design to 60% and GMP pricing conversation opened"
+   ],
+   "gate": "Application accepted as complete",
+   "kpi": "Founding-member expressions of interest against the ramp",
+   "capital": "Tranche 1"
+  },
+  {
+   "horizon": "2 years",
+   "month": 24,
+   "phase": "Phase 1 \u2014 Entitlement",
+   "objective": "Hearings and pricing",
+   "deliverables": [
+    "Public hearings underway; opposition mapped and answered",
+    "Abatement term sheet agreed",
+    "Guaranteed maximum price negotiated with the general contractor",
+    "Construction and permanent lender term sheets received",
+    "Founding-member deposits held in escrow"
+   ],
+   "gate": "Abatement term sheet and lender commitments in hand",
+   "kpi": "Pre-sale and founding-member deposits versus the waterfall assumption",
+   "capital": "Tranche 1"
+  },
+  {
+   "horizon": "3 years",
+   "month": 36,
+   "phase": "Phase 2 \u2014 Construction",
+   "objective": "Permit, close, break ground",
+   "deliverables": [
+    "Permit issued and appeal period run",
+    "Abatement agreement executed",
+    "SEVEN CONDITIONS PRECEDENT satisfied; Tranche 2 called",
+    "Land closing and construction start",
+    "Site 2 entitlement commenced in parallel"
+   ],
+   "gate": "HARD GATE \u2014 Tranche 2 draws only on all seven conditions",
+   "kpi": "Permit issued; land closed; construction facility drawn",
+   "capital": "Tranche 2"
+  },
+  {
+   "horizon": "5 years",
+   "month": 60,
+   "phase": "Phase 2 \u2014 Construction",
+   "objective": "Vertical delivery and pre-sales",
+   "deliverables": [
+    "Circuit and paddock complete; clubhouse and service centre topped out",
+    "First garage-condominium building delivered; closings commence",
+    "Membership sales at full pace against the ramp",
+    "Site 2 permitted; site 3 under option"
+   ],
+   "gate": "Construction on programme and on budget",
+   "kpi": "Condominium closings and membership count versus plan",
+   "capital": "Tranche 2"
+  },
+  {
+   "horizon": "7 years",
+   "month": 84,
+   "phase": "Phase 3 \u2014 Lease-up",
+   "objective": "Open and ramp",
+   "deliverables": [
+    "Club open and operating",
+    "Membership ramping toward cap; dues escalation live",
+    "Homesite closings underway",
+    "Site 2 under construction \u2014 platform of two in delivery"
+   ],
+   "gate": "Opening on schedule; operating ratio inside the plausible band",
+   "kpi": "Members on-boarded; operating ratio; DSCR from conversion",
+   "capital": "Tranche 2 / recycled"
+  },
+  {
+   "horizon": "10 years",
+   "month": 120,
+   "phase": "Phase 3 \u2014 Lease-up",
+   "objective": "Stabilisation and the platform decision",
+   "deliverables": [
+    "Club 1 stabilised at 340 members; permanent loan converted",
+    "Sell-out substantially complete; construction facility retired",
+    "Club 2 open and ramping; club 3 in construction",
+    "Platform decision: continue ground-up, pivot to acquisition, recapitalise, or sell"
+   ],
+   "gate": "Stabilised operating history on asset 1; covenant holding",
+   "kpi": "Stabilised NOI, DSCR, value against retained cost, platform NOI",
+   "capital": "Recycled / platform capital"
+  }
+ ],
+ "platform": [
+  {
+   "clubs": 1,
+   "noi": 8378258.703771631,
+   "value": 172511420.94526777,
+   "cost": 303706433.328125
+  },
+  {
+   "clubs": 2,
+   "noi": 16756517.407543262,
+   "value": 345022841.89053553,
+   "cost": 607412866.65625
+  },
+  {
+   "clubs": 3,
+   "noi": 25134776.111314893,
+   "value": 517534262.8358033,
+   "cost": 911119299.984375
+  },
+  {
+   "clubs": 4,
+   "noi": 33513034.815086525,
+   "value": 690045683.7810711,
+   "cost": 1214825733.3125
+  },
+  {
+   "clubs": 5,
+   "noi": 41891293.51885816,
+   "value": 862557104.7263389,
+   "cost": 1518532166.640625
+  },
+  {
+   "clubs": 6,
+   "noi": 50269552.222629786,
+   "value": 1035068525.6716065,
+   "cost": 1822238599.96875
+  },
+  {
+   "clubs": 7,
+   "noi": 58647810.92640142,
+   "value": 1207579946.6168745,
+   "cost": 2125945033.296875
+  }
+ ],
+ "listing": {
+  "need": 5,
+  "by_noi": 5,
+  "by_value": 3,
+  "by_div": 4,
+  "ground_up_year": 22.25,
+  "acq_year": 12.25,
+  "listable_10": false,
+  "verdict": "NOT LISTABLE BY YEAR 10 ON EITHER ROUTE. 5 stabilised assets are needed. Ground-up reaches that in year 22; even an acquisition-led platform reaches it in year 12. Year 10 is when club 1 finishes ramping, not when a platform lists. The earliest credible route is acquisition-led at year 12; treat a listing as a year-12 stretch outcome, plan the platform for it, and underwrite to a strategic sale or recapitalisation in the meantime.",
+  "min_noi": 40000000,
+  "min_value": 500000000,
+  "min_assets": 4
+ },
+ "exits": [
+  {
+   "rank": 1,
+   "route": "For-sale closings (self-liquidating)",
+   "timing": "Years 6\u201312",
+   "basis": "$161M of net proceeds",
+   "requires": "Delivery and absorption only \u2014 no capital-markets event",
+   "assessment": "HIGHEST CERTAINTY. Returns the majority of invested capital independent of any exit market. This is why the programme is structured as a merchant build."
+  },
+  {
+   "rank": 2,
+   "route": "Member capital (non-dilutive)",
+   "timing": "Years 2\u201310",
+   "basis": "$51M of initiation fees",
+   "requires": "Membership sales against the ramp",
+   "assessment": "HIGH CERTAINTY once the club is credible. Collected as the club fills and never repaid."
+  },
+  {
+   "rank": 3,
+   "route": "Refinance of the stabilised club",
+   "timing": "Year 10+",
+   "basis": "Permanent debt sized on stabilised NOI",
+   "requires": "Stabilised operating history and covenant compliance",
+   "assessment": "PROBABLE. Note the negative-leverage finding: refinancing is a liquidity tool here, not a return enhancer, and should not be sized to the maximum available."
+  },
+  {
+   "rank": 4,
+   "route": "Strategic sale of the retained club",
+   "timing": "Year 10\u201312",
+   "basis": "$173M at a 7.25% cap",
+   "requires": "A buyer for single-asset special-purpose recreational property",
+   "assessment": "REALISTIC BUT THIN. Buyer universe is family offices, club operators and member-buyout vehicles, not institutional core capital. Break-even cap is 8.95%; beyond that the club is worth less than it cost to keep."
+  },
+  {
+   "rank": 5,
+   "route": "Member buyout / equity club conversion",
+   "timing": "Year 10+",
+   "basis": "Negotiated, typically at or near the refinance value",
+   "requires": "A cohesive, capitalised membership",
+   "assessment": "UNDERRATED. The standard end-state for private golf and country clubs and a genuine alternative when no third-party bid clears."
+  },
+  {
+   "rank": 6,
+   "route": "Platform recapitalisation",
+   "timing": "Year 10+",
+   "basis": "Institutional capital into a multi-asset holding company",
+   "requires": "4+ assets and a proven operating platform",
+   "assessment": "PLAUSIBLE IF THE PLATFORM IS BUILT. Requires the second and third clubs, which requires club 1 to prove the model first."
+  },
+  {
+   "rank": 7,
+   "route": "Initial public offering",
+   "timing": "Year 12+ (acquisition-led) / year 22+ (ground-up)",
+   "basis": "Requires $500M+ equity value and $40M+ recurring NOI",
+   "requires": "5 stabilised assets, 2+ years of audited operating history, and a platform management team",
+   "assessment": "STRETCH OUTCOME, NOT A PLAN. NOT LISTABLE BY YEAR 10 ON EITHER ROUTE. 5 stabilised assets are needed. Ground-up reaches that in year 22; even an acquisition-led platform reaches it in year 12. Year 10 is when club 1 finishes ramping, not when a platform lists. The earliest credible route is acquisition-led at year 12; treat a listing as a year-12 stretch outcome, plan the platform for it, and underwrite to a strategic sale or recapitalisation in the meantime."
+  }
+ ]
 }

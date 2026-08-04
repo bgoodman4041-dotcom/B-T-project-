@@ -40,6 +40,7 @@ from reportlab.platypus import (
 from build.build_workbook import enrich, load_parcels_csv
 from model import cashflow as cfm
 from model import risk as rk
+from model import roadmap as rmap
 from model import scenarios as sc
 from model import two_stack as ts
 
@@ -163,7 +164,11 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     return dict(cfg=cfg, universe=universe, unverified=unverified, live=live,
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev,
-                tor=tor, tor_base=tor_base, mc=mc, sites=sites)
+                tor=tor, tor_base=tor_base, mc=mc, sites=sites,
+                timing=rmap.timing(cfg), milestones=rmap.milestones(cfg),
+                platform=rmap.platform_scale(cfg, lead_ask, lead_prem, 7),
+                listing=rmap.listing_readiness(cfg, lead_ask, lead_prem),
+                exits=rmap.exit_paths(cfg, lead_ask, lead_prem))
 
 
 # =============================================================================
@@ -399,36 +404,36 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(PageBreak())
 
     # ---------------- 6. Development plan ----------------
-    A(Paragraph("6. DEVELOPMENT PLAN AND TIMELINE", S_H1))
-    A(table([
-        ["Phase", "Duration", "Milestones", "Capital"],
-        ["Phase 0 — Feasibility", "0–9 months",
-         "Comparable club study; 150-parcel sourcing pass; site selection; option executed; "
-         "acoustic model; Phase I environmental; municipal pre-application",
-         "Tranche 1"],
-        ["Phase 1 — Entitlement", "9–33 months",
-         "Special permit or map amendment; environmental review; wetlands; abatement "
-         "agreement executed; founding-member pre-sales open",
-         "Tranche 1"],
-        ["Phase 2 — Construction",
-         f"{S['dev']} years",
-         "Land closing; circuit, clubhouse, service centre, first condominium building; "
-         "construction facility drawn",
-         "Tranche 2"],
-        ["Phase 3 — Lease-up",
-         f"Years 1–{S['stab']} of operations",
-         f"Membership ramp to {m['cap']}; condominium and homesite closings; "
-         f"permanent loan conversion at stabilisation",
-         "Tranche 2"],
-        ["Phase 4 — Stabilised hold", "Years 5–12",
-         "Full membership; dues escalation; refinance or sale of the retained club",
-         "—"],
-    ], [1.25 * inch, 0.85 * inch, 3.55 * inch, 0.75 * inch]))
+    A(Paragraph("6. ROADMAP — MONTH 1 TO YEAR 10", S_H1))
+    T = S["timing"]
     A(Paragraph(
-        "Total programme duration from first feasibility dollar to stabilisation is "
-        f"approximately {33 + S['dev'] * 12 + S['stab'] * 12} months. Entitlement is the "
-        "longest and least controllable phase, which is why the plan spends option money "
-        "rather than acquisition money until the permit is in hand.", S_BODY))
+        f"Timing below is derived from the underwriting, not asserted alongside it. "
+        f"Entitlement is assumed at {T.entitlement_months} months; construction runs "
+        f"{T.construction_months} months; the club opens in month {T.opening_month} "
+        f"(year {T.opening_year:.1f}) and stabilises in month {T.stabilisation_month} "
+        f"(year {T.stabilisation_year:.1f}). Every horizon carries the gate that must clear "
+        f"and the metric that proves it did.", S_BODY))
+
+    for ms in S["milestones"]:
+        rows = [[Paragraph(f"<b>{ms.horizon.upper()}</b> &nbsp; month {ms.month}", S_TBLB),
+                 Paragraph(f"<b>{ms.objective}</b><br/>"
+                           f"<font color='#555555'>{ms.phase} &middot; capital: "
+                           f"{ms.capital}</font>", S_TBL)]]
+        A(table(rows, [1.5 * inch, 5.35 * inch], header=False))
+        for dv in ms.deliverables:
+            A(Paragraph(f"{DIA}&nbsp;{dv}", S_BULLET))
+        A(Paragraph(f"<b>Gate:</b> {ms.gate} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                    f"<b>KPI:</b> {ms.kpi}", S_NOTE))
+        A(Spacer(1, 0.06 * inch))
+
+    A(Paragraph(
+        f"Total programme duration from the first feasibility dollar to stabilisation is "
+        f"approximately {T.stabilisation_month} months. Entitlement is the longest and least "
+        f"controllable phase, which is why the plan spends option money rather than "
+        f"acquisition money until the permit is in hand. Note what the arithmetic means for "
+        f"the ten-year horizon: year 10 is when the FIRST asset finishes ramping, not when a "
+        f"platform is mature. Section 14 addresses that directly.", S_BODY))
+    A(PageBreak())
 
     # ---------------- 7. Financial plan ----------------
     A(Paragraph("7. FINANCIAL PLAN", S_H1))
@@ -728,7 +733,89 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"hurdle is an internal test borrowed from core real estate and it does not fit a "
         f"merchant-build programme with a retained amenity."))
 
-    # ---------------- 12. Appendix ----------------
+    # ---------------- 14. Platform, IPO test, exit ladder ----------------
+    A(PageBreak())
+    A(Paragraph("14. PLATFORM STRATEGY, THE LISTING QUESTION, AND EXIT", S_H1))
+    lt = S["listing"]
+    T = S["timing"]
+    A(Paragraph(
+        "An initial public offering has been raised as a ten-year objective. It deserves "
+        "arithmetic rather than an aspiration, so this section tests it against screening "
+        "thresholds for whether a listing is even a conversation. The answer is no at year "
+        "ten, and the reason is scale and concentration rather than performance.", S_BODY))
+
+    A(Paragraph("Unit economics do not scale into a listing on their own", S_H2))
+    rows = [["Stabilised clubs", "Recurring NOI", "Asset value at exit cap",
+             "Cumulative development cost", "Clears listing thresholds?"]]
+    for pt in S["platform"]:
+        clears = (pt.stabilised_noi >= lt.thresholds["min_recurring_noi_usd"]
+                  and pt.asset_value >= lt.thresholds["min_equity_value_usd"]
+                  and pt.clubs >= lt.thresholds["min_stabilised_assets"])
+        rows.append([str(pt.clubs), _m(pt.stabilised_noi), _m(pt.asset_value),
+                     _m(pt.cumulative_dev_cost), "YES" if clears else "no"])
+    A(table(rows, [1.15 * inch, 1.25 * inch, 1.55 * inch, 1.75 * inch, 1.15 * inch]))
+    A(Paragraph(
+        f"Thresholds applied are judgment, not sourced: "
+        f"{_m(lt.thresholds['min_equity_value_usd'])} of equity value, "
+        f"{_m(lt.thresholds['min_recurring_noi_usd'])} of recurring NOI, "
+        f"{lt.thresholds['min_stabilised_assets']} stabilised assets for diversification, and "
+        f"{lt.thresholds['min_operating_history_years']} years of audited operating history. "
+        f"Scale is modelled linearly — no platform overhead leverage and no portfolio "
+        f"cap-rate premium are assumed, because neither is evidenced.", S_NOTE))
+
+    A(Paragraph("The listing test", S_H2))
+    A(table([
+        ["Test", "Requirement", "Result"],
+        ["Clubs needed on recurring NOI", f"{lt.clubs_required_by_noi}",
+         f"{_m(lt.thresholds['min_recurring_noi_usd'])} threshold"],
+        ["Clubs needed on equity value", f"{lt.clubs_required_by_value}",
+         f"{_m(lt.thresholds['min_equity_value_usd'])} threshold"],
+        ["Clubs needed on diversification", f"{lt.clubs_required_by_diversification}",
+         "Single-asset issuers do not list"],
+        ["BINDING REQUIREMENT", f"{lt.clubs_required} stabilised clubs", "The maximum of the three"],
+        ["Reached by ground-up development", f"Year {lt.ground_up_year:.0f}",
+         f"Each club needs the full {T.stabilisation_month}-month cycle at a "
+         f"{cfg['roadmap']['ground_up_stagger_months']}-month cadence"],
+        ["Reached by acquisition-led growth", f"Year {lt.acquisition_year:.0f}",
+         "Existing facilities carry a circuit and an entitlement already"],
+        ["LISTABLE BY YEAR 10", "NO" if not lt.listable_by_year_10 else "POSSIBLE",
+         "Year 10 is when club 1 finishes ramping"],
+    ], [2.05 * inch, 1.55 * inch, 3.25 * inch]))
+    A(Paragraph(f"<b>Conclusion.</b> {lt.verdict}", S_BODY))
+
+    A(Paragraph("What this means for strategy", S_H2))
+    A(B("Club 1 is the proof, not the platform",
+        "Its purpose is to demonstrate that the typology works in the Northeast, establish "
+        "the operating platform and the brand, and generate the track record that makes "
+        "capital for clubs 2 and 3 cheap. Underwrite it on its own merits, which Sections "
+        "7 and 11 do."))
+    A(B("Growth beyond club 2 should be acquisitive, not ground-up",
+        f"Ground-up entitlement and construction is a {T.stabilisation_month}-month cycle per "
+        f"asset. Acquiring and repositioning existing facilities compresses that to roughly "
+        f"{cfg['roadmap']['acquisition_ramp_months']} months and is the only route that "
+        f"reaches listing scale inside a normal fund life. It is also a different skill set "
+        f"and should be resourced as one."))
+    A(B("Do not underwrite to the IPO",
+        "It is a stretch outcome contingent on a platform that does not yet exist. The "
+        "capital returned in the base case comes from for-sale closings, member capital and "
+        "a stabilised asset — none of which requires a public listing."))
+
+    A(Paragraph("15. EXIT LADDER", S_H1))
+    A(Paragraph("Ranked by probability of actually happening, not by headline proceeds.",
+                S_BODY))
+    rows = [["#", "Route", "Timing", "Proceeds basis", "Requires", "Assessment"]]
+    for e in S["exits"]:
+        rows.append([str(e.rank), e.route, e.timing, e.proceeds_basis, e.requires,
+                     e.assessment])
+    A(table(rows, [0.28 * inch, 1.35 * inch, 0.95 * inch, 1.15 * inch, 1.35 * inch,
+                   1.77 * inch]))
+    A(Paragraph(
+        "The first two routes together return the majority of invested capital and depend on "
+        "delivery and absorption rather than on any capital-markets window. That is the "
+        "structural protection in this programme and it is why the plan is built as a "
+        "merchant build with a retained amenity rather than as a yield play.", S_BODY))
+
+    # ---------------- Appendices ----------------
     A(PageBreak())
     A(Paragraph("APPENDIX A — ASSUMPTION REGISTER", S_H1))
     A(Paragraph("Every material assumption, its status, and who resolves it.", S_BODY))
@@ -766,6 +853,15 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
          f"{d['target_ltc']:.0%} / {d['construction_ltc']:.0%}",
          "ASSUMED — see negative-leverage finding", "Lender term sheet"],
         ["Exit cap", _pct(cfg["income"]["exit_cap"]), "ASSUMED", "Broker opinion at exit"],
+        ["Entitlement period", f"{cfg['roadmap']['entitlement_months']} months",
+         "ASSUMED", "Municipal pre-application and counsel"],
+        ["Ground-up cadence between clubs",
+         f"{cfg['roadmap']['ground_up_stagger_months']} months", "ASSUMED",
+         "Management bandwidth and capital recycling"],
+        ["Listing thresholds",
+         f"{_m(cfg['listing_thresholds']['min_equity_value_usd'])} value / "
+         f"{_m(cfg['listing_thresholds']['min_recurring_noi_usd'])} NOI",
+         "JUDGMENT — screening only", "Banker guidance if a listing is pursued"],
     ], [1.55 * inch, 1.15 * inch, 1.75 * inch, 1.8 * inch]))
 
     A(Paragraph("APPENDIX B — INTERNAL CONSISTENCY AUDIT", S_H1))

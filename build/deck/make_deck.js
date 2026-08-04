@@ -464,6 +464,127 @@ const chartFrame = () => ({
 }
 
 // =====================================================================
+// 9b — Roadmap: month 1 to year 10
+// =====================================================================
+{
+  const s = lightSlide("Roadmap", "Month 1 to year 10 — every horizon has a gate");
+  const ms = D.milestones;
+  const left = ms.slice(0, 5), right = ms.slice(5);
+  const draw = (arr, x) => arr.forEach((t, i) => {
+    const y = 1.52 + i * 1.06;
+    const isGate = /HARD GATE/.test(t.gate);
+    s.addShape(pres.ShapeType.roundRect, {
+      x, y, w: 1.02, h: 0.34, fill: { color: isGate ? RED : ASPHALT },
+      rectRadius: 0.05, line: { color: isGate ? RED : ASPHALT, width: 0 },
+    });
+    s.addText(t.horizon.toUpperCase(), {
+      x, y, w: 1.02, h: 0.34, fontFace: BFONT, fontSize: 9, bold: true,
+      color: PAPER, align: "center", valign: "middle", margin: 0,
+    });
+    s.addText(t.objective, {
+      x: x + 1.14, y: y - 0.02, w: 4.65, h: 0.26, fontFace: BFONT, fontSize: 12,
+      bold: true, color: ASPHALT, margin: 0,
+    });
+    s.addText(t.deliverables.slice(0, 2).join(" · "), {
+      x: x + 1.14, y: y + 0.24, w: 4.65, h: 0.44, fontFace: BFONT, fontSize: 9.5,
+      color: GREY, margin: 0, lineSpacingMultiple: 1.0,
+    });
+    s.addText(isGate ? "HARD GATE" : t.capital, {
+      x: x + 1.14, y: y + 0.70, w: 4.65, h: 0.22, fontFace: BFONT, fontSize: 8.5,
+      bold: true, color: isGate ? RED : MIDGREY, margin: 0,
+    });
+  });
+  draw(left, M);
+  draw(right, 6.95);
+  footnote(s, "Two hard gates: the comparable-club study at month 3, and the seven conditions " +
+    "precedent at month 36. Neither is a formality — capital stops at both. Timing is derived " +
+    "from the underwriting: opening month " + D.timing.opening + ", stabilisation month " +
+    D.timing.stabilised + ".");
+  s.addNotes("The gates are the point. Month 3 kills the programme cheaply if the comps do " +
+    "not support the revenue. Month 36 is where construction capital first moves.");
+}
+
+// =====================================================================
+// 9c — The listing question
+// =====================================================================
+{
+  const L = D.listing;
+  const s = lightSlide("The ten-year question", "Can this be public by year 10? No — and here is the arithmetic");
+  s.addChart(pres.ChartType.bar, [{
+    name: "Recurring NOI", labels: D.platform.map(p => p.clubs + (p.clubs === 1 ? " club" : " clubs")),
+    values: D.platform.map(p => p.noi / 1e6),
+  }], Object.assign(chartFrame(), {
+    x: M, y: 1.72, w: 6.35, h: 2.75, barDir: "col", showValue: true,
+    dataLabelPosition: "outEnd", dataLabelColor: GREY,
+    dataLabelFormatCode: '"$"#,##0"M"', barGapWidthPct: 50,
+    chartColors: [ASPHALT, ASPHALT, ASPHALT, RED, RED, RED, RED],
+  }));
+  s.addText("Recurring NOI by platform size — threshold is " + m$(L.min_noi), {
+    x: M, y: 1.42, w: 6.35, h: 0.26, fontFace: BFONT, fontSize: 11, bold: true,
+    color: ASPHALT, margin: 0,
+  });
+
+  statCard(s, 7.25, 1.72, 2.6, 1.0, String(L.need), "STABILISED CLUBS REQUIRED TO LIST",
+    { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430", vsize: 34 });
+  statCard(s, 10.1, 1.72, 2.6, 1.0, "1", "STABILISED AT YEAR 10", { vsize: 34 });
+  statCard(s, 7.25, 2.9, 2.6, 1.0, "Yr " + L.ground_up_year.toFixed(0),
+    "SCALE REACHED — GROUND-UP ONLY");
+  statCard(s, 10.1, 2.9, 2.6, 1.0, "Yr " + L.acq_year.toFixed(0),
+    "SCALE REACHED — ACQUISITION-LED", { fill: CARBON, vcolor: PAPER, lcolor: MIDGREY });
+
+  s.addText("Year 10 is when club 1 finishes ramping — not when a platform matures. A single " +
+    "asset with " + m$(D.econ.noi) + " of NOI and " + m$(D.econ.exit_val) + " of value has no " +
+    "public-market path at any point on the timeline.", {
+    x: 7.25, y: 4.06, w: 5.45, h: 0.9, fontFace: BFONT, fontSize: 11, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.1,
+  });
+
+  s.addShape(pres.ShapeType.roundRect, {
+    x: M, y: 4.85, w: W - 2 * M, h: 1.22, fill: { color: ASPHALT }, rectRadius: 0.06,
+    line: { color: ASPHALT, width: 0 },
+  });
+  s.addText("WHAT THIS CHANGES ABOUT THE STRATEGY", {
+    x: M + 0.3, y: 4.99, w: 11.5, h: 0.24, fontFace: BFONT, fontSize: 10.5, bold: true,
+    color: RED, charSpacing: 1.4, margin: 0,
+  });
+  s.addText("Club 1 is the proof, not the platform — it establishes the typology, the operating " +
+    "company and the track record. Growth beyond club 2 should be ACQUISITIVE, because buying " +
+    "and repositioning existing facilities compresses a " + D.timing.stabilised +
+    "-month development cycle to roughly 24 months. A listing is a year-" +
+    L.acq_year.toFixed(0) + " stretch outcome contingent on that platform existing. " +
+    "Do not underwrite to it — the base case returns capital without one.", {
+    x: M + 0.3, y: 5.26, w: 11.85, h: 0.72, fontFace: BFONT, fontSize: 11,
+    color: PAPER, margin: 0, lineSpacingMultiple: 1.1,
+  });
+  s.addNotes("Answer the IPO question head-on with arithmetic. Saying no here and explaining " +
+    "the acquisition route buys more credibility than promising a listing you cannot date.");
+}
+
+// =====================================================================
+// 9d — Exit ladder
+// =====================================================================
+{
+  const s = lightSlide("Exit", "Seven routes, ranked by probability — not by headline proceeds");
+  const rows = [["#", "Route", "Timing", "Proceeds basis", "Requires"]];
+  D.exits.forEach(e => rows.push([String(e.rank), e.route, e.timing, e.basis, e.requires]));
+  tbl(s, M, 1.6, W - 2 * M, rows,
+    [0.32, 2.75, 1.75, 2.35, 4.92], { rowH: 0.44, fs: 9.5 });
+  s.addShape(pres.ShapeType.roundRect, {
+    x: M, y: 5.35, w: W - 2 * M, h: 0.9, fill: { color: MIST }, rectRadius: 0.06,
+    line: { color: MIST, width: 0 },
+  });
+  s.addText("Routes 1 and 2 — for-sale closings and member capital — return " +
+    m$(D.econ.fs_proceeds + D.econ.init_cash) + " of the " + m$(D.econ.total_uses) +
+    " of total uses, and depend on delivery and absorption rather than on any " +
+    "capital-markets window. That is the structural protection in this programme.", {
+    x: M + 0.28, y: 5.52, w: W - 2 * M - 0.56, h: 0.58, fontFace: BFONT, fontSize: 12,
+    color: ASPHALT, margin: 0, lineSpacingMultiple: 1.08,
+  });
+  s.addNotes("Lead with routes 1 and 2. They are the reason this is financeable without a " +
+    "capital-markets exit.");
+}
+
+// =====================================================================
 // 10 — Sources and uses
 // =====================================================================
 {

@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from model import cashflow as cfm  # noqa: E402
 from model import risk as rk  # noqa: E402
+from model import roadmap as rmap  # noqa: E402
 from model import scenarios as sc  # noqa: E402
 from model import two_stack as ts  # noqa: E402
 
@@ -478,6 +479,101 @@ def test_plausibility_passes_a_coherent_pro_forma():
 def test_plausibility_severity_values_are_known():
     rep = rk.plausibility_report(CFG, ASK)
     assert all(c.severity in {"OK", "WARN", "FAIL"} for c in rep["checks"])
+
+
+# =============================================================================
+# Roadmap, platform scale, and the listing test
+# =============================================================================
+
+def test_timing_is_derived_from_the_model():
+    """Change the construction period and the roadmap must move with it."""
+    T = rmap.timing(CFG)
+    assert T.construction_months == round(CFG["cost"]["carry"]["development_years"] * 12)
+    assert T.opening_month == CFG["roadmap"]["entitlement_months"] + T.construction_months
+    assert T.stabilisation_month == T.opening_month + ts.stabilization_year(CFG) * 12
+
+    slow = copy.deepcopy(CFG)
+    slow["cost"]["carry"]["development_years"] += 2
+    assert rmap.timing(slow).opening_month > T.opening_month
+
+
+def test_all_ten_horizons_are_present_and_ordered():
+    ms = rmap.milestones(CFG)
+    assert len(ms) == 10
+    assert [x.month for x in ms] == sorted(x.month for x in ms)
+    assert [x.horizon for x in ms][0] == "1 month"
+    assert [x.horizon for x in ms][-1] == "10 years"
+
+
+def test_every_milestone_carries_a_gate_and_a_kpi():
+    for x in rmap.milestones(CFG):
+        assert x.objective and x.gate and x.kpi and x.deliverables, x.horizon
+
+
+def test_milestone_phases_are_computed_not_asserted():
+    """Phase labels must follow the derived timing, not a hardcoded list."""
+    T = rmap.timing(CFG)
+    for x in rmap.milestones(CFG):
+        if x.month <= T.feasibility_months:
+            assert "Feasibility" in x.phase
+        elif x.month <= T.entitlement_months:
+            assert "Entitlement" in x.phase
+        elif x.month <= T.opening_month:
+            assert "Construction" in x.phase
+
+
+def test_platform_scale_is_linear_in_club_count():
+    pts = rmap.platform_scale(CFG, ASK, 0.0, 5)
+    one = pts[0]
+    for p in pts:
+        assert approx(p.stabilised_noi, one.stabilised_noi * p.clubs, tol=1e-9)
+        assert approx(p.asset_value, one.asset_value * p.clubs, tol=1e-9)
+
+
+def test_listing_requires_more_than_one_club():
+    """A single-asset issuer of this size has no public-market path."""
+    lt = rmap.listing_readiness(CFG, ASK)
+    assert lt.clubs_required > 1
+    assert lt.clubs_required == max(lt.clubs_required_by_noi,
+                                    lt.clubs_required_by_value,
+                                    lt.clubs_required_by_diversification)
+
+
+def test_acquisition_route_is_faster_than_ground_up():
+    lt = rmap.listing_readiness(CFG, ASK)
+    assert lt.acquisition_year < lt.ground_up_year
+
+
+def test_listing_verdict_is_honest_about_year_ten():
+    """
+    Documents the finding: club 1 stabilises at ~year 10, so year 10 is not a
+    listing date. If this flips, the timing assumptions moved materially.
+    """
+    lt = rmap.listing_readiness(CFG, ASK)
+    T = rmap.timing(CFG)
+    assert T.stabilisation_year > 9.0
+    assert not lt.listable_by_year_10
+    assert "NOT LISTABLE BY YEAR 10" in lt.verdict
+
+
+def test_higher_thresholds_require_more_clubs():
+    hard = copy.deepcopy(CFG)
+    hard["listing_thresholds"]["min_recurring_noi_usd"] *= 2
+    assert (rmap.listing_readiness(hard, ASK).clubs_required
+            > rmap.listing_readiness(CFG, ASK).clubs_required)
+
+
+def test_exit_ladder_is_ranked_and_complete():
+    paths = rmap.exit_paths(CFG, ASK)
+    assert len(paths) == 7
+    assert [p.rank for p in paths] == list(range(1, 8))
+    assert "public offering" in paths[-1].route.lower(), "IPO must rank last"
+    assert "for-sale" in paths[0].route.lower(), "self-liquidating routes rank first"
+
+
+def test_exit_ladder_ipo_entry_carries_the_verdict():
+    paths = rmap.exit_paths(CFG, ASK)
+    assert "STRETCH OUTCOME" in paths[-1].assessment
 
 
 if __name__ == "__main__":

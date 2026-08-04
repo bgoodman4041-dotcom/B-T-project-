@@ -1,6 +1,18 @@
 """Track Boss underwriting and screening model."""
 
 from .gates import Gate, GateResult, ScreenResult, funnel_report, has_required_identifiers, screen
+from .roadmap import (
+    ExitPath,
+    ListingTest,
+    Milestone,
+    PlatformPoint,
+    Timing,
+    exit_paths,
+    listing_readiness,
+    milestones,
+    platform_scale,
+    timing,
+)
 from .scoring import CompositeScore, composite_score, narrative, rank
 from .two_stack import (
     CostStack,
@@ -29,6 +41,16 @@ __all__ = [
     "CompositeScore",
     "composite_score",
     "narrative",
+    "milestones",
+    "timing",
+    "platform_scale",
+    "listing_readiness",
+    "exit_paths",
+    "Milestone",
+    "Timing",
+    "PlatformPoint",
+    "ListingTest",
+    "ExitPath",
     "rank",
     "CostStack",
     "ForSaleResult",

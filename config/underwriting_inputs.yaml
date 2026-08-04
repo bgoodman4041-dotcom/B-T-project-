@@ -447,3 +447,35 @@ plausibility:
   members_per_track_mile: [40, 90]
   reserve_per_track_mile_usd: [120000, 400000]
   value_to_cost: [0.90, 1.60]
+
+# -----------------------------------------------------------------------------
+# ROADMAP AND PLATFORM STRATEGY
+# -----------------------------------------------------------------------------
+# Milestone timing is DERIVED from the model wherever possible (construction
+# period, stabilisation year, sell-out) so the roadmap cannot drift from the
+# underwriting. Only the entitlement period and the platform cadence are
+# independent inputs.
+roadmap:
+  basis: assumed
+  entitlement_months: 33         # pre-application through permit issuance
+  feasibility_months: 9          # Phase 0, inside the entitlement window
+  # Cadence for starting each subsequent ground-up club, in months after the
+  # prior one. Set by management bandwidth and capital recycling, not by demand.
+  ground_up_stagger_months: 36
+  # An acquisition of an existing facility reaches stabilised contribution far
+  # faster than a ground-up build, because the circuit and entitlement exist.
+  acquisition_ramp_months: 24
+
+# Public-market readiness thresholds. JUDGMENT, not sourced. They exist so the
+# IPO question gets a testable answer instead of an aspiration.
+listing_thresholds:
+  basis: assumed
+  min_equity_value_usd: 500000000    # credible US small-cap listing
+  min_recurring_noi_usd: 40000000    # recurring NOI / EBITDA scale
+  min_stabilised_assets: 4           # diversification — single-asset issuers do not list
+  min_operating_history_years: 2      # audited operating history at stabilisation
+  note: >
+    These are screening thresholds for whether a listing is even a conversation,
+    not a prediction that one happens. A single-asset owner with under $10M of
+    NOI has no public-market path at any point on the timeline; the question is
+    only whether the platform reaches scale, and by which growth route.
