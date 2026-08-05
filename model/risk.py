@@ -322,6 +322,7 @@ def monte_carlo(
     iterations: int | None = None,
     horizon: int = 12,
     seed: int | None = None,
+    site_cost_premium: float = 0.0,
 ) -> MonteCarloResult:
     """
     Joint draw across every driver, reporting the DISTRIBUTION of the answer and
@@ -350,8 +351,20 @@ def monte_carlo(
                 feas_g += 1
             if uw.max_land_net > 0:
                 feas_n += 1
-            cf = cf_mod.project_cash_flow(c, land_price, horizon_operating_years=horizon)
-            if cf.min_dscr is not None and cf.min_dscr >= c["debt"]["min_dscr"]:
+            cf = cf_mod.project_cash_flow(c, land_price, horizon_operating_years=horizon,
+                                          site_cost_premium=site_cost_premium)
+            # Test the covenant FROM CONVERSION, exactly as cashflow, scenarios
+            # and the workbook do. `cf.min_dscr` is the whole-hold minimum and
+            # includes lease-up years, when the note is interest-only, a funded
+            # reserve is carrying it and NOI has not arrived. Measured that way
+            # every draw fails and the reported probability is a structural
+            # zero, not a result -- it read "0% of 4,000 draws hold the
+            # covenant" on a deck whose base case covers at 2.02x.
+            rep = cf_mod.covenant_report(
+                cf, c["debt"]["min_dscr"],
+                tested_from_year=int(round(c["cost"]["carry"]["development_years"]))
+                + ts.stabilization_year(c))
+            if rep["passes_every_year"]:
                 cov_ok += 1
         except (ValueError, ZeroDivisionError):
             failures += 1
@@ -453,7 +466,10 @@ def plausibility_report(
                     "means opex or revenue is mis-scaled"),
         _band_check("Property tax % of EGI", tax / stab.egi if stab.egi else None,
                     p["property_tax_pct_of_egi"], ".1%",
-                    "NY/CT/NJ effective rates are high but bounded"),
+                    "effective rates run from ~0.65% of value in NV to ~2.6% in CT, "
+                    "and abatement reaches this use in some states and not others -- "
+                    "the band spans the national range, so a miss means the tau inputs "
+                    "are wrong, not that the jurisdiction is unusual"),
         _band_check("Members per track mile",
                     cfg["income"]["membership"]["cap"] / miles if miles else None,
                     p["members_per_track_mile"], ".0f",

@@ -147,6 +147,18 @@ def _governing_verdict(cfg: dict[str, Any], rows: list[dict[str, Any]]) -> dict[
 # Tab: Executive Summary
 # =============================================================================
 
+def _markets_line(rows: list[dict[str, Any]]) -> str:
+    """Describe the geography from the DATA, not from a constant that goes stale
+    the moment the pipeline leaves its original three states."""
+    metros = sorted({str(p.get("market_metro")) for p in rows if p.get("market_metro")})
+    states = sorted({str(p.get("state")) for p in rows if p.get("state")})
+    if not metros:
+        return " · ".join(states) if states else "geography unresolved"
+    head = ", ".join(metros[:3])
+    return (f"{len(metros)} markets across {len(states)} states — {head}"
+            + (f" +{len(metros) - 3} more" if len(metros) > 3 else ""))
+
+
 def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, Any],
                       diag: dict[str, Any]) -> None:
     ws = wb.create_sheet("Executive Summary")
@@ -156,7 +168,8 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     ws["A1"] = "TRACK BOSS — CAR COMMUNITY SITE RADAR"
     ws["A1"].font = Font(name="Calibri", size=16, bold=True)
     ws["A2"] = (
-        f"NY / CT / NJ  ·  {hurdle:.2%} YoC hurdle  ·  {diag['min_dscr']:.2f}x min DSCR  ·  "
+        f"{_markets_line(rows)}  ·  {hurdle:.2%} YoC hurdle  ·  "
+        f"{diag['min_dscr']:.2f}x min DSCR  ·  "
         f"binding test {diag['required_yield']:.2%} ({diag['binding_constraint']})  ·  "
         f"ranked on {rank_basis.upper()} basis  ·  generated {dt.date.today():%Y-%m-%d}"
     )
@@ -404,21 +417,33 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     for k, v in inc["ancillary_annual_usd"].items():
         anc_refs.append(put_input(f"  {k.replace('_', ' ').title()}", v, FMT_USD0))
     frac = put_formula("Member penetration at stabilization", f"={members}/{cap}", FMT_PCT)
-    anc = put_formula("Ancillary revenue (scaled)",
-                      f"=SUM({','.join(anc_refs)})*{frac}*{infl}")
-    egi = put_formula("EFFECTIVE GROSS INCOME", f"={dues_rev}+{init_rev}+{anc}")
+    anc_sum = f"SUM({','.join(anc_refs)})"
+    # Season length is the largest geographic difference in the model, so its
+    # parameters live in column B and each parcel column supplies its own days.
+    sn = inc.get("season") or {}
+    base_days = put_input("Baseline usable days / yr", sn.get("baseline_days", 210), FMT_NUM,
+                          "the season the ancillary and opex figures above describe")
+    anc_elast = put_input("Ancillary elasticity to season", sn.get("ancillary_elasticity", 0.0),
+                          FMT_PCT, "share of ancillary that moves with days open")
+    opex_elast = put_input("Opex elasticity to season", sn.get("opex_elasticity", 0.0),
+                           FMT_PCT, "crew, consumables, track prep; the rest is fixed")
+    anc = put_formula("Ancillary revenue (scaled, baseline season)",
+                      f"={anc_sum}*{frac}*{infl}")
+    egi = put_formula("EFFECTIVE GROSS INCOME (baseline season)", f"={dues_rev}+{init_rev}+{anc}")
 
     r += 1
     _section(ws, r, "STACK B — OPERATING EXPENSE", 3); r += 1
     opex_refs = [put_input(f"  {k.replace('_', ' ').title()}", v, FMT_USD0)
                  for k, v in inc["opex_annual_usd"].items()]
-    opex = put_formula("Total opex (escalated, does not ramp)",
-                       f"=SUM({','.join(opex_refs)})*{infl}")
+    opex_sum = f"SUM({','.join(opex_refs)})"
+    opex = put_formula("Total opex (escalated, does not ramp)", f"={opex_sum}*{infl}")
     mgmt_pct = put_input("Management fee (% EGI)", inc["management_fee_pct_egi"], FMT_PCT)
     res_pct = put_input("Replacement reserve (% EGI)", inc["replacement_reserve_pct_egi"], FMT_PCT)
     mgmt = put_formula("Management fee", f"={egi}*{mgmt_pct}")
     reserve = put_formula("Replacement reserve", f"={egi}*{res_pct}")
-    noi = put_formula("STABILIZED NOI", f"={egi}-{opex}-{mgmt}-{reserve}")
+    # National reference only. Each parcel column re-solves NOI at its own
+    # season, so this cell is the base case, not the answer for any one site.
+    put_formula("STABILIZED NOI (baseline season)", f"={egi}-{opex}-{mgmt}-{reserve}")
 
     r += 1
     _section(ws, r, "STACK A — FOR-SALE (merchant build: both components sold)", 3); r += 1
@@ -507,8 +532,9 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
                              "the yield the covenant alone demands")
     required_ref = put_formula("REQUIRED YIELD (binding)", f"=MAX({hurdle_ref},{dscr_yield})",
                                FMT_PCT, "the tighter of hurdle and covenant")
-    effective_ref = put_formula("EFFECTIVE TEST (required + tau)", f"={required_ref}+{tau}",
-                                FMT_PCT, "what the deal must actually earn")
+    # Likewise a reference: the per-parcel columns add their own local tau.
+    put_formula("EFFECTIVE TEST (required + tau, baseline)", f"={required_ref}+{tau}",
+                FMT_PCT, "what the deal must earn at the national default tax regime")
     ws.cell(row=r, column=1, value="Binding constraint").font = BODY_FONT
     bc = ws.cell(row=r, column=2, value=f'=IF({dscr_yield}>{hurdle_ref},"DSCR","YIELD")')
     bc.border, bc.font = BORDER, Font(name="Calibri", size=10, bold=True)
@@ -520,8 +546,19 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     _section(ws, r, "PER-PARCEL — LIVE FORMULAS", 3 + len(top))
     hdr = r
     ws.cell(row=hdr, column=1, value="PER-PARCEL — LIVE FORMULAS")
+    # Three drivers travel with the dirt rather than the program -- season,
+    # local ad valorem regime, and the site cost premium -- so NOI, tau and the
+    # non-land subtotal are solved PER COLUMN. Column B is the national base
+    # case; it is the reference, not the answer for any particular site. Sharing
+    # one NOI across a nationwide pipeline silently underwrote fifteen sites on
+    # one site's economics.
     labels = [
         "Parcel ID", "Municipality", "Ask price",
+        "Usable season days", "Site cost premium / (credit)",
+        "Effective tax rate", "Abatement (PILOT/EDA)",
+        "Season factor — revenue", "Season factor — opex",
+        "Ancillary revenue (site)", "EGI (site)", "Opex (site)",
+        "STABILIZED NOI (site)", "Tax load tau (site)", "Non-land subtotal S (site)",
         "Max supportable land — GROSS", "Max supportable land — NET",
         "Gross cost basis @ ask", "Net cost basis @ ask",
         "Property tax @ ask", "NOI after tax @ ask",
@@ -544,10 +581,32 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         ws.cell(row=hdr + 1, column=col, value=p.get("parcel_id")).font = Font(
             name="Calibri", size=10, bold=True)
         ws.cell(row=hdr + 2, column=col, value=p.get("municipality")).font = BODY_FONT
-        ask = ws.cell(row=ask_row, column=col, value=p.get("ask_price"))
-        ask.number_format, ask.fill, ask.border = FMT_USD, INPUT_FILL, BORDER
+
+        pt_cfg = cfg["income"]["property_tax"]
+        site_inputs = {
+            ask_row: p.get("ask_price"),
+            hdr + 4: p.get("season_days") or sn.get("baseline_days", 210),
+            hdr + 5: float(p.get("site_cost_premium_usd") or 0.0),
+            hdr + 6: (p.get("property_tax_effective_rate")
+                      if p.get("property_tax_effective_rate") is not None
+                      else pt_cfg["effective_rate"]),
+            hdr + 7: (p.get("property_tax_abatement_pct")
+                      if p.get("property_tax_abatement_pct") is not None
+                      else pt_cfg["abatement_pct"]),
+        }
+        for row_i, val in site_inputs.items():
+            cell = ws.cell(row=row_i, column=col, value=val)
+            cell.fill, cell.border = INPUT_FILL, BORDER
+            cell.number_format = (FMT_PCT if row_i in (hdr + 6, hdr + 7)
+                                  else FMT_NUM if row_i == hdr + 4 else FMT_USD)
 
         A = f"{L}{ask_row}"
+        days, prem = f"{L}{hdr + 4}", f"{L}{hdr + 5}"
+        rate_s, abate_s = f"{L}{hdr + 6}", f"{L}{hdr + 7}"
+        sf_rev, sf_opex = f"{L}{hdr + 8}", f"{L}{hdr + 9}"
+        anc_s, egi_s, opex_s = f"{L}{hdr + 10}", f"{L}{hdr + 11}", f"{L}{hdr + 12}"
+        noi_s, tau_s, S_s = f"{L}{hdr + 13}", f"{L}{hdr + 14}", f"{L}{hdr + 15}"
+
         # Closed-form inversions, written as Excel. Solved at the REQUIRED
         # yield -- the tighter of the equity hurdle and the DSCR-implied yield:
         #   gross: NOI / (y*(1+k)) - S
@@ -556,33 +615,45 @@ def _tab_underwriting(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
         # Ad-valorem tax is equivalent to adding tau to the required yield, so
         # the inversions divide by (required + tau) rather than netting tax out
         # of NOI first. YoC and DSCR at the ask net it explicitly.
+        eff_s = f"({required_ref}+{tau_s})"
         f = {
-            hdr + 4: f"={noi}/({effective_ref}*(1+{k}))-{S}",
-            hdr + 5: f"=(({noi}+{required_ref}*({fs_net}+{incent}))/{effective_ref})"
-                     f"/(1+{k})-{S}",
-            hdr + 6: f"=({A}+{S})*(1+{k})",
-            hdr + 7: f"=({A}+{S})*(1+{k})-{fs_net}-{incent}",
-            hdr + 8: f"={tau}*MAX(0,{L}{hdr + 6})",
-            hdr + 9: f"={noi}-{L}{hdr + 8}",
-            hdr + 10: f"=IF({L}{hdr + 6}<=0,\"n/a\",{L}{hdr + 9}/{L}{hdr + 6})",
-            hdr + 11: f"=IF({L}{hdr + 7}<=0,\"n/a\",{L}{hdr + 9}/{L}{hdr + 7})",
-            hdr + 12: f"=IF({L}{hdr + 6}<=0,\"n/a\",{L}{hdr + 9}/({ltc}*{L}{hdr + 6}*{mc}))",
-            hdr + 13: f"=IF({L}{hdr + 7}<=0,\"n/a\",{L}{hdr + 9}/({ltc}*{L}{hdr + 7}*{mc}))",
+            hdr + 8: f"=(1-{anc_elast})+{anc_elast}*{days}/{base_days}",
+            hdr + 9: f"=1+{opex_elast}*({days}/{base_days}-1)*{frac}",
+            hdr + 10: f"={anc_sum}*{frac}*{infl}*{sf_rev}",
+            hdr + 11: f"={dues_rev}+{init_rev}+{anc_s}",
+            hdr + 12: f"={opex_sum}*{infl}*{sf_opex}",
+            hdr + 13: f"={egi_s}-{opex_s}-{egi_s}*{mgmt_pct}-{egi_s}*{res_pct}",
+            hdr + 14: f"={tax_share}*{assess}*{rate_s}*(1-{abate_s})",
+            # A site premium is a HARD cost, so it draws soft cost and
+            # contingency on top of itself. Adding it flat to S understated the
+            # basis by the soft-and-contingency load on every premium site.
+            hdr + 15: f"={S}+{prem}*(1+{soft_pct})*(1+{cont_pct})",
+            hdr + 16: f"={noi_s}/({eff_s}*(1+{k}))-{S_s}",
+            hdr + 17: f"=(({noi_s}+{required_ref}*({fs_net}+{incent}))/{eff_s})"
+                      f"/(1+{k})-{S_s}",
+            hdr + 18: f"=({A}+{S_s})*(1+{k})",
+            hdr + 19: f"=({A}+{S_s})*(1+{k})-{fs_net}-{incent}",
+            hdr + 20: f"={tau_s}*MAX(0,{L}{hdr + 18})",
+            hdr + 21: f"={noi_s}-{L}{hdr + 20}",
+            hdr + 22: f"=IF({L}{hdr + 18}<=0,\"n/a\",{L}{hdr + 21}/{L}{hdr + 18})",
+            hdr + 23: f"=IF({L}{hdr + 19}<=0,\"n/a\",{L}{hdr + 21}/{L}{hdr + 19})",
+            hdr + 24: f"=IF({L}{hdr + 18}<=0,\"n/a\",{L}{hdr + 21}/({ltc}*{L}{hdr + 18}*{mc}))",
+            hdr + 25: f"=IF({L}{hdr + 19}<=0,\"n/a\",{L}{hdr + 21}/({ltc}*{L}{hdr + 19}*{mc}))",
         }
-        max_ref = f"{L}{hdr + 4}" if rank_basis == "gross" else f"{L}{hdr + 5}"
-        yoc_ref = f"{L}{hdr + 10}" if rank_basis == "gross" else f"{L}{hdr + 11}"
-        dscr_ref = f"{L}{hdr + 12}" if rank_basis == "gross" else f"{L}{hdr + 13}"
-        f[hdr + 14] = f"={max_ref}-{A}"
-        f[hdr + 15] = f"=IF({max_ref}<=0,\"n/a\",{A}/{max_ref})"
-        f[hdr + 16] = f"=IF({max_ref}<=0,\"YES\",IF({A}>{max_ref}*1.2,\"YES\",\"no\"))"
-        f[hdr + 17] = (
+        max_ref = f"{L}{hdr + 16}" if rank_basis == "gross" else f"{L}{hdr + 17}"
+        yoc_ref = f"{L}{hdr + 22}" if rank_basis == "gross" else f"{L}{hdr + 23}"
+        dscr_ref = f"{L}{hdr + 24}" if rank_basis == "gross" else f"{L}{hdr + 25}"
+        f[hdr + 26] = f"={max_ref}-{A}"
+        f[hdr + 27] = f"=IF({max_ref}<=0,\"n/a\",{A}/{max_ref})"
+        f[hdr + 28] = f"=IF({max_ref}<=0,\"YES\",IF({A}>{max_ref}*1.2,\"YES\",\"no\"))"
+        f[hdr + 29] = (
             f"=IF(AND(ISNUMBER({yoc_ref}),ISNUMBER({dscr_ref}),"
             f"{yoc_ref}>={hurdle_ref},{dscr_ref}>={min_dscr}),\"YES\",\"no\")"
         )
 
-        pct_rows = {hdr + 10, hdr + 11, hdr + 15}
-        dscr_rows = {hdr + 12, hdr + 13}
-        text_rows = {hdr + 16, hdr + 17}
+        pct_rows = {hdr + 8, hdr + 9, hdr + 14, hdr + 22, hdr + 23, hdr + 27}
+        dscr_rows = {hdr + 24, hdr + 25}
+        text_rows = {hdr + 28, hdr + 29}
         for row_i, formula in f.items():
             cell = ws.cell(row=row_i, column=col, value=formula)
             cell.border = BORDER
@@ -921,9 +992,11 @@ def _tab_scenarios(wb: Workbook, cfg: dict[str, Any], ask: float | None,
 # Tab: Cash Flow & Funding
 # =============================================================================
 
-def _tab_cashflow(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+def _tab_cashflow(wb: Workbook, cfg: dict[str, Any], land_price: float,
+                  premium: float = 0.0) -> None:
     ws = wb.create_sheet("Cash Flow & Funding")
-    cf = cf_mod.project_cash_flow(cfg, land_price, horizon_operating_years=12)
+    cf = cf_mod.project_cash_flow(cfg, land_price, horizon_operating_years=12,
+                                  site_cost_premium=premium)
     su = cf.sources_uses
 
     ws["A1"] = "DEVELOPMENT CASH FLOW, PEAK FUNDING AND COVERAGE BY YEAR"
@@ -1132,18 +1205,22 @@ def _tab_tornado(wb: Workbook, cfg: dict[str, Any]) -> None:
 # Tab: Monte Carlo
 # =============================================================================
 
-def _tab_monte_carlo(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+def _tab_monte_carlo(wb: Workbook, cfg: dict[str, Any], land_price: float,
+                     premium: float = 0.0) -> None:
     ws = wb.create_sheet("Monte Carlo")
     ws["A1"] = "MONTE CARLO — PROBABILITY THE PROGRAM CLEARS"
     ws["A1"].font = Font(name="Calibri", size=14, bold=True)
-    mc = rk.monte_carlo(cfg, land_price)
+    mc = rk.monte_carlo(cfg, land_price, site_cost_premium=premium)
     ws["A2"] = (f"{mc.iterations:,} joint draws, triangular distributions. Drivers are drawn "
                 f"INDEPENDENTLY, which understates the tail because real drivers co-move in "
                 f"stress — read this with the Scenarios tab, not instead of it.")
     ws["A2"].font = NOTE_FONT
-    ws["A3"] = ("Several driver modes are deliberately adverse to the base case, so the median "
-                "draw sits below the base case by construction. This is not an unbiased "
-                "estimate of the base case; it is a stress distribution.")
+    ws["A3"] = ("Every driver's MODAL value is the base case, so the simulation is centred on "
+                "the underwriting rather than beside it. The asymmetry lives in the spread: "
+                "each driver has a longer adverse tail than favourable one, and nine "
+                "independent draws compound. The covenant is tested from loan conversion, as "
+                "everywhere else. A low hold rate measures how wide the parameter uncertainty "
+                "still is, not a second and gloomier forecast.")
     ws["A3"].font = NOTE_FONT
 
     row = 5
@@ -1241,7 +1318,13 @@ def enrich(parcels: list[dict[str, Any]], cfg: dict[str, Any]) -> tuple[list[dic
         uw = None
         if sr.survived:
             premium = float(p.get("site_cost_premium_usd") or 0.0)
-            uw = two_stack.underwrite(cfg, p["parcel_id"], ask_price=p.get("ask_price"),
+            # Season length and the local ad valorem regime are SITE attributes,
+            # so each parcel is underwritten against its own figures rather than
+            # a single national average. Between a Sun Belt and a Northeast site
+            # off identical physical plant, those two lines are the difference.
+            site_cfg = two_stack.site_config(cfg, p)
+            uw = two_stack.underwrite(site_cfg, p["parcel_id"],
+                                      ask_price=p.get("ask_price"),
                                       site_cost_premium=premium)
             p.update({
                 "stabilized_noi": uw.stabilized_noi,
@@ -1306,15 +1389,20 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     # Analytical depth beyond the eleven §9 tabs: correlated downside, funding
     # and coverage through time, margin of safety, driver attribution,
     # distribution of outcomes, and an internal-consistency audit.
-    ref_land = next((p.get("ask_price") for p in survivors if p.get("ask_price")), 0.0) or 0.0
-    ref_premium = next((float(p.get("site_cost_premium_usd") or 0.0)
-                        for p in survivors if p.get("ask_price")), 0.0)
-    _tab_scenarios(wb, cfg, ref_land or None, ref_premium)
-    _tab_cashflow(wb, cfg, ref_land)
-    _tab_breakeven(wb, cfg, ref_land)
-    _tab_tornado(wb, cfg)
-    _tab_monte_carlo(wb, cfg, ref_land)
-    _tab_plausibility(wb, cfg, ref_land)
+    # Every analytical tab must describe the SAME site the Underwriting tab leads
+    # on, which means the lead site's season and tax regime, not the national
+    # defaults. Running the cash flow on 210 days while the Underwriting tab
+    # solves a 310-day site is exactly the drift this workbook exists to prevent.
+    lead = next((p for p in survivors if p.get("ask_price")), None) or {}
+    ref_land = float(lead.get("ask_price") or 0.0)
+    ref_premium = float(lead.get("site_cost_premium_usd") or 0.0)
+    ref_cfg = two_stack.site_config(cfg, lead)
+    _tab_scenarios(wb, ref_cfg, ref_land or None, ref_premium)
+    _tab_cashflow(wb, ref_cfg, ref_land, ref_premium)
+    _tab_breakeven(wb, ref_cfg, ref_land)
+    _tab_tornado(wb, ref_cfg)
+    _tab_monte_carlo(wb, ref_cfg, ref_land, ref_premium)
+    _tab_plausibility(wb, ref_cfg, ref_land)
     _tab_sources(wb, sources or _default_sources())
     _tab_unverified(wb, unverified)
 

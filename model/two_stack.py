@@ -40,6 +40,7 @@ Both are exact. No solver, no iteration.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -177,6 +178,87 @@ def _initiation_recognized(
     return recognized
 
 
+def season_factor(cfg: dict[str, Any]) -> float:
+    """
+    Multiplier on track-dependent ancillary revenue for the site's usable season.
+
+    Only `ancillary_elasticity` of ancillary revenue moves with the season --
+    indoor storage and the service department earn year-round, track rental and
+    driving school do not. Returns 1.0 when no season block is configured.
+    """
+    sn = cfg["income"].get("season")
+    if not sn:
+        return 1.0
+    days = float(cfg["income"].get("season_days") or sn["baseline_days"])
+    base = float(sn["baseline_days"])
+    e = float(sn["ancillary_elasticity"])
+    return (1 - e) + e * (days / base)
+
+
+def opex_season_factor(cfg: dict[str, Any], member_fraction: float = 1.0) -> float:
+    """
+    Multiplier on club opex for the site's usable season.
+
+    The counterpart to `season_factor`. `opex_elasticity` is the usage-variable
+    share -- safety crew, corner workers, consumables, track prep, hourly staff.
+    The remainder (insurance, admin, fixed maintenance) is indifferent to how
+    many days the gates are open.
+
+    The uplift is attenuated by member penetration for the same reason the
+    revenue side is: a half-full club open 310 days does not run a full calendar
+    of events, so it does not spend the full incremental crew cost. Applying the
+    uplift at full force against an ancillary line already discounted by `frac`
+    is a one-sided charge -- it erased the entire long-season advantage and put
+    a 210-day Northeast site back on top of a 310-day one, which is not what the
+    physical difference between those two sites actually is.
+
+    Returns exactly 1.0 at the baseline season, so the flat-opex rule is
+    preserved unchanged for any site at 210 days and for any config without a
+    season block.
+    """
+    sn = cfg["income"].get("season")
+    if not sn:
+        return 1.0
+    days = float(cfg["income"].get("season_days") or sn["baseline_days"])
+    base = float(sn["baseline_days"])
+    e = float(sn.get("opex_elasticity", 0.0))
+    return 1.0 + e * (days / base - 1.0) * member_fraction
+
+
+def site_config(cfg: dict[str, Any], parcel: dict[str, Any]) -> dict[str, Any]:
+    """
+    Overlay site-specific economics onto the national base case.
+
+    Exactly three inputs travel with the dirt rather than with the program:
+
+      season_days                  weather, and it moves ancillary revenue
+      property_tax_effective_rate  local statute, and it moves tau directly
+      property_tax_abatement_pct   whether a PILOT reaches this use at all
+
+    The 50% abatement in the base case is NY-IDA-specific. Florida and Nevada
+    have no comparable mechanism for a private recreation use, so a nationwide
+    comparison that carries the abatement everywhere flatters the Sun Belt sites
+    on top of an advantage they already have from the season. Sites that specify
+    nothing get the national defaults, so this is a no-op for the base case.
+
+    Returns `cfg` itself when there is nothing to override -- callers must not
+    mutate the result.
+    """
+    keys = ("season_days", "property_tax_effective_rate", "property_tax_abatement_pct")
+    if not any(parcel.get(k) is not None for k in keys):
+        return cfg
+
+    out = copy.deepcopy(cfg)
+    if parcel.get("season_days") is not None:
+        out["income"]["season_days"] = int(parcel["season_days"])
+    pt = out["income"]["property_tax"]
+    if parcel.get("property_tax_effective_rate") is not None:
+        pt["effective_rate"] = float(parcel["property_tax_effective_rate"])
+    if parcel.get("property_tax_abatement_pct") is not None:
+        pt["abatement_pct"] = float(parcel["property_tax_abatement_pct"])
+    return out
+
+
 def project_year(
     cfg: dict[str, Any],
     year: int,
@@ -197,14 +279,27 @@ def project_year(
     dues = members * m["annual_dues_usd"] * infl
     initiation = _initiation_recognized(cfg, year, schedule, mode)
 
-    # Ancillary scales with member penetration -- an empty club sells no track days.
-    ancillary = sum(inc["ancillary_annual_usd"].values()) * frac * infl
+    # Ancillary scales with member penetration -- an empty club sells no track
+    # days -- and with SEASON LENGTH, because a circuit that is unusable four
+    # months a year cannot sell the same throughput. `season_factor` is 1.0 at
+    # the baseline; a Sun Belt site above 300 usable days earns materially more
+    # off the same physical plant, which is the whole economic case for going
+    # national rather than staying in the Northeast.
+    ancillary = sum(inc["ancillary_annual_usd"].values()) * frac * infl * season_factor(cfg)
 
     egi = dues + initiation + ancillary
 
-    # Opex does NOT ramp. You insure, mow, and maintain the full circuit from
-    # day one regardless of how many members have joined. Conservative and true.
-    opex = sum(inc["opex_annual_usd"].values()) * infl
+    # Opex does NOT ramp with membership. You insure, mow, and maintain the full
+    # circuit from day one regardless of how many members have joined.
+    #
+    # It DOES scale with season length, and only partly. Insurance, admin and
+    # the debt-like fixed base are indifferent to how many days the gates are
+    # open; safety crews, corner workers, consumables, track prep and hourly
+    # staff are not. Lifting ancillary revenue with the season while holding
+    # opex flat would hand every Sun Belt site a margin it has not earned --
+    # a 310-day site would show a 44% operating ratio where a 210-day site
+    # shows 48% off the identical cost base.
+    opex = sum(inc["opex_annual_usd"].values()) * infl * opex_season_factor(cfg, frac)
 
     mgmt = egi * inc["management_fee_pct_egi"]
     reserve = egi * inc["replacement_reserve_pct_egi"]

@@ -125,29 +125,49 @@ def score_yield(underwriting: Any, cfg: dict[str, Any]) -> tuple[float, list[str
         return 0.50, notes
 
     rank_basis = cfg["mandate"]["yoc_basis"]["rank_on"]
+    ask = underwriting.ask_price
+    basis = rank_basis
     max_land = (
         underwriting.max_land_gross if rank_basis == "gross" else underwriting.max_land_net
     )
-    ask = underwriting.ask_price
     yoc = underwriting.yoc_gross_at_ask if rank_basis == "gross" else underwriting.yoc_net_at_ask
 
-    if max_land <= 0:
+    # The gross basis charges the retained club with the entire cost of garage
+    # condos and homesites that are SOLD, so it is negative for every merchant
+    # build regardless of the dirt. Ranking on a column that is negative on all
+    # candidates discriminates nothing -- it silently zeroes a fifth of the
+    # composite, which is what it did until the nationwide set made the dead
+    # weight visible. Where the mandated basis carries no information, fall
+    # through to the retained basis and say so on the row.
+    if max_land <= 0 and rank_basis == "gross" and underwriting.max_land_net > max_land:
         notes.append(
-            f"max supportable land price is {max_land:,.0f} on {rank_basis} basis -- "
-            f"income stack cannot carry the vertical at any land price"
+            f"gross basis max supportable land is ${underwriting.max_land_gross:,.0f} — "
+            f"structurally negative for any merchant build, so it cannot discriminate "
+            f"between sites. Scored on the RETAINED (net) basis instead; the gross "
+            f"line is reported as a secondary test"
         )
-        return 0.0, notes
+        basis = "net"
+        max_land = underwriting.max_land_net
+        yoc = underwriting.yoc_net_at_ask
+
+    # Score on the YIELD SPREAD, not on dollar headroom. Headroom divided by the
+    # ask is unstable precisely where it matters: the max supportable land price
+    # crosses zero, so a site with a small positive supportable price and a -50%
+    # headroom scored below a site whose supportable price was negative outright.
+    # The spread between achievable and required yield is monotone through that
+    # crossing and dimensionally consistent on both sides of it.
+    required = underwriting.required_yield
+    spread_bps = ((yoc or 0.0) - required) * 10_000
+    if spread_bps >= 0:
+        s = 0.60 + 0.40 * _clamp(spread_bps / 100.0)   # +100bp of spread -> full marks
+    else:
+        s = 0.60 * _clamp(1 + spread_bps / 150.0)      # -150bp -> zero
 
     headroom_ratio = (max_land - ask) / ask if ask else 0.0
-    # -50% headroom -> 0.0 ; at the money -> 0.60 ; +50% headroom -> 1.0
-    if headroom_ratio >= 0:
-        s = 0.60 + 0.40 * _clamp(headroom_ratio / 0.50)
-    else:
-        s = 0.60 * _clamp(1 + headroom_ratio / 0.50)
-
     notes.append(
-        f"{rank_basis} basis: max supportable ${max_land:,.0f} vs ask ${ask:,.0f} "
-        f"({headroom_ratio:+.1%} headroom), YoC {yoc:.2%}"
+        f"{basis} basis: YoC at ask {(yoc or 0):.2%} against a {required:.2%} required "
+        f"yield — {spread_bps:+.0f} bp. Max supportable land ${max_land:,.0f} vs ask "
+        f"${ask:,.0f} ({headroom_ratio:+.0%})"
     )
     if underwriting.price_infeasible:
         notes.append("PRICE-INFEASIBLE — ask exceeds max supportable by >20%")

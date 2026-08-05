@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -27,6 +28,7 @@ from openpyxl import load_workbook
 
 from build import build_workbook as B
 from model import two_stack
+from model.schema import coerce
 
 TOL = 0.01  # one cent
 
@@ -62,8 +64,11 @@ def _solve(path: Path) -> dict[str, float]:
 def main() -> int:
     cfg = two_stack.load_config()
     parcels = B.load_parcels_csv("data/parcels.example.csv")
-    out = Path("dist")
-    path = B.build(parcels, cfg, out_dir=out)
+    # NOT dist/. The builder names the file by date, so writing the SYNTH
+    # fixture build there silently replaced the real 15-site deliverable with a
+    # two-site test artifact that had the same name.
+    tmp = tempfile.mkdtemp(prefix="drift-check-")
+    path = B.build(parcels, cfg, out_dir=Path(tmp))
 
     labels = _label_map(path)
     vals = _solve(path)
@@ -78,7 +83,8 @@ def main() -> int:
          float(two_stack.membership_schedule(cfg, 20)[py.stabilization_year - 1])),
         ("Stabilization year (derived)", cell("Stabilization year (derived)"),
          float(py.stabilization_year)),
-        ("STABILIZED NOI", cell("STABILIZED NOI"), py.stabilized_noi),
+        ("STABILIZED NOI (baseline)", cell("STABILIZED NOI (baseline season)"),
+         py.stabilized_noi),
         ("NET FOR-SALE PROCEEDS", cell("NET FOR-SALE PROCEEDS"), py.for_sale.net_proceeds),
         ("For-sale vertical cost", cell("For-sale vertical cost"),
          py.for_sale.total_vertical_cost),
@@ -95,7 +101,7 @@ def main() -> int:
          two_stack.dscr_implied_yield(cfg)),
         ("REQUIRED YIELD (binding)", cell("REQUIRED YIELD (binding)"), py.required_yield),
         ("TAX LOAD (tau)", cell("TAX LOAD (tau)"), two_stack.tax_load(cfg)),
-        ("EFFECTIVE TEST (required + tau)", cell("EFFECTIVE TEST (required + tau)"),
+        ("EFFECTIVE TEST (baseline)", cell("EFFECTIVE TEST (required + tau, baseline)"),
          py.required_yield + two_stack.tax_load(cfg)),
     ]
 
@@ -112,38 +118,61 @@ def main() -> int:
         print(f"{name:38} {xl_val:>18,.2f} {py_val:>18,.2f}  {'ok' if ok else 'DRIFT'}")
         failed += 0 if ok else 1
 
-    # Per-parcel block: max supportable land, computed in Excel, vs Python.
+    # Per-parcel block. Each column carries its OWN season, ad valorem regime
+    # and site cost premium, so each is checked against Python underwritten at
+    # that site's config -- not at the national base case. Checking every column
+    # against one shared result is precisely how the sheet came to underwrite a
+    # nationwide pipeline on a single site's economics without anything failing.
     wb = load_workbook(path)["Underwriting"]
-    hdr = None
+    # Locate rows by their column-A label rather than by arithmetic offsets --
+    # inserting a per-parcel line silently shifted every offset by one and the
+    # test then compared an ask price against a parcel id.
+    rows_by_label = {}
     for row in range(1, wb.max_row + 1):
-        if wb.cell(row=row, column=1).value == "Max supportable land — GROSS":
-            hdr = row
-            break
+        v = wb.cell(row=row, column=1).value
+        if isinstance(v, str) and v.strip() and v.strip() not in rows_by_label:
+            rows_by_label[v.strip()] = row
+    hdr = rows_by_label.get("Max supportable land — GROSS")
+    pid_row = rows_by_label.get("Parcel ID")
+    ask_row = rows_by_label.get("Ask price")
 
     print()
-    if hdr is None:
+    if hdr is None or pid_row is None or ask_row is None:
         print("per-parcel block: NOT FOUND  FAIL")
         failed += 1
     else:
+        by_id = {str(p.get("parcel_id")): p for p in (coerce(r) for r in parcels)}
+        seen_distinct = set()
         for col in range(4, wb.max_column + 1):
-            pid = wb.cell(row=hdr - 3, column=col).value
+            pid = wb.cell(row=pid_row, column=col).value
             if not pid:
                 continue
-            ask = wb.cell(row=hdr - 1, column=col).value
+            parcel = by_id.get(str(pid), {})
+            scfg = two_stack.site_config(cfg, parcel)
+            prem = float(parcel.get("site_cost_premium_usd") or 0.0)
+            spy = two_stack.underwrite(scfg, str(pid), ask_price=parcel.get("ask_price"),
+                                       site_cost_premium=prem)
+            seen_distinct.add(round(spy.stabilized_noi, 2))
+            ask = wb.cell(row=ask_row, column=col).value
             per_parcel = [
-                (0, "max land GROSS", py.max_land_gross),
-                (1, "max land NET", py.max_land_net),
+                (-3, "stabilized NOI", spy.stabilized_noi),
+                (-2, "tau", two_stack.tax_load(scfg)),
+                (-1, "non-land S", spy.cost.non_land_subtotal),
+                (0, "max land GROSS", spy.max_land_gross),
+                (1, "max land NET", spy.max_land_net),
             ]
             if isinstance(ask, (int, float)):
                 per_parcel += [
                     (4, "property tax", two_stack.property_tax_annual(
-                        cfg, py.cost.gross_basis(float(ask)))),
+                        scfg, spy.cost.gross_basis(float(ask)))),
                     (5, "NOI after tax", two_stack.noi_after_tax(
-                        py.stabilized_noi, cfg, py.cost.gross_basis(float(ask)))),
+                        spy.stabilized_noi, scfg, spy.cost.gross_basis(float(ask)))),
                     (8, "DSCR gross", two_stack.dscr_at(
-                        py.stabilized_noi, float(ask), py.cost, py.for_sale, cfg, "gross")),
+                        spy.stabilized_noi, float(ask), spy.cost, spy.for_sale,
+                        scfg, "gross")),
                     (9, "DSCR net", two_stack.dscr_at(
-                        py.stabilized_noi, float(ask), py.cost, py.for_sale, cfg, "net")),
+                        spy.stabilized_noi, float(ask), spy.cost, spy.for_sale,
+                        scfg, "net")),
                 ]
             for offset, label, expected in per_parcel:
                 coord = f"{wb.cell(row=hdr + offset, column=col).column_letter}{hdr + offset}"
@@ -156,6 +185,12 @@ def main() -> int:
                 print(f"{pid} {label:16} {got:>18,.2f} {expected:>18,.2f}  "
                       f"{'ok' if ok else 'DRIFT'}")
                 failed += 0 if ok else 1
+
+        # A fixture where every site shares one NOI cannot detect the bug this
+        # block exists for. Fail loudly rather than passing vacuously.
+        if len(seen_distinct) < 2:
+            print("fixture does not vary site economics — drift check is vacuous  FAIL")
+            failed += 1
 
     print(f"\n{'PASS — Excel matches Python' if not failed else f'{failed} MISMATCH(ES)'}")
     return 1 if failed else 0

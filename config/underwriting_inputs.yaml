@@ -237,6 +237,24 @@ income:
   management_fee_pct_egi: 0.040
   replacement_reserve_pct_egi: 0.034   # a circuit repaves on a 10-15 yr cycle
 
+  # ---------------------------------------------------------------------------
+  # SEASON LENGTH — the driver that makes geography an economic question
+  # ---------------------------------------------------------------------------
+  # Track-dependent revenue scales with usable days. A Northeast circuit runs
+  # roughly half the year; Arizona operators advertise 275 days of access [S4].
+  # Ancillary revenue is quoted at the BASELINE below and scaled per site by
+  # `season_days`. Dues and initiation are NOT scaled -- members pay for access
+  # and identity, which is less elastic than track-day throughput -- but the
+  # Sensitivity tab flexes that assumption.
+  season:
+    basis: assumed
+    baseline_days: 210           # Northeast: ~7 usable months
+    ancillary_elasticity: 0.70   # share of ancillary that scales with season
+    # The counterpart. Safety crew, corner workers, consumables, track prep and
+    # hourly staff scale with days open; insurance, admin and fixed maintenance
+    # do not. Without this, a 310-day site earns Sun Belt revenue on Northeast
+    # cost and shows an operating ratio no private club has ever run.
+    opex_elasticity: 0.28
   exit_cap: 0.0725               # for development-spread reporting
   exit_cost_pct: 0.020           # disposition costs at sale
 
@@ -413,16 +431,30 @@ monte_carlo:
   basis: assumed
   iterations: 4000
   seed: 20260803
+  # [low, MODE, high]. The MODE MUST EQUAL THE BASE CASE on every driver.
+  #
+  # It did not: six of the nine modes were set adverse to the underwriting
+  # (hard cost 1.05, opex 1.02, absorption 1.20, exit cap +25bp, coupon +25bp,
+  # membership 0.95). Drawn independently, nine independently-pessimistic
+  # marginals compound into a joint distribution far worse than any coherent
+  # scenario, and the run reported a 5% covenant-hold probability against a
+  # base case that covers at 2.02x. That is not a finding about the deal; it is
+  # two different central views of the world living in one config.
+  #
+  # If a 5% cost contingency is genuinely believed, it belongs in the base
+  # case, not smuggled into the simulation. Asymmetry belongs in the SPREAD,
+  # which is where it now lives -- every driver here still has a longer adverse
+  # tail than favourable one.
   drivers:
     dues_factor:            [0.80, 1.00, 1.15]
-    cap_factor:             [0.65, 0.95, 1.00]
+    cap_factor:             [0.65, 1.00, 1.00]   # one-sided: cap is a ceiling
     ancillary_factor:       [0.60, 1.00, 1.20]
     condo_psf_factor:       [0.75, 1.00, 1.12]
-    hard_cost_factor:       [0.96, 1.05, 1.30]
-    opex_factor:            [0.95, 1.02, 1.15]
-    absorption_slowdown:    [0.85, 1.20, 2.20]
-    exit_cap_bps:           [-50, 25, 200]
-    perm_rate_bps:          [-50, 25, 200]
+    hard_cost_factor:       [0.92, 1.00, 1.28]
+    opex_factor:            [0.94, 1.00, 1.16]
+    absorption_slowdown:    [0.85, 1.00, 2.00]
+    exit_cap_bps:           [-75, 0, 200]
+    perm_rate_bps:          [-75, 0, 200]
 
 # -----------------------------------------------------------------------------
 # TORNADO — one-at-a-time driver ranking
@@ -443,7 +475,10 @@ plausibility:
   for_sale_gross_margin: [0.10, 0.35]      # merchant-build norm
   condo_price_to_cost_ratio: [1.25, 1.85]
   opex_ratio_of_egi: [0.45, 0.80]          # private club operating ratio
-  property_tax_pct_of_egi: [0.05, 0.25]
+  # Spans the national range, not the Northeast one. An abated NY site runs
+  # ~7% of EGI; an unabated Nevada site at a 0.65% statutory rate runs ~4%.
+  # Both are real. Only a figure outside [3.5%, 25%] means tau is mis-specified.
+  property_tax_pct_of_egi: [0.035, 0.25]
   members_per_track_mile: [40, 90]
   reserve_per_track_mile_usd: [120000, 400000]
   value_to_cost: [0.90, 1.60]

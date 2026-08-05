@@ -65,6 +65,12 @@ PHYSICAL: list[Field] = [
           note="Site-specific delta to non-land cost: earthwork, utilities, "
                "remediation, blasting, less the value of existing pavement"),
     Field("site_cost_basis_note", "Site Cost Basis Note", "str", "Physical"),
+    Field("season_days", "Usable Track Days / Year", "int", "Physical",
+          note="ESTIMATED from climate. Drives ancillary revenue — the single "
+               "largest geographic economic difference."),
+    Field("market_metro", "Target Metro", "str", "Identity"),
+    Field("market_region", "Region", "str", "Identity"),
+    Field("market_tier", "Market Tier", "str", "Identity"),
 ]
 
 NOISE_ENTITLEMENT: list[Field] = [
@@ -90,9 +96,16 @@ NOISE_ENTITLEMENT: list[Field] = [
 ]
 
 CATCHMENT: list[Field] = [
-    Field("drive_min_manhattan", "Drive: Manhattan (min)", "int", "Catchment"),
-    Field("drive_min_greenwich", "Drive: Greenwich (min)", "int", "Catchment"),
-    Field("drive_min_short_hills", "Drive: Short Hills (min)", "int", "Catchment"),
+    # Anchors are named per site, not fixed. A nationwide pipeline cannot measure
+    # a Phoenix parcel against Manhattan; Gate 3 and §11 both read the *dict*, so
+    # the anchor identity travels with the row.
+    Field("drive_anchor_1_name", "Drive Anchor 1", "str", "Catchment",
+          note="Wealth node the primary drive time is measured to"),
+    Field("drive_anchor_1_min", "Drive Anchor 1 (min)", "int", "Catchment"),
+    Field("drive_anchor_2_name", "Drive Anchor 2", "str", "Catchment"),
+    Field("drive_anchor_2_min", "Drive Anchor 2 (min)", "int", "Catchment"),
+    Field("drive_anchor_3_name", "Drive Anchor 3", "str", "Catchment"),
+    Field("drive_anchor_3_min", "Drive Anchor 3 (min)", "int", "Catchment"),
     Field("best_drive_min", "Best Drive Time (min)", "int", "Catchment"),
     Field("hnw_households_90min", "HNW Households <90 min", "int", "Catchment",
           note=">$1M investable; cite source"),
@@ -142,7 +155,15 @@ DEAL: list[Field] = [
     Field("pa_490_enrolled", "CT PA 490 Enrolled", "bool", "Deal"),
     Field("ag_district_305a", "NY Ag District 305-a", "bool", "Deal"),
     Field("tax_abatement_path", "Abatement Path", "str", "Deal",
-          note="NY IDA PILOT / NJ EDA / CT enterprise zone"),
+          note="NY IDA PILOT / NJ EDA / CT enterprise zone / TX Ch.312 / TN IDB PILOT"),
+    # Ad valorem load is the second-largest geographic economic difference after
+    # season length, and unlike season it is a matter of statute, not weather.
+    # A NY parcel carries ~2.25% effective; AZ and NV carry a third of that.
+    Field("property_tax_effective_rate", "Effective Tax Rate", "pct", "Deal",
+          note="Local rate on assessed value. Overrides the config default."),
+    Field("property_tax_abatement_pct", "Assumed Abatement", "pct", "Deal",
+          note="0.0 where no PILOT or abatement statute reaches this use. "
+               "The 50% base case is NY-IDA-specific and does not travel."),
     Field("option_feasible", "Option or Long PSA Feasible", "bool", "Deal"),
     Field("seller_motivation", "Seller Motivation Signal", "str", "Deal"),
     Field("phaseable", "Phaseable Program", "bool", "Deal"),
@@ -231,13 +252,13 @@ def coerce(parcel: dict[str, Any]) -> dict[str, Any]:
         except (TypeError, ValueError):
             out[f.key] = None
 
-    # Reassemble the composites the gates expect.
-    times = {
-        "Manhattan": out.get("drive_min_manhattan"),
-        "Greenwich": out.get("drive_min_greenwich"),
-        "Short Hills": out.get("drive_min_short_hills"),
-    }
-    times = {k: v for k, v in times.items() if v is not None}
+    # Reassemble the composites the gates expect. Anchor names are per-row.
+    times: dict[str, int] = {}
+    for i in (1, 2, 3):
+        name = out.get(f"drive_anchor_{i}_name") or f"Anchor {i}"
+        mins = out.get(f"drive_anchor_{i}_min")
+        if mins is not None:
+            times[str(name)] = mins
     out["drive_times_min"] = times
     if times:
         out["best_drive_min"] = min(times.values())

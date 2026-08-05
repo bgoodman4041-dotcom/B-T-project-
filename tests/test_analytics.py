@@ -576,6 +576,41 @@ def test_exit_ladder_ipo_entry_carries_the_verdict():
     assert "STRETCH OUTCOME" in paths[-1].assessment
 
 
+def test_monte_carlo_modes_reproduce_the_base_case():
+    """
+    A simulation whose central case is not the underwriting's central case is
+    two different views of the world in one config. Six of the nine driver
+    modes were set adverse to the base case; drawn independently they compounded
+    into a 5% covenant-hold probability against a base case covering at 2.02x.
+    If a pessimistic value is genuinely believed, it belongs in the base case.
+    """
+    mode = {k: v[1] for k, v in CFG["monte_carlo"]["drivers"].items()}
+    at_mode = sc.apply_scenario(CFG, mode)
+    base_uw = ts.underwrite(CFG, "BASE")
+    mode_uw = ts.underwrite(at_mode, "MODE")
+    assert approx(mode_uw.stabilized_noi, base_uw.stabilized_noi), (
+        "Monte Carlo modal NOI does not reproduce the base case")
+    assert approx(mode_uw.max_land_net, base_uw.max_land_net)
+
+
+def test_monte_carlo_tests_the_covenant_from_conversion():
+    """
+    `cf.min_dscr` is the whole-hold minimum and includes lease-up, when the note
+    is interest-only and a funded reserve is carrying it. Measured that way no
+    draw can ever pass and the reported probability is a structural zero.
+    """
+    r = rk.monte_carlo(CFG, ASK, iterations=200)
+    assert r.p_covenant_holds > 0.0, (
+        "no draw holds the covenant — the test is almost certainly running "
+        "across lease-up years rather than from conversion")
+
+
+def test_monte_carlo_honours_the_site_cost_premium():
+    cheap = rk.monte_carlo(CFG, ASK, iterations=150, site_cost_premium=-9_000_000)
+    dear = rk.monte_carlo(CFG, ASK, iterations=150, site_cost_premium=9_000_000)
+    assert cheap.p_covenant_holds >= dear.p_covenant_holds
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

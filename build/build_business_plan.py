@@ -39,6 +39,7 @@ from reportlab.platypus import (
 
 from build.build_workbook import enrich, load_parcels_csv
 from model import cashflow as cfm
+from model import markets as mk
 from model import risk as rk
 from model import roadmap as rmap
 from model import scenarios as sc
@@ -97,6 +98,11 @@ def _x(v: Any) -> str:
     return "n/m" if v in (float("inf"), float("-inf")) else f"{v:.2f}x"
 
 
+def _ord(n: int) -> str:
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def B(label: str, body: str) -> Paragraph:
     return Paragraph(f"{DIA}&nbsp;<b>{label}.</b> {body}", S_BULLET)
 
@@ -136,39 +142,49 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     lead_prem = float(lead.get("site_cost_premium_usd") or 0.0)
     lead_ask = float(lead.get("ask_price") or 0.0)
 
-    uw = ts.underwrite(cfg, "LEAD", ask_price=lead_ask, site_cost_premium=lead_prem)
-    cf = cfm.project_cash_flow(cfg, lead_ask, horizon_operating_years=12,
+    # Every figure in the plan describes the LEAD SITE, which means the lead
+    # site's season and ad valorem regime -- not the national defaults. Running
+    # the roadmap and the scenario set on a 210-day Northeast base case while
+    # the site table leads on a 310-day Sun Belt parcel is exactly the drift
+    # this single-snapshot pattern exists to prevent.
+    lcfg = ts.site_config(cfg, lead)
+
+    uw = ts.underwrite(lcfg, "LEAD", ask_price=lead_ask, site_cost_premium=lead_prem)
+    cf = cfm.project_cash_flow(lcfg, lead_ask, horizon_operating_years=12,
                                site_cost_premium=lead_prem)
-    stab = ts.stabilization_year(cfg)
+    stab = ts.stabilization_year(lcfg)
     dev = int(round(cfg["cost"]["carry"]["development_years"]))
     cov = cfm.covenant_report(cf, cfg["debt"]["min_dscr"], tested_from_year=dev + stab)
-    plaus = rk.plausibility_report(cfg, lead_ask)
-    scen = sc.run_all(cfg, ask_price=lead_ask, site_cost_premium=lead_prem)
+    plaus = rk.plausibility_report(lcfg, lead_ask)
+    scen = sc.run_all(lcfg, ask_price=lead_ask, site_cost_premium=lead_prem)
     spread = sc.scenario_spread(scen)
-    bev = rk.direct_break_evens(cfg, lead_ask)
-    tor, tor_base, _ = rk.tornado(cfg)
-    mc = rk.monte_carlo(cfg, lead_ask)
+    bev = rk.direct_break_evens(lcfg, lead_ask)
+    tor, tor_base, _ = rk.tornado(lcfg)
+    mc = rk.monte_carlo(lcfg, lead_ask, site_cost_premium=lead_prem)
 
-    # Per-site economics
+    # Per-site economics, each on its own season and tax regime.
     sites = []
     for p in live:
         prem = float(p.get("site_cost_premium_usd") or 0.0)
         ask = float(p.get("ask_price") or 0.0)
-        s_uw = ts.underwrite(cfg, p["parcel_id"], ask_price=ask, site_cost_premium=prem)
-        s_cf = cfm.project_cash_flow(cfg, ask, horizon_operating_years=12,
+        scfg = ts.site_config(cfg, p)
+        s_uw = ts.underwrite(scfg, p["parcel_id"], ask_price=ask, site_cost_premium=prem)
+        s_cf = cfm.project_cash_flow(scfg, ask, horizon_operating_years=12,
                                      site_cost_premium=prem)
         s_cov = cfm.covenant_report(s_cf, cfg["debt"]["min_dscr"],
                                     tested_from_year=dev + stab)
-        sites.append({"p": p, "uw": s_uw, "cf": s_cf, "cov": s_cov})
+        sites.append({"p": p, "uw": s_uw, "cf": s_cf, "cov": s_cov, "cfg": scfg})
 
-    return dict(cfg=cfg, universe=universe, unverified=unverified, live=live,
+    return dict(cfg=cfg, lcfg=lcfg, universe=universe, unverified=unverified, live=live,
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev,
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
-                timing=rmap.timing(cfg), milestones=rmap.milestones(cfg),
-                platform=rmap.platform_scale(cfg, lead_ask, lead_prem, 7),
-                listing=rmap.listing_readiness(cfg, lead_ask, lead_prem),
-                exits=rmap.exit_paths(cfg, lead_ask, lead_prem))
+                markets=mk.ranked_markets(), rollout=mk.rollout(),
+                national=mk.national_summary(),
+                timing=rmap.timing(lcfg), milestones=rmap.milestones(lcfg),
+                platform=rmap.platform_scale(lcfg, lead_ask, lead_prem, 7),
+                listing=rmap.listing_readiness(lcfg, lead_ask, lead_prem),
+                exits=rmap.exit_paths(lcfg, lead_ask, lead_prem))
 
 
 # =============================================================================
@@ -188,10 +204,11 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
 
     # ---------------- Cover ----------------
     A(Spacer(1, 1.5 * inch))
-    A(Paragraph("THE NORTHEAST MOTOR CLUB", S_COVER_T))
+    A(Paragraph("BELLWETHER MOTOR CLUB", S_COVER_T))
     A(Spacer(1, 0.12 * inch))
     A(Paragraph("A Private Motorsport Country Club and Trackside Residential Community<br/>"
-                "New York &middot; Connecticut &middot; New Jersey", S_COVER_S))
+                "A National Platform &middot; Lead Site in the "
+                f"{S['lead'].get('market_metro') or 'lead'} Market", S_COVER_S))
     A(Spacer(1, 0.5 * inch))
     A(HRFlowable(width="55%", thickness=0.8, color=RULE, hAlign="CENTER"))
     A(Spacer(1, 0.4 * inch))
@@ -199,6 +216,9 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(Paragraph(f"{today:%d %B %Y}", S_COVER_S))
     A(Spacer(1, 1.6 * inch))
     A(Paragraph(
+        "BELLWETHER MOTOR CLUB is a working title. It was checked against operating private "
+        "motorsport clubs and no collision was found, but it has not been trademark-cleared "
+        "and the principal should expect to replace it. "
         "This document contains forward-looking projections based on assumptions that are "
         "identified as such throughout. It is not an offer to sell securities. No site is "
         "under contract. Financial projections depend on conditions precedent set out in "
@@ -211,7 +231,7 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(Paragraph(
         f"We are assembling a {cfg['cost']['track']['miles']:.1f}-mile private motorsport "
         f"country club with an attached for-sale garage-condominium and homesite community, "
-        f"sited within two hours of Manhattan, Greenwich and northern New Jersey. The club "
+        f"sited within two hours of the wealth centres of its metro. The club "
         f"sells {m['cap']} memberships at a "
         f"{_usd(m['initiation_fee_usd'])} initiation fee and "
         f"{_usd(m['annual_dues_usd'])} of annual dues, alongside "
@@ -284,32 +304,92 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"total uses, which is why peak equity is "
         f"{_m(cf.peak_equity_requirement)} rather than the full development cost."))
     A(B("Scarcity is structural, not cyclical",
-        "The three-state search produced a small number of sites that clear an acreage floor, "
-        "a noise screen, a two-hour drive time and an exclusion-zone test simultaneously. "
-        "NJ Highlands and Pinelands, the NYC watershed and the Adirondack Park remove most "
-        "large-acreage inventory before price is discussed."))
+        f"A {S['national']['markets_screened']}-metro national search produced a small number "
+        f"of sites that clear an acreage floor, a noise screen, a two-hour drive time and an "
+        f"exclusion-zone test simultaneously. The binding constraint is never demand; it is a "
+        f"large contiguous parcel with an inherited noise floor and a jurisdiction that will "
+        f"hear the application."))
 
-    A(Paragraph("3. MARKET", S_H1))
+    A(Paragraph("3. MARKET — THE NATIONAL SCREEN", S_H1))
+    nat = S["national"]
+    lo, hi = nat["season_spread"]
     A(Paragraph(
-        f"The catchment is the densest concentration of investable wealth in the United "
-        f"States. The lead site reports {int(S['lead'].get('hnw_households_90min') or 0):,} "
-        f"households with over $1M of investable assets within ninety minutes. Against that, "
-        f"the club needs {m['cap']} members — a penetration rate low enough that demand risk "
-        f"is a marketing question rather than a market-size question.", S_BODY))
+        f"The mandate began in New York, Connecticut and New Jersey. Screening "
+        f"{nat['markets_screened']} metropolitan markets on six drivers — usable season, "
+        f"wealth density, land cost, entitlement friction, competitive whitespace and "
+        f"incentive access — put the New York metro {_ord(nat['northeast_rank'])} of "
+        f"{nat['markets_screened']}, at {nat['northeast_score']:.1f} points against "
+        f"{nat['top'].total:.1f} for {nat['top'].market.metro}. That result is not a comment "
+        f"on demand. New York has the deepest investable wealth in the country and one club "
+        f"serving it. It loses on the supply side: land price, entitlement friction and a "
+        f"season roughly two-thirds the length of the Sun Belt.", S_BODY))
     A(Paragraph(
-        "The binding market question is not whether the households exist. It is whether a "
-        "Northeast club can price like a year-round one. The reference asset for this typology "
-        "operates in the California desert with close to twelve months of usable track time; "
-        "the Northeast season is roughly half that. We have therefore weighted revenue toward "
-        "indoor storage, the service department and the karting and skidpad complex, which "
-        "earn in the shoulder season, and we treat dues parity with year-round clubs as "
-        "unproven until the comparable study is complete.", S_BODY))
+        f"Season length is the single largest economic difference between two otherwise "
+        f"identical sites. Usable track days across the screened set run from {lo} to {hi} a "
+        f"year. The model treats that explicitly: "
+        f"{cfg['income']['season']['ancillary_elasticity']:.0%} of ancillary revenue moves "
+        f"with days open, and {cfg['income']['season']['opex_elasticity']:.0%} of club "
+        f"operating cost moves with it too, because a longer calendar buys more crew, more "
+        f"consumables and more track preparation as well as more revenue. Net of that cost, "
+        f"the long-season sites earn a real but bounded premium — not the free margin a "
+        f"revenue-only season adjustment would have shown.", S_BODY))
     A(Paragraph(
-        "COMPARABLE SET — the club economics comparison remains unresearched and is the first "
-        "use of feasibility capital. The plan does not rely on any published competitor figure, "
-        "because none has been verified. Treat every revenue assumption in Section 7 as "
-        "benchmark-derived and unconfirmed.", S_NOTE))
+        "The second driver is statutory rather than climatic. Effective property tax runs "
+        "from roughly 0.65% of value in Nevada to 2.6% in Connecticut, and a PILOT or "
+        "abatement reaches this use in some states and not others. The 50% abatement that "
+        "the Northeast case depends on is a New York IDA mechanism; it does not travel to "
+        "Florida or Nevada. Each site in Section 11 is therefore underwritten at its own "
+        "local rate and its own honest view of what relief is available — in several cases, "
+        "none. Arizona and Nevada still carry the lightest tax load in the set, unabated.",
+        S_BODY))
+
+    A(Paragraph("Tier 1 markets", S_H2))
+    A(table([["Metro", "States", "Season", "Score", "Why it ranks"]] + [
+        [r.market.metro, r.market.states, f"{r.market.season_days} d", f"{r.total:.1f}",
+         r.market.whitespace[:150]]
+        for r in nat["tier1"]
+    ], [1.25 * inch, 0.5 * inch, 0.45 * inch, 0.42 * inch, 4.28 * inch]))
+
+    A(Paragraph("Tier 2 — the second wave", S_H2))
+    A(table([["Metro", "States", "Season", "Score", "Existing club product"]] + [
+        [r.market.metro, r.market.states, f"{r.market.season_days} d", f"{r.total:.1f}",
+         r.market.existing_clubs[:110]]
+        for r in nat["tier2"][:6]
+    ], [1.25 * inch, 0.5 * inch, 0.45 * inch, 0.42 * inch, 4.28 * inch]))
+
+    A(Paragraph(
+        f"{nat['proven_markets']} of the {nat['markets_screened']} screened metros already "
+        f"carry an operating private club or a comparable facility. That is a feature of the "
+        f"screen, not a problem with it: a market with a functioning club has proven the "
+        f"format absorbs, and the question becomes whether the incumbent is small, remote or "
+        f"under-amenitised enough to leave room. Where the answer is no — the Coachella "
+        f"Valley, where the reference asset operates — the market is a comparable, not a "
+        f"target.", S_BODY))
+    A(Paragraph(
+        f"The lead site sits in the {S['lead'].get('market_metro')} market and reports "
+        f"{int(S['lead'].get('hnw_households_90min') or 0):,} households with over $1M of "
+        f"investable assets within ninety minutes. Against that, the club needs {m['cap']} "
+        f"members — a penetration rate low enough that demand risk is a marketing question "
+        f"rather than a market-size question.", S_BODY))
+    A(Paragraph(
+        "MARKET TIERING IS A MODEL OUTPUT, NOT A SOURCED RANKING. Season days are estimated "
+        "from climate; wealth, land cost, friction and incentive access are graded on ordinal "
+        "bands, not measured. The existing-club column is the only column built from confirmed "
+        "operator facts. The comparable club economics study remains the first use of "
+        "feasibility capital, and no published competitor figure is relied upon in Section 7.",
+        S_NOTE))
     A(PageBreak())
+
+    # ---------------- 3b. Rollout sequence ----------------
+    A(Paragraph("3B. THE ROLLOUT SEQUENCE", S_H1))
+    A(Paragraph(
+        "One club is a deal. The platform case depends on repeating it, and the order matters "
+        "more than the count: entitlement is the long pole, so markets enter the pipeline in "
+        "parallel rather than in series once club 1 is permitted.", S_BODY))
+    A(table([["Phase", "Horizon", "Markets", "Capital"]] + [
+        [r.phase, r.horizon, f"{r.markets}<br/><i>{r.rationale}</i>", r.capital]
+        for r in S["rollout"]
+    ], [1.15 * inch, 0.78 * inch, 4.35 * inch, 0.62 * inch]))
 
     # ---------------- 4. Programme ----------------
     A(Paragraph("4. THE PROGRAMME", S_H1))
@@ -360,34 +440,86 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
 
     # ---------------- 5. Sites ----------------
     A(Paragraph("5. SITE STRATEGY AND TARGET PORTFOLIO", S_H1))
+    killed = [p for p in S["universe"] if p.get("killed_at_gate")]
     A(Paragraph(
-        "Five acquisition targets are underwritten below. Each is a typology and a submarket, "
-        "not a parcel under contract: assessor identifiers, coordinates and title work are "
-        "pending and are a first-phase deliverable. They are ranked on the composite score in "
-        "Section 11 of the underwriting specification, and each carries a site-specific cost "
-        "premium or credit reflecting remediation, blasting, utility extension and the value "
-        "of existing pavement.", S_BODY))
-    rows = [["Rank", "Target", "County / ST", "Acres", "Prior use", "Ask",
-             "Site premium", "Best drive", "IRR", "Min DSCR", "Score"]]
+        f"{len(S['universe'])} acquisition targets were screened across "
+        f"{len({p.get('market_metro') for p in S['universe'] if p.get('market_metro')})} "
+        f"markets; {len(killed)} died in the funnel and {len(S['sites'])} are underwritten "
+        f"below. Each is a typology and a submarket, not a parcel under contract: assessor "
+        f"identifiers, coordinates and title work are pending and are a first-phase "
+        f"deliverable. Each carries its own usable season, its own local ad valorem rate and "
+        f"a site-specific cost premium or credit reflecting remediation, blasting, utility "
+        f"extension and the value of existing pavement.", S_BODY))
+    rows = [["#", "Target", "Metro", "County / ST", "Ac", "Prior use", "Days",
+             "Ask", "Site prem.", "Drive", "Tax", "IRR", "DSCR", "Score"]]
     for i, s in enumerate(S["sites"], start=1):
         p, s_cf, s_cov = s["p"], s["cf"], s["cov"]
+        eff = p.get("property_tax_effective_rate")
+        ab = p.get("property_tax_abatement_pct")
         rows.append([
             i, p["parcel_id"].replace("TP-", ""),
+            str(p.get("market_metro") or "").split(" – ")[0],
             f"{p.get('county')} / {p.get('state')}",
             f"{p.get('contiguous_developable_acres'):,.0f}",
             str(p.get("prior_use", "")).replace("_", " "),
+            f"{int(p.get('season_days') or 0)}",
             _m(p.get("ask_price")), _m(p.get("site_cost_premium_usd")),
-            f"{p.get('best_drive_min')} min",
+            f"{p.get('best_drive_min')}m",
+            f"{eff:.2%}<br/>{'—' if not ab else f'−{ab:.0%}'}" if eff else "—",
             _pct(s_cf.equity_irr, 1),
             _x(s_cov["min_dscr_tested"]),
             f"{p.get('composite_score'):.0f}",
         ])
-    A(table(rows, [0.34 * inch, 1.0 * inch, 0.82 * inch, 0.44 * inch, 0.92 * inch,
-                   0.6 * inch, 0.68 * inch, 0.53 * inch, 0.42 * inch, 0.5 * inch,
-                   0.4 * inch]))
+    A(table(rows, [0.22 * inch, 0.78 * inch, 0.62 * inch, 0.66 * inch, 0.28 * inch,
+                   0.72 * inch, 0.32 * inch, 0.5 * inch, 0.58 * inch, 0.38 * inch,
+                   0.44 * inch, 0.4 * inch, 0.38 * inch, 0.32 * inch]))
     A(Paragraph(
         "Ask prices are indicative for the typology and submarket, not quoted asking prices "
-        "for identified parcels. Drive time is to the best of the three origins.", S_NOTE))
+        "for identified parcels. Drive time is to the best named anchor for that site — a "
+        "Phoenix parcel is measured to Scottsdale, not to Manhattan. Tax shows the local "
+        "effective rate above the abatement assumed; a dash means no abatement statute "
+        "reaches this use in that state and none is taken.", S_NOTE))
+
+    if killed:
+        A(Paragraph("Screened out — the funnel is the audit trail", S_H2))
+        A(table([["Target", "Market", "Died at", "Reason"]] + [
+            [p["parcel_id"].replace("TP-", ""),
+             str(p.get("market_metro") or ""),
+             str(p.get("killed_at_gate", "")).replace("_", " ").title(),
+             str(p.get("rejection_reasons") or "")[:190]]
+            for p in killed
+        ], [0.85 * inch, 1.05 * inch, 1.05 * inch, 3.95 * inch]))
+
+    # The top of a ranking that separates by less than a point is not a ranking,
+    # it is a tie, and presenting it as a winner is the easiest way to lose a
+    # reader who checks. Say so where it happens.
+    if len(S["sites"]) >= 2:
+        a, b = S["sites"][0], S["sites"][1]
+        gap = (a["p"].get("composite_score") or 0) - (b["p"].get("composite_score") or 0)
+        if gap < 2.0:
+            A(Paragraph("The top two are a tie, and they win for opposite reasons", S_H2))
+            A(Paragraph(
+                f"{a['p']['parcel_id']} scores {a['p'].get('composite_score'):.1f} against "
+                f"{b['p']['parcel_id']} at {b['p'].get('composite_score'):.1f} — a "
+                f"{gap:.1f}-point gap on a 100-point scale, which is noise. The composition "
+                f"of those scores is not noise. "
+                f"{a['p']['parcel_id']} wins on catchment and on infrastructure already in "
+                f"the ground. {b['p']['parcel_id']} wins on yield: a longer season, a lighter "
+                f"ad valorem load and a lower entry price give it "
+                f"{(b['uw'].yoc_net_at_ask - a['uw'].yoc_net_at_ask) * 10000:.0f} basis points "
+                f"more yield at the ask, and it is the only target in the set that supports a "
+                f"positive land price on the retained basis.", S_BODY))
+            A(Paragraph(
+                f"The two are also asymmetric in the direction their cost basis can move. "
+                f"{b['p']['parcel_id']} carries a {_m(abs(b['p'].get('site_cost_premium_usd') or 0))} "
+                f"cost PREMIUM — utilities that must be built and are priced in. "
+                f"{a['p']['parcel_id']} carries a "
+                f"{_m(abs(a['p'].get('site_cost_premium_usd') or 0))} cost CREDIT that depends "
+                f"on existing pavement converting to base course and on a Phase II "
+                f"environmental result that has not been ordered. Halve that credit and its "
+                f"IRR falls to roughly 8.1%; remove it and 7.4%. A premium is a number you "
+                f"can bid against. A credit is a number that can disappear. Both sites go "
+                f"into Tranche 1 diligence, and the credit is the first thing tested.", S_BODY))
 
     for s in S["sites"][:3]:
         p = s["p"]
@@ -523,9 +655,13 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"Across {S['mc'].iterations:,} joint draws with triangular distributions on every "
         f"driver, the programme clears the retained-asset yield test in "
         f"{S['mc'].p_feasible_net:.0%} of cases and holds the DSCR covenant in "
-        f"{S['mc'].p_covenant_holds:.0%}. Several driver modes are deliberately adverse to the "
-        f"base case, so the median draw sits below it by construction; this is a stress "
-        f"distribution, not an unbiased forecast.", S_BODY))
+        f"{S['mc'].p_covenant_holds:.0%}. Every driver's modal value is the base case, so the "
+        f"simulation is centred on the underwriting rather than beside it; the asymmetry sits "
+        f"in the spread, where each driver carries a longer adverse tail than favourable one. "
+        f"Nine independent draws compound, which is why the hold rate is well below what any "
+        f"single driver would suggest. Read it as a measure of how wide the parameter "
+        f"uncertainty still is before the comparable study lands — not as a second forecast.",
+        S_BODY))
     A(PageBreak())
 
     # ---------------- 8. The ask ----------------
@@ -656,10 +792,18 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
          "Prior-use sites only; acoustic model pre-application; berming and sound-wall budget "
          "in base cost; muffler rule in club by-laws; opposition history reviewed in P&Z "
          "minutes before any option is signed"],
-        ["Northeast seasonality",
-         "Material and structurally different from the reference asset",
-         "Revenue weighted to indoor storage, service department and karting; dues parity with "
-         "year-round clubs treated as unproven"],
+        ["Seasonality and the season premium",
+         f"The lead site runs {int(S['lead'].get('season_days') or 0)} usable days against a "
+         f"{cfg['income']['season']['baseline_days']}-day baseline",
+         "Both sides of the season are modelled: revenue and the crew, consumables and track "
+         "preparation a longer calendar consumes. Dues parity with the reference asset is "
+         "treated as unproven until the comparable study is complete"],
+        ["Abatement does not travel",
+         "The 50% relief in the base case is a New York IDA mechanism with no Florida or "
+         "Nevada equivalent for this use",
+         "Every site is underwritten at its own local rate and its own honest view of relief. "
+         "Low-rate states carry the lighter load unabated; high-rate states make the abatement "
+         "a condition precedent, not an upside"],
         ["Construction cost escalation",
          f"The largest single driver: {_m(S['tor'][0].swing_abs)} of swing on a "
          f"{cfg['tornado']['swing_pct']:.0%} flex",
@@ -785,7 +929,7 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
 
     A(Paragraph("What this means for strategy", S_H2))
     A(B("Club 1 is the proof, not the platform",
-        "Its purpose is to demonstrate that the typology works in the Northeast, establish "
+        "Its purpose is to demonstrate that the typology works in its market, establish "
         "the operating platform and the brand, and generate the track record that makes "
         "capital for clubs 2 and 3 cheap. Underwrite it on its own merits, which Sections "
         "7 and 11 do."))
@@ -892,11 +1036,11 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    path = out / f"Northeast_Motor_Club_Business_Plan_{today:%Y-%m-%d}.pdf"
+    path = out / f"Bellwether_Motor_Club_Business_Plan_{today:%Y-%m-%d}.pdf"
 
     doc = BaseDocTemplate(str(path), pagesize=LETTER, leftMargin=MARGIN,
                           rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=MARGIN,
-                          title="The Northeast Motor Club — Confidential Business Plan",
+                          title="Bellwether Motor Club — Confidential Business Plan",
                           author="Track Boss")
 
     def painter(canv, docu):
@@ -905,7 +1049,7 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
             canv.setFont(SERIF_I, 8)
             canv.setFillColor(GREY)
             canv.drawString(MARGIN, 0.55 * inch,
-                            "The Northeast Motor Club — Confidential Business Plan")
+                            "Bellwether Motor Club — Confidential Business Plan")
             canv.drawRightString(LETTER[0] - MARGIN, 0.55 * inch, f"{docu.page}")
             canv.setStrokeColor(RULE)
             canv.setLineWidth(0.3)

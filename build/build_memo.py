@@ -113,10 +113,24 @@ def build_memo(
     sources = sources or _default_sources()
 
     ask = parcel.get("ask_price") or 0.0
-    cf = cf_mod.project_cash_flow(cfg, ask, horizon_operating_years=12)
-    cov = cf_mod.covenant_report(cf, cfg["debt"]["min_dscr"])
-    spread = sc.scenario_spread(sc.run_all(cfg, ask_price=ask or None))
-    plaus = rk.plausibility_report(cfg, ask)
+    # The memo describes ONE site, so it runs on that site's season, ad valorem
+    # regime and cost premium -- not the national base case. Reporting a
+    # nationwide pipeline's lead site at the default 210-day Northeast economics
+    # would put a number on the page that no other artifact agrees with.
+    scfg = two_stack.site_config(cfg, parcel)
+    prem = float(parcel.get("site_cost_premium_usd") or 0.0)
+    cf = cf_mod.project_cash_flow(scfg, ask, horizon_operating_years=12,
+                                  site_cost_premium=prem)
+    # Coverage is tested from conversion, not from the first operating day: a
+    # funded debt-service reserve covers lease-up and the covenant does not bite
+    # until the permanent note converts. Testing every year reported breaches
+    # that are not defaults.
+    tested_from = (int(round(cfg["cost"]["carry"]["development_years"]))
+                   + two_stack.stabilization_year(scfg))
+    cov = cf_mod.covenant_report(cf, cfg["debt"]["min_dscr"], tested_from_year=tested_from)
+    spread = sc.scenario_spread(sc.run_all(scfg, ask_price=ask or None,
+                                           site_cost_premium=prem))
+    plaus = rk.plausibility_report(scfg, ask)
 
     pid = parcel.get("parcel_id", "UNKNOWN")
     muni = parcel.get("municipality", "—")
@@ -200,7 +214,7 @@ def build_memo(
     story.extend([
         bullet("Stabilized NOI",
                f"{_usd(diag['stabilized_noi'])} in operating year "
-               f"{two_stack.stabilization_year(cfg)} "
+               f"{two_stack.stabilization_year(scfg)} "
                f"(membership at {m['stabilization_threshold']:.0%} of cap)"),
         bullet("Net cost basis (non-land)", _usd(diag["non_land_cost"])),
         bullet("For-sale net proceeds", _usd(diag["for_sale_net_proceeds"])),

@@ -1,5 +1,5 @@
 /*
- * THE NORTHEAST MOTOR CLUB — Investor Deck
+ * BELLWETHER MOTOR CLUB — Investor Deck
  * Generated from build/deck/data.json, which is exported from the live model.
  * No figure in this deck is typed by hand.
  */
@@ -22,7 +22,7 @@ const BFONT = "Calibri";
 const pres = new pptxgen();
 pres.layout = "LAYOUT_WIDE";           // 13.3 x 7.5
 pres.author = "Track Boss";
-pres.title  = "The Northeast Motor Club — Investor Presentation";
+pres.title  = "Bellwether Motor Club — Investor Presentation";
 const W = 13.33, H = 7.5, M = 0.62;
 
 // ---------- formatters ----------
@@ -135,15 +135,17 @@ const chartFrame = () => ({
 // =====================================================================
 {
   const s = darkSlide();
-  s.addText("THE NORTHEAST\nMOTOR CLUB", {
+  s.addText("BELLWETHER\nMOTOR CLUB", {
     x: M + 0.1, y: 1.65, w: 8.6, h: 2.1, fontFace: HFONT, fontSize: 50,
     bold: true, color: PAPER, lineSpacingMultiple: 0.95, margin: 0,
   });
-  s.addText("A private motorsport country club and trackside residential community", {
+  s.addText("A national platform of private motorsport country clubs with " +
+            "trackside residential", {
     x: M + 0.14, y: 3.9, w: 8.4, h: 0.4, fontFace: BFONT, fontSize: 15,
     color: MIDGREY, margin: 0,
   });
-  s.addText("NEW YORK   ·   CONNECTICUT   ·   NEW JERSEY", {
+  s.addText(String(D.national.screened) + " MARKETS SCREENED   ·   LEAD SITE: " +
+            String(D.lead.metro).toUpperCase(), {
     x: M + 0.14, y: 4.42, w: 8.4, h: 0.3, fontFace: BFONT, fontSize: 11.5,
     bold: true, color: RED, charSpacing: 2, margin: 0,
   });
@@ -271,7 +273,7 @@ const chartFrame = () => ({
     ["Clubhouse & service", "32,000 SF club · 22,000 SF tech centre", "Included in basis",
      "F&B, lounge, fitness, storage, race prep, detailing"],
     ["Shoulder season", "Karting, skidpad, autocross", "Included in basis",
-     "Deliberately weighted up — the Northeast season is shorter than the reference asset"],
+     "Weighted up deliberately — these earn on days the circuit cannot be sold"],
   ], [1.6, 3.0, 2.55, 4.94], { rowH: 0.44, fs: 9.5 });
   footnote(s, "Stabilised NOI after property tax of " + m$(D.econ.noi) +
     " is reached in operating year " + D.program.stab + ".");
@@ -305,12 +307,12 @@ const chartFrame = () => ({
     bold: true, color: ASPHALT, margin: 0,
   });
   s.addText("The binding market question is not whether the households exist — the required " +
-    "penetration is a few basis points of the pool. It is whether a Northeast club can price " +
-    "like a year-round one. The reference asset for this typology operates in the California " +
-    "desert with close to twelve months of usable track time; our season is roughly half that. " +
-    "We have therefore weighted revenue toward indoor storage, the service department and the " +
-    "karting complex, and we treat dues parity with year-round clubs as unproven until the " +
-    "comparable study is complete.", {
+    "penetration is a few basis points of the pool. It is where to build. Usable track days " +
+    "across the screened set run from " + D.national.season_lo + " to " + D.national.season_hi +
+    " a year, and that is the largest economic difference between two otherwise identical " +
+    "sites. We model both sides of it: " + pc(D.national.anc_elast, 0) + " of ancillary " +
+    "revenue moves with days open, and " + pc(D.national.opex_elast, 0) + " of club operating " +
+    "cost moves with it too. A longer season earns a real premium, not a free one.", {
     x: 4.05, y: 4.3, w: 8.65, h: 1.35, fontFace: BFONT, fontSize: 11.5,
     color: GREY, margin: 0, lineSpacingMultiple: 1.12,
   });
@@ -362,35 +364,97 @@ const chartFrame = () => ({
 }
 
 // =====================================================================
+// 6b — The national screen
+// =====================================================================
+{
+  const s = lightSlide("Where to build",
+    D.national.screened + " markets screened on six drivers. New York ranks last.");
+  const rows = [["Tier 1 market", "ST", "Season", "Score", "What is already there"]];
+  D.national.tier1.forEach(r => rows.push([
+    r.metro, r.states, r.season + " d", r.score.toFixed(1),
+    String(r.clubs).slice(0, 62),
+  ]));
+  D.national.tier2.slice(0, 4).forEach(r => rows.push([
+    r.metro + "  (Tier 2)", r.states, r.season + " d", r.score.toFixed(1),
+    String(r.clubs).slice(0, 62),
+  ]));
+  tbl(s, M, 1.55, 8.35, rows, [2.55, 0.62, 0.72, 0.66, 3.8], { rowH: 0.365, fs: 9 });
+
+  statCard(s, 9.2, 1.55, 3.5, 1.05, D.national.top_score.toFixed(1) + "  /  100",
+    String(D.national.top).toUpperCase() + " — RANK 1");
+  statCard(s, 9.2, 2.75, 3.5, 1.05, D.national.ne_score.toFixed(1) + "  /  100",
+    "NEW YORK METRO — RANK " + D.national.ne_rank + " OF " + D.national.screened,
+    { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
+  s.addText("New York's rank is not a comment on demand. It has the deepest investable " +
+    "wealth in the country and one club serving it. It loses on the supply side: land " +
+    "price, entitlement friction and a season two-thirds the length of the Sun Belt. " +
+    D.national.proven + " of the " + D.national.screened + " metros already carry an " +
+    "operating club — which proves the format absorbs, and leaves the question of whether " +
+    "the incumbent is small, remote or under-amenitised enough to leave room.", {
+    x: 9.2, y: 4.02, w: 3.5, h: 2.0, fontFace: BFONT, fontSize: 9.5, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.1,
+  });
+  footnote(s, "MARKET TIERING IS A MODEL OUTPUT, NOT A SOURCED RANKING. Season days are " +
+    "estimated from climate; wealth, land cost, friction and incentive access are graded on " +
+    "ordinal bands, not measured. The existing-club column is the only one built from " +
+    "confirmed operator facts.");
+  s.addNotes("Lead with the rank-23 card. Volunteering that your original market screens " +
+    "worst is the fastest way to establish that the screen is real.");
+}
+
+// =====================================================================
+// 6c — Rollout sequence
+// =====================================================================
+{
+  const s = lightSlide("Rollout", "One club is a deal. The order is what makes it a platform.");
+  const rows = [["Phase", "Horizon", "Markets and rationale", "Capital"]];
+  D.rollout.forEach(r => rows.push([
+    r.phase, r.horizon, r.markets + "  —  " + r.rationale, r.capital,
+  ]));
+  tbl(s, M, 1.6, W - 2 * M, rows, [1.55, 1.15, 7.7, 1.5], { rowH: 0.95, fs: 9.5 });
+  footnote(s, "Entitlement is the long pole at " + D.timing.entitlement +
+    " months, so markets after club 1 enter the pipeline in parallel rather than in series. " +
+    "Phases B onward are strategy, not underwriting — only club 1 is modelled.");
+  s.addNotes("The honest line here: everything past Phase A is a plan, not a projection. " +
+    "The returns in this deck come from club 1 alone.");
+}
+
+// =====================================================================
 // 7 — Site portfolio
 // =====================================================================
 {
-  const s = lightSlide("Site portfolio", "Five acquisition targets, underwritten independently");
-  const rows = [["#", "Target", "County / ST", "Acres", "Prior use", "Indicative ask",
-                 "Site premium", "Best drive", "IRR", "Min DSCR", "Score"]];
+  const s = lightSlide("Site portfolio",
+    D.sites.length + " acquisition targets across " +
+    new Set(D.sites.map(t => t.metro)).size + " markets, underwritten independently");
+  const rows = [["#", "Target", "Metro", "Acres", "Prior use", "Days", "Ask",
+                 "Site prem.", "Tax", "Drive", "Net YoC", "IRR", "DSCR", "Score"]];
   D.sites.forEach((t, i) => rows.push([
-    i + 1, t.id, t.county, Math.round(t.acres).toLocaleString(), t.prior,
-    m$(t.ask), m$(t.premium), t.drive + " min", pc(t.irr), xx(t.dscr),
-    Math.round(t.score),
+    i + 1, t.id, String(t.metro || "").split(" – ")[0],
+    Math.round(t.acres).toLocaleString(), t.prior, String(t.season),
+    m$(t.ask), m$(t.premium),
+    t.tax_rate ? (t.tax_rate * 100).toFixed(2) + "%" + (t.abate ? " −" + Math.round(t.abate * 100) + "%" : "") : "—",
+    t.drive + "m", pc(t.yoc), pc(t.irr), xx(t.dscr), Math.round(t.score),
   ]));
-  tbl(s, M, 1.62, W - 2 * M, rows,
-    [0.34, 1.55, 1.32, 0.62, 1.62, 1.22, 1.12, 0.86, 0.66, 0.86, 0.6],
-    { rowH: 0.42, fs: 9.5 });
-  s.addText("Each site carries its own cost premium or credit — remediation, blasting, utility " +
-    "extension, less the value of existing pavement — so the economics genuinely differ. " +
-    "The spread from best to worst is " +
-    pc(D.sites[0].irr) + " against " + pc(D.sites[D.sites.length - 1].irr) + " IRR.", {
-    x: M, y: 4.65, w: 7.6, h: 0.8, fontFace: BFONT, fontSize: 11.5, color: GREY,
+  tbl(s, M, 1.55, W - 2 * M, rows,
+    [0.3, 1.32, 1.06, 0.54, 1.42, 0.46, 0.78, 0.82, 0.94, 0.52, 0.72, 0.62, 0.66, 0.54],
+    { rowH: 0.375, fs: 8.5 });
+  s.addText("Each site carries its own usable season, its own local ad valorem rate and its " +
+    "own cost premium or credit, so the economics genuinely differ. The spread from best to " +
+    "worst is " + pc(D.sites[0].irr) + " against " +
+    pc(D.sites[D.sites.length - 1].irr) + " IRR. " + D.killed.length + " further targets died " +
+    "in the screening funnel and are shown in the workbook.", {
+    x: M, y: 5.0, w: 7.6, h: 0.8, fontFace: BFONT, fontSize: 11, color: GREY,
     margin: 0, lineSpacingMultiple: 1.1,
   });
-  statCard(s, 8.5, 4.6, 2.0, 0.95, String(D.sites.length), "TARGETS UNDERWRITTEN");
-  statCard(s, 10.7, 4.6, 2.0, 0.95, "0", "UNDER CONTRACT",
+  statCard(s, 8.5, 4.95, 2.0, 0.9, String(D.sites.length), "TARGETS UNDERWRITTEN");
+  statCard(s, 10.7, 4.95, 2.0, 0.9, "0", "UNDER CONTRACT",
     { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
   footnote(s, "TARGET PROFILES: each row is a typology and a submarket, not an identified " +
     "parcel. Assessor identifiers, coordinates and title work are a Tranche 1 deliverable. " +
-    "Ask prices are indicative for the submarket.");
+    "Ask prices are indicative for the submarket. Tax shows the local effective rate and any " +
+    "abatement assumed; a dash means no abatement statute reaches this use in that state.");
   s.addNotes("Be explicit that nothing is under contract. The red card does that work for you " +
-    "before anyone asks.");
+    "before anyone asks. If asked why the top two are so close, that is slide 7b.");
 }
 
 // =====================================================================
@@ -398,10 +462,12 @@ const chartFrame = () => ({
 // =====================================================================
 {
   const t = D.sites[0];
-  const s = lightSlide("Lead target", t.id + " — " + t.muni + ", " + t.county);
-  s.addText("Typology: former naval weapons industrial reserve and airfield. Existing runway " +
-    "pavement, municipal water and sewer at the boundary, industrial zoning, and a municipal " +
-    "owner with a job-creation mandate.", {
+  const s = lightSlide("Lead target", t.id + " — " + t.muni + ", " + t.county +
+    "  ·  " + t.metro);
+  s.addText("Prior use: " + t.prior + " · " + t.season + " usable track days · local " +
+    "effective tax " + (t.tax_rate * 100).toFixed(2) + "%" +
+    (t.abate ? " with a " + Math.round(t.abate * 100) + "% abatement assumed" :
+               " with no abatement assumed") + ".", {
     x: M, y: 1.55, w: 7.3, h: 0.72, fontFace: BFONT, fontSize: 12, color: GREY,
     margin: 0, lineSpacingMultiple: 1.1,
   });
@@ -412,7 +478,8 @@ const chartFrame = () => ({
   statCard(s, 8.2, 1.55, 2.15, 0.95, Math.round(t.acres).toLocaleString(), "DEVELOPABLE ACRES");
   statCard(s, 10.55, 1.55, 2.15, 0.95, t.drive + " min", "BEST DRIVE TIME");
   statCard(s, 8.2, 2.68, 2.15, 0.95, m$(t.ask), "INDICATIVE ASK");
-  statCard(s, 10.55, 2.68, 2.15, 0.95, m$(t.premium), "PAVEMENT CREDIT");
+  statCard(s, 10.55, 2.68, 2.15, 0.95, m$(t.premium),
+    t.premium < 0 ? "SITE COST CREDIT" : "SITE COST PREMIUM");
   statCard(s, 8.2, 3.81, 2.15, 0.95, pc(t.irr), "PROJECT IRR");
   statCard(s, 10.55, 3.81, 2.15, 0.95, xx(t.dscr), "MIN DSCR");
   s.addShape(pres.ShapeType.roundRect, {
@@ -420,12 +487,13 @@ const chartFrame = () => ({
     line: { color: MIST, width: 0 },
   });
   s.addText("Entitlement: " + String(t.zoning).replace(/_/g, " ") + " · " + t.months +
-    " month path\nAbatement route: " + t.abate, {
+    " month path\nAbatement route: " + t.abate_path, {
     x: 8.4, y: 5.08, w: 4.1, h: 0.72, fontFace: BFONT, fontSize: 10.5, color: GREY,
     margin: 0, lineSpacingMultiple: 1.1,
   });
-  s.addNotes("The pavement credit is the single most important line on this slide — it is why " +
-    "this site leads.");
+  s.addNotes("The site cost line is the single most important number on this slide. If it is " +
+    "a credit, it is an assumption that has to survive diligence; if it is a premium, it is a " +
+    "cost you can bid against. Say which.");
 }
 
 // =====================================================================
@@ -750,8 +818,11 @@ const chartFrame = () => ({
     "OF " + (D.mc.n / 1000).toFixed(0) + "k DRAWS HOLD THE COVENANT");
   statCard(s, 10.6, 4.5, 2.1, 0.95, pc(D.mc.p_net, 0),
     "OF DRAWS CLEAR THE YIELD TEST", { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
-  footnote(s, "Monte Carlo driver modes are deliberately adverse to the base case, so the " +
-    "median draw sits below it by construction. It is a stress distribution, not a forecast.");
+  footnote(s, "The Monte Carlo draws all nine drivers jointly and independently, with the " +
+    "modal value of each set to the base case and a longer adverse tail than favourable one. " +
+    "The covenant is tested from loan conversion, as it is everywhere else. A low hold rate " +
+    "is a statement about how wide the parameter uncertainty still is before the comparable " +
+    "study lands — not a second, gloomier forecast.");
   s.addNotes("The severe case is the number they will remember. Do not hide it.");
 }
 
@@ -807,12 +878,13 @@ const chartFrame = () => ({
     ["Revenue assumptions unverified", "HIGHEST",
      "Comparable club study is the first use of Tranche 1 and a gate on all further spend"],
     ["Property-tax abatement not secured", "SEVERE",
-     "Condition precedent to land closing — without it the covenant breaks and land value goes negative"],
+     "Condition precedent in high-rate states — without it the covenant breaks and land value goes negative. " +
+     "It is not available at all for this use in FL, NV or AZ, where the low statutory rate is the offset instead"],
     ["Noise litigation after permits issue", "HIGH",
      "Prior-use sites only · acoustic model pre-application · mitigation in base cost · muffler rule in by-laws"],
     ["Construction cost escalation", "HIGH",
      "Largest single driver at " + m$(D.tornado[0].swing) + " of swing · GMP where obtainable · 10% contingency"],
-    ["Northeast seasonality", "MATERIAL",
+    ["Season length and its cost", "MATERIAL",
      "Revenue weighted to storage, service and karting · dues parity with year-round clubs treated as unproven"],
     ["Absorption and lease-up", "MATERIAL",
      "Founding-member programme and condominium pre-sales before construction start · phased delivery"],
@@ -882,5 +954,5 @@ const chartFrame = () => ({
     "to trust the number.");
 }
 
-pres.writeFile({ fileName: process.argv[2] || "dist/Northeast_Motor_Club_Investor_Deck.pptx" })
+pres.writeFile({ fileName: process.argv[2] || "dist/Bellwether_Motor_Club_Investor_Deck.pptx" })
   .then(f => console.log("wrote " + f));

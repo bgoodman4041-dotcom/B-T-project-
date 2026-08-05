@@ -1,8 +1,12 @@
 # Track Boss — Car Community Site Sourcing Agent
 
-Sources, screens, and underwrites land in **NY / CT / NJ** for a private
-motorsport country club with an attached for-sale residential and
-garage-condominium component. Reference typology: The Thermal Club. [1]
+Sources, screens, and underwrites land **nationwide** for a private motorsport
+country club with an attached for-sale residential and garage-condominium
+component. Reference typology: The Thermal Club. [1]
+
+The mandate began in NY / CT / NJ and went national in v2.1. The Northeast is
+still in the pipeline — it has the deepest investable wealth in the country and
+one club serving it — but it ranks **23rd of 23** metros on the supply side.
 
 **Hurdle: 6.50% yield on cost, stabilized.**
 
@@ -28,6 +32,7 @@ verify.
 | Drive-time ceiling | **120 min** max, 90 min prize |
 | Minimum DSCR | **1.30×** (confirmed 2026-08-03). Runs alongside the yield hurdle; the tighter binds. |
 | Capital stack | **PARTIAL.** DSCR confirmed; 60% LTC, 7.25% coupon and 25-yr amortization all assumed. Flag in every memo. |
+| Geography | **Nationwide** (2026-08-05). 23 metros screened; 15 target profiles across 11 markets and 9 states. |
 
 Ranking on the gross basis is the hard test: income NOI must carry the entire
 development cost including the for-sale vertical, with no sell-out offset.
@@ -95,6 +100,38 @@ print(feasibility_diagnostic(load_config())['verdict'])"
 
 ---
 
+## v2.1 — the nationwide layer
+
+Three things travel with the dirt rather than the program, and each site is
+underwritten at its own values via `two_stack.site_config(cfg, parcel)`:
+
+| Site driver | Why it matters |
+|---|---|
+| `season_days` | 195–320 across the screened set. The single largest geographic difference. |
+| `property_tax_effective_rate` | ~0.65% in NV to ~2.6% in CT. |
+| `property_tax_abatement_pct` | **The 50% base case is a NY IDA mechanism. It does not travel.** No FL/NV/AZ equivalent reaches this use; the low statutory rate is the offset instead. |
+
+`model/markets.py` scores 23 metros on six drivers (season 26, wealth 22, land
+16, friction 16, whitespace 14, incentive 6). Phoenix–Scottsdale leads at 89.2;
+New York metro is last at 40.8. 13 of 23 already carry an operating club.
+
+**Season cuts both ways, and the model says so.** `season_factor` lifts
+ancillary revenue with days open; `opex_season_factor` lifts crew, consumables
+and track prep with it, attenuated by member penetration because a half-full
+club open 310 days does not run a full calendar. Lifting only the revenue side
+handed every Sun Belt site a margin it had not earned; charging the opex uplift
+at full force against a penetration-discounted revenue line erased the advantage
+entirely and put a 210-day Northeast site above a 310-day one. Both failures
+have tests in `tests/test_markets.py`.
+
+**The lead is a dead heat and the plan says so.** TP-01-EPCAL scores 65.9 to
+TP-06-PINAL-303's 65.3 — noise on a 100-point scale. EPCAL wins on catchment and
+infrastructure already in the ground; Pinal wins on yield and is the only target
+supporting a positive land price on the retained basis. The asymmetry that
+matters: Pinal carries a priced cost *premium*, EPCAL a $9.5M cost *credit* that
+depends on a Phase II result nobody has ordered. Halve it and EPCAL's IRR falls
+to 8.1%.
+
 ## Layout
 
 ```
@@ -107,7 +144,7 @@ build/build_workbook.py           17-tab xlsx, live formulas on the Underwriting
 build/build_memo.py               One-page IC memo PDF
 build/build_business_plan.py      19-page formal business plan PDF
 build/deck/make_deck.js           19-slide investor deck (pptxgenjs)
-data/sites_targets.csv            5 acquisition TARGET PROFILES — not parcels under contract
+data/sites_targets.csv            15 nationwide TARGET PROFILES — not parcels under contract
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
 data/sources.csv                  Citation register. Every claim traces here; assumptions are NOT sourced.
@@ -115,8 +152,11 @@ model/cashflow.py                 Timeline, sources/uses, peak funding, DSCR by 
 model/scenarios.py                Base/Downside/Severe/Upside correlated bundles
 model/risk.py                     Break-evens, tornado, Monte Carlo, plausibility audit
 model/roadmap.py                  10-horizon milestones, platform scale, listing test, exit ladder
+model/markets.py                  23 US metros, six-driver composite, rollout Phases A-D
 tests/test_model.py               72 tests; fast
-tests/test_analytics.py           67 tests; tax, cashflow, scenarios, risk, roadmap
+tests/test_analytics.py           70 tests; tax, cashflow, scenarios, risk, roadmap
+tests/test_markets.py             25 tests; market screen, season economics, site overlay
+tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
 .claude/skills/track-radar/       The `run track radar` entry point
@@ -211,6 +251,27 @@ cannot carry the vertical even if the dirt were free.
   municipality — or the parcel goes to `Unverified`.
 - **No merged cells inside filter ranges.** A filter range overlapping a merge
   yields a workbook Excel refuses to open.
+- **Every artifact runs on the LEAD SITE's config, not the national default.**
+  `site_config()` exists so the workbook, plan, memo and deck all describe the
+  same site. Running the cash flow at 210 days while the Underwriting tab solves
+  a 310-day site is drift, and it will not be caught by any test that compares
+  one column against one shared result.
+- **A site cost premium is a HARD cost.** It draws soft cost and contingency on
+  top of itself. Adding it flat to `S` understates the basis on every premium
+  site — the Excel did exactly that until the per-site drift check caught it.
+- **The Monte Carlo's modal value MUST equal the base case on every driver.** A
+  simulation centred beside the underwriting is two views of the world in one
+  config; six adverse modes compounded into a 5% covenant-hold probability
+  against a base case covering at 2.02x. Asymmetry belongs in the spread. If a
+  pessimistic value is believed, put it in the base case.
+- **Test the covenant from conversion everywhere, including in the Monte Carlo.**
+  `cf.min_dscr` is the whole-hold minimum and includes lease-up. Used as the
+  covenant test it makes every draw fail and reports a structural zero.
+- **Do not rank on a column that is negative for every candidate.** The mandated
+  gross basis is negative for any merchant build regardless of the dirt, so the
+  20-point yield component scored zero on all 15 sites and a fifth of the
+  composite was inert. Score on the yield SPREAD, which is monotone through the
+  point where supportable land crosses zero; dollar headroom is not.
 
 ---
 
@@ -223,9 +284,11 @@ python3 build/build_business_plan.py --parcels data/sites_targets.csv --out dist
 python3 build/build_memo.py          --parcels data/sites_targets.csv --rank 1 --out dist/
 python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
-python3 tests/test_model.py               # 72 tests, fast
-python3 tests/test_analytics.py           # 56 tests, fast
-python3 tests/test_workbook_formulas.py   # Excel vs Python, 29 checks, slow
+python3 tests/test_model.py               # 73 tests, fast
+python3 tests/test_analytics.py           # 70 tests, fast
+python3 tests/test_markets.py             # 25 tests, fast
+python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
+python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```
 
 Run `test_model.py` after any change to the math — the round-trip identity

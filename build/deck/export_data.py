@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from build.build_workbook import enrich, load_parcels_csv
-from model import cashflow as cfm, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
+from model import cashflow as cfm, markets as mk, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
 
 PARCELS = Path("data/sites_targets.csv")
 OUT = Path(__file__).resolve().parent / "data.json"
@@ -19,23 +19,27 @@ def main() -> None:
     lead = live[0]
     ask = float(lead["ask_price"]); prem = float(lead["site_cost_premium_usd"] or 0)
 
-    uw = ts.underwrite(cfg, "LEAD", ask_price=ask, site_cost_premium=prem)
-    cf = cfm.project_cash_flow(cfg, ask, horizon_operating_years=12, site_cost_premium=prem)
-    stab = ts.stabilization_year(cfg)
+    # Everything the deck says describes the LEAD SITE, so it runs on that site's
+    # season and ad valorem regime rather than the national defaults.
+    lcfg = ts.site_config(cfg, lead)
+
+    uw = ts.underwrite(lcfg, "LEAD", ask_price=ask, site_cost_premium=prem)
+    cf = cfm.project_cash_flow(lcfg, ask, horizon_operating_years=12, site_cost_premium=prem)
+    stab = ts.stabilization_year(lcfg)
     dev = int(round(cfg["cost"]["carry"]["development_years"]))
     cov = cfm.covenant_report(cf, cfg["debt"]["min_dscr"], tested_from_year=dev + stab)
-    plaus = rk.plausibility_report(cfg, ask)
-    bev = rk.direct_break_evens(cfg, ask)
-    tor, _b, _n = rk.tornado(cfg)
-    mc = rk.monte_carlo(cfg, ask)
-    scen = sc.run_all(cfg, ask_price=ask, site_cost_premium=prem)
-    T = rmap.timing(cfg)
-    lt = rmap.listing_readiness(cfg, ask, prem)
+    plaus = rk.plausibility_report(lcfg, ask)
+    bev = rk.direct_break_evens(lcfg, ask)
+    tor, _b, _n = rk.tornado(lcfg)
+    mc = rk.monte_carlo(lcfg, ask, site_cost_premium=prem)
+    scen = sc.run_all(lcfg, ask_price=ask, site_cost_premium=prem)
+    T = rmap.timing(lcfg)
+    lt = rmap.listing_readiness(lcfg, ask, prem)
     m = cfg["income"]["membership"]; fs = cfg["for_sale"]; d = cfg["debt"]
 
     lev = []
     for ltc in (0.0, 0.15, 0.30, 0.45, 0.60, 0.70):
-        c = copy.deepcopy(cfg); c["debt"]["target_ltc"] = ltc
+        c = copy.deepcopy(lcfg); c["debt"]["target_ltc"] = ltc
         x = cfm.project_cash_flow(c, ask, horizon_operating_years=12, site_cost_premium=prem)
         xc = cfm.covenant_report(x, c["debt"]["min_dscr"], tested_from_year=dev + stab)
         lev.append({"ltc": ltc, "irr": x.equity_irr, "dscr": xc["min_dscr_tested"]})
@@ -43,19 +47,34 @@ def main() -> None:
     sites = []
     for p in live:
         pr = float(p.get("site_cost_premium_usd") or 0); a = float(p.get("ask_price") or 0)
-        scf = cfm.project_cash_flow(cfg, a, horizon_operating_years=12, site_cost_premium=pr)
+        pcfg = ts.site_config(cfg, p)
+        scf = cfm.project_cash_flow(pcfg, a, horizon_operating_years=12, site_cost_premium=pr)
         scv = cfm.covenant_report(scf, d["min_dscr"], tested_from_year=dev + stab)
+        puw = ts.underwrite(pcfg, p["parcel_id"], ask_price=a, site_cost_premium=pr)
         sites.append(dict(id=p["parcel_id"].replace("TP-", ""), muni=p.get("municipality"),
             county=f"{p.get('county')}, {p.get('state')}",
+            metro=p.get("market_metro"), region=p.get("market_region"),
+            tier=p.get("market_tier"), season=p.get("season_days"),
+            tax_rate=p.get("property_tax_effective_rate"),
+            abate=p.get("property_tax_abatement_pct"),
+            yoc=puw.yoc_net_at_ask, max_land=puw.max_land_net,
             acres=p.get("contiguous_developable_acres"),
             prior=str(p.get("prior_use", "")).replace("_", " "), ask=a, premium=pr,
             drive=p.get("best_drive_min"), irr=scf.equity_irr,
             dscr=scv["min_dscr_tested"], score=p.get("composite_score"),
             why=p.get("why_wins"), kill=p.get("what_kills"),
             note=p.get("site_cost_basis_note"), zoning=p.get("zoning_posture"),
-            months=p.get("permitting_timeline_months"), abate=p.get("tax_abatement_path")))
+            months=p.get("permitting_timeline_months"),
+            abate_path=p.get("tax_abatement_path")))
 
-    yrs = ts.project_income(cfg, years=12)
+    killed = [dict(id=p["parcel_id"].replace("TP-", ""), metro=p.get("market_metro"),
+                   gate=str(p.get("killed_at_gate", "")).replace("_", " ").title(),
+                   why=str(p.get("rejection_reasons") or "")[:170])
+              for p in universe if p.get("killed_at_gate")]
+
+    nat = mk.national_summary()
+
+    yrs = ts.project_income(lcfg, years=12)
     data = dict(
       today=datetime.date.today().isoformat(),
       program=dict(miles=cfg["cost"]["track"]["miles"], cap=m["cap"],
@@ -77,12 +96,31 @@ def main() -> None:
         equity_resid=cf.sources_uses.equity_required,
         total_uses=cf.sources_uses.total_uses, land=cf.sources_uses.land,
         nonland=cf.sources_uses.non_land_cost, carry=cf.sources_uses.carry,
-        deficit=cf.sources_uses.operating_deficit_funded, tau=ts.tax_load(cfg),
+        deficit=cf.sources_uses.operating_deficit_funded, tau=ts.tax_load(lcfg),
         req=uw.required_yield, ltc=d["target_ltc"],
         mc=ts.mortgage_constant(d["permanent_rate"], d["amortization_years"], 12),
         perm_rate=d["permanent_rate"], amort=d["amortization_years"],
         retained_yield=uw.stabilized_noi_after_tax / max(1.0, cf.retained_cost)),
       hnw=int(lead.get("hnw_households_90min") or 0),
+      lead=dict(id=lead["parcel_id"].replace("TP-", ""), metro=lead.get("market_metro"),
+        county=f"{lead.get('county')}, {lead.get('state')}", season=lead.get("season_days"),
+        muni=lead.get("municipality")),
+      national=dict(screened=nat["markets_screened"], proven=nat["proven_markets"],
+        ne_rank=nat["northeast_rank"], ne_score=nat["northeast_score"],
+        top=nat["top"].market.metro, top_score=nat["top"].total,
+        season_lo=nat["season_spread"][0], season_hi=nat["season_spread"][1],
+        anc_elast=cfg["income"]["season"]["ancillary_elasticity"],
+        opex_elast=cfg["income"]["season"]["opex_elasticity"],
+        tier1=[dict(metro=r.market.metro, states=r.market.states,
+                    season=r.market.season_days, score=r.total,
+                    clubs=r.market.existing_clubs, white=r.market.whitespace,
+                    typ=r.market.candidate_typologies) for r in nat["tier1"]],
+        tier2=[dict(metro=r.market.metro, states=r.market.states,
+                    season=r.market.season_days, score=r.total,
+                    clubs=r.market.existing_clubs) for r in nat["tier2"][:6]]),
+      rollout=[dict(phase=r.phase, horizon=r.horizon, markets=r.markets,
+        rationale=r.rationale, capital=r.capital) for r in mk.rollout()],
+      killed=killed,
       scen=[dict(name=s.name, label=s.label, irr=s.equity_irr, em=s.equity_multiple,
         vc=s.value_to_cost, land=s.max_land_net, dscr=s.min_dscr_tested,
         verdict=s.verdict, peak=s.peak_equity) for s in scen],
@@ -102,9 +140,9 @@ def main() -> None:
         opening_year=T.opening_year, stabilised_year=T.stabilisation_year),
       milestones=[dict(horizon=x.horizon, month=x.month, phase=x.phase,
         objective=x.objective, deliverables=x.deliverables, gate=x.gate, kpi=x.kpi,
-        capital=x.capital) for x in rmap.milestones(cfg)],
+        capital=x.capital) for x in rmap.milestones(lcfg)],
       platform=[dict(clubs=x.clubs, noi=x.stabilised_noi, value=x.asset_value,
-        cost=x.cumulative_dev_cost) for x in rmap.platform_scale(cfg, ask, prem, 7)],
+        cost=x.cumulative_dev_cost) for x in rmap.platform_scale(lcfg, ask, prem, 7)],
       listing=dict(need=lt.clubs_required, by_noi=lt.clubs_required_by_noi,
         by_value=lt.clubs_required_by_value, by_div=lt.clubs_required_by_diversification,
         ground_up_year=lt.ground_up_year, acq_year=lt.acquisition_year,
@@ -113,7 +151,7 @@ def main() -> None:
         min_value=lt.thresholds["min_equity_value_usd"],
         min_assets=lt.thresholds["min_stabilised_assets"]),
       exits=[dict(rank=e.rank, route=e.route, timing=e.timing, basis=e.proceeds_basis,
-        requires=e.requires, assessment=e.assessment) for e in rmap.exit_paths(cfg, ask, prem)],
+        requires=e.requires, assessment=e.assessment) for e in rmap.exit_paths(lcfg, ask, prem)],
     )
     OUT.write_text(json.dumps(data, indent=1))
     print(f"wrote {OUT}")
