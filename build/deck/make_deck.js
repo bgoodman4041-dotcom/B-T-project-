@@ -420,6 +420,54 @@ const chartFrame = () => ({
 }
 
 // =====================================================================
+// 6d — Membership demand
+// =====================================================================
+{
+  const s = lightSlide("Demand",
+    "Can these clubs actually be filled? Not \u201ca few basis points of the pool\u201d.");
+  s.addText("HNW households within 90 minutes  \u00d7  " +
+    pc(D.demand_cfg.collector, 1) + " own a car worth tracking  \u00d7  " +
+    pc(D.demand_cfg.track_active, 0) + " actually drive it  \u2212  what a nearby " +
+    "competitor already holds  \u00d7  what a founding campaign can reach  =  CAPTURABLE", {
+    x: M, y: 1.42, w: W - 2 * M, h: 0.34, fontFace: BFONT, fontSize: 11,
+    bold: true, color: ASPHALT, margin: 0,
+  });
+
+  const rows = [["Target", "HNW <90m", "Capturable", "Coverage", "Joins/yr",
+                 "Yr-1 ask", "Break-even collector share", "Verdict"]];
+  D.demand.forEach(t => rows.push([
+    t.id, Math.round(t.hnw).toLocaleString(), Math.round(t.capturable).toLocaleString(),
+    t.coverage.toFixed(1) + "x", Math.round(t.joins).toLocaleString(),
+    String(D.demand_cfg.ramp1), pc(t.be_collector, 2), t.verdict,
+  ]));
+  tbl(s, M, 1.86, 8.5, rows, [1.28, 0.92, 1.0, 0.8, 0.78, 0.7, 1.62, 1.4],
+    { rowH: 0.335, fs: 8.5 });
+
+  const worst = D.demand[D.demand.length - 1];
+  const best = D.demand[0];
+  statCard(s, 9.2, 1.86, 3.5, 1.0, best.coverage.toFixed(1) + "x",
+    "BEST COVERAGE — " + best.id);
+  statCard(s, 9.2, 3.0, 3.5, 1.0, worst.coverage.toFixed(1) + "x",
+    "THINNEST — " + worst.id, { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
+  s.addText("The composite scores catchment heavily on drive time, so a site can rank near " +
+    "the top and still sit in the thinnest pool in the set. That flag goes on the row in the " +
+    "workbook, not into the score \u2014 the \u00a711 weights are the principal\u2019s, and " +
+    "the model does not re-weight them quietly.\n\nEvery rate here is judgment, not measured " +
+    "conversion. What survives that is the break-even column: the collector-ownership share " +
+    "at which coverage falls to 1.0x, where the club sells out only if every reachable " +
+    "prospect joins. On the lead site the assumption can be wrong by a wide margin before " +
+    "the conclusion moves.", {
+    x: 9.2, y: 4.14, w: 3.5, h: 2.0, fontFace: BFONT, fontSize: 9, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.1,
+  });
+  footnote(s, "DEMAND FUNNEL RATES ARE ASSUMED and are the second-largest open item after " +
+    "the club economics comps. They are applied identically to every catchment, so the " +
+    "ranking is defensible even where the level is not.");
+  s.addNotes("If someone says the penetration argument makes this trivial, this is the slide " +
+    "that says we did not accept it either. The thinnest-coverage card is the honest one.");
+}
+
+// =====================================================================
 // 7 — Site portfolio
 // =====================================================================
 {
@@ -730,6 +778,47 @@ const chartFrame = () => ({
   });
   s.addNotes("Say the return out loud and set expectations. Told 10% and delivered 10% is a " +
     "repeat LP; told 20% and delivered 10% is a lawsuit.");
+}
+
+// =====================================================================
+// 11b — The return, and who it is for
+// =====================================================================
+{
+  const B = D.bridge;
+  const s = lightSlide("The objection",
+    pc(B.base) + " is a core return on an opportunistic risk profile. We know.");
+  s.addText("Ground-up development with entitlement risk is conventionally underwritten to " +
+    "18%+. Stabilised core assets to 6\u20139%. This lands at the top of core. A reader who " +
+    "prices deals for a living sees that in thirty seconds, so here is the arithmetic answer " +
+    "rather than an adjective \u2014 every favourable driver, moved one at a time.", {
+    x: M, y: 1.42, w: 8.4, h: 0.72, fontFace: BFONT, fontSize: 11.5, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.12,
+  });
+
+  const rows = [["Driver", "Favourable move", "Equity IRR", "Value / cost",
+                 "Reaches " + pc(B.target, 0) + " alone?"]];
+  B.rungs.forEach(r => rows.push([
+    r.driver, r.move, pc(r.irr), xx(r.vc), r.reaches ? "YES" : "no",
+  ]));
+  tbl(s, M, 2.24, 8.4, rows, [2.1, 1.85, 1.5, 1.45, 1.5], { rowH: 0.4, fs: 9.5 });
+
+  statCard(s, 9.15, 1.42, 3.55, 1.0, pc(B.base), "BASE CASE EQUITY IRR");
+  statCard(s, 9.15, 2.56, 3.55, 1.0, pc(B.irr),
+    B.n + " MOVES REACH " + pc(B.target, 0), { fill: "E8F0E9" });
+  s.addText("The minimal path to " + pc(B.target, 0) + " is " + B.n + " moves:\n" +
+    B.label + "\n\nBoth are MEMBER PRICING. Not construction, not cap rate, not a " +
+    "leverage trick. The entire distance between a core return and an opportunistic one " +
+    "is what a member pays to join and to stay \u2014 which is exactly the assumption " +
+    "Tranche 1 buys the answer to, for " + m$(D.tranche1) + ".", {
+    x: 9.15, y: 3.72, w: 3.55, h: 2.1, fontFace: BFONT, fontSize: 9.5, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.12,
+  });
+  footnote(s, "If the comparable study says member pricing will not support the assumed " +
+    "initiation and dues, the answer is not to stretch another driver \u2014 it is that " +
+    "this is a core-plus asset at a core-plus price and the land bid falls to match. The " +
+    "model already solves for that: it is the maximum supportable land price.");
+  s.addNotes("Volunteer the objection before they raise it. The room you lose is the one " +
+    "where an 18%-hurdle fund discovers this at IC instead of on slide 12.");
 }
 
 // =====================================================================

@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from model import demand  # noqa: E402
 from model import gates  # noqa: E402
 from model import markets as mk  # noqa: E402
 from model import scoring  # noqa: E402
@@ -313,6 +314,107 @@ def _score_all() -> dict:
     for pid, (p, uw) in _underwrite_all().items():
         out[pid] = scoring.composite_score(p, CFG, uw, gates.screen(p, CFG))
     return out
+
+
+# =============================================================================
+# Membership demand
+# =============================================================================
+
+def _parcel(**kw):
+    p = {"parcel_id": "D", "hnw_households_90min": 200_000,
+         "nearest_motorsport_club_mi": 100.0, "marque_clubs_in_catchment": 10,
+         "exotic_dealers_in_catchment": 10}
+    p.update(kw)
+    return p
+
+
+def test_a_bigger_pool_gives_more_coverage():
+    small = demand.assess(CFG, _parcel(hnw_households_90min=100_000))
+    big = demand.assess(CFG, _parcel(hnw_households_90min=500_000))
+    assert big.coverage > small.coverage
+    assert approx(big.coverage / small.coverage, 5.0, tol=1e-9)
+
+
+def test_a_closer_competitor_takes_more_of_the_pool():
+    far = demand.assess(CFG, _parcel(nearest_motorsport_club_mi=100.0))
+    near = demand.assess(CFG, _parcel(nearest_motorsport_club_mi=9.0))
+    assert near.incumbent_capture > far.incumbent_capture
+    assert far.incumbent_capture == 0.0, (
+        "100 mi is the sentinel for an unserved market and must decay to zero")
+    assert near.capturable < far.capturable
+
+
+def test_marque_clubs_are_a_channel_not_extra_demand():
+    """
+    Their members are already inside the HNW pool. Adding them to `addressable`
+    would count the same household twice; they belong in reachability.
+    """
+    bare = demand.assess(CFG, _parcel(marque_clubs_in_catchment=0,
+                                      exotic_dealers_in_catchment=0))
+    rich = demand.assess(CFG, _parcel(marque_clubs_in_catchment=18,
+                                      exotic_dealers_in_catchment=22))
+    assert approx(bare.addressable, rich.addressable), "channels inflated the pool"
+    assert rich.reachable_share > bare.reachable_share
+    assert rich.capturable > bare.capturable
+
+
+def test_channel_lift_is_capped():
+    absurd = demand.assess(CFG, _parcel(marque_clubs_in_catchment=500,
+                                        exotic_dealers_in_catchment=500))
+    assert absurd.reachable_share <= CFG["demand"]["reachable_share_base"] * (
+        1 + demand.MAX_CHANNEL_LIFT) + 1e-12
+    assert absurd.reachable_share <= 1.0
+
+
+def test_break_even_lands_exactly_on_one_times_coverage():
+    """
+    The break-even is the only number here that survives the funnel rates being
+    assumed, so it has to be exactly right, not approximately right.
+    """
+    import copy as _c
+    p = _parcel()
+    be = demand.demand_break_even(CFG, p)
+    flexed = _c.deepcopy(CFG)
+    flexed["demand"]["collector_share"] = be["collector_share"]
+    assert approx(demand.assess(flexed, p).coverage, 1.0, tol=1e-9)
+
+
+def test_thin_coverage_is_called_out_not_smoothed_over():
+    thin = demand.assess(CFG, _parcel(hnw_households_90min=20_000))
+    assert thin.verdict.startswith("DEMAND-CONSTRAINED")
+    fat = demand.assess(CFG, _parcel(hnw_households_90min=900_000))
+    assert fat.verdict.startswith("DEMAND-COMFORTABLE")
+
+
+def test_the_national_set_actually_separates_on_demand():
+    rows = [coerce(r) for r in _rows()]
+    res = demand.portfolio(CFG, rows)
+    covs = [r.coverage for r in res]
+    assert covs == sorted(covs, reverse=True)
+    assert max(covs) / min(covs) > 3.0, (
+        "demand coverage does not discriminate across the national set")
+    assert any(r.verdict.startswith("DEMAND-CONSTRAINED") for r in res), (
+        "no site is demand-constrained — the funnel is not biting anywhere")
+
+
+def test_demand_is_reported_on_a_high_composite_site_with_a_thin_pool():
+    """
+    Catchment scores heavily on drive time, so a site can rank near the top of
+    the composite while sitting in the thinnest HNW pool in the set. Las Vegas
+    does exactly that. The flag has to reach the row, or the workbook recommends
+    a club nobody can fill.
+    """
+    rows = [coerce(r) for r in _rows()]
+    thin = [r for r in demand.portfolio(CFG, rows)
+            if r.verdict.startswith(("DEMAND-CONSTRAINED", "RAMP-CONSTRAINED"))]
+    assert thin, "fixture drift: nothing is constrained"
+    from build.build_workbook import enrich
+    universe, _ = enrich([dict(r) for r in _rows()], CFG)
+    flagged = {p["parcel_id"] for p in universe
+               if "CONSTRAINED" in str(p.get("flags") or "")}
+    for r in thin:
+        if r.parcel_id in {p["parcel_id"] for p in universe}:
+            assert r.parcel_id in flagged, f"{r.parcel_id} constrained but not flagged"
 
 
 if __name__ == "__main__":

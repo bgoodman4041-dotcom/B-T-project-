@@ -611,6 +611,54 @@ def test_monte_carlo_honours_the_site_cost_premium():
     assert cheap.p_covenant_holds >= dear.p_covenant_holds
 
 
+# =============================================================================
+# Return bridge
+# =============================================================================
+
+def test_return_bridge_reports_the_minimal_set_not_every_move():
+    """
+    Stacking all seven favourable moves returned a 24.8% IRR at 5.8x value to
+    cost. That is not a scenario anyone should quote; the useful statement is
+    the shortest list of things that have to go right.
+    """
+    b = rk.return_bridge(CFG, ASK, target_irr=0.15)
+    assert b.combined_drivers < len([r for r in b.rungs]), "used every move, not a minimal set"
+    if b.combined_irr is not None and b.combined_irr >= 0.15:
+        assert b.combined_value_to_cost is not None and b.combined_value_to_cost < 3.0, (
+            f"minimal set implies {b.combined_value_to_cost:.1f}x value to cost — "
+            f"the combination is over-stacked")
+
+
+def test_return_bridge_rungs_are_sorted_and_all_beat_the_base():
+    b = rk.return_bridge(CFG, ASK)
+    irrs = [r.irr for r in b.rungs if r.irr is not None]
+    assert irrs == sorted(irrs, reverse=True)
+    for r in b.rungs:
+        if r.irr is not None and b.base_irr is not None:
+            assert r.irr >= b.base_irr - 1e-9, (
+                f"{r.driver} {r.move} is meant to be a FAVOURABLE move and lowered the IRR")
+
+
+def test_return_bridge_is_honest_when_nothing_single_reaches_the_target():
+    b = rk.return_bridge(CFG, ASK, target_irr=0.15)
+    if not b.any_single_driver_reaches:
+        assert "No single driver" in b.verdict
+
+
+def test_a_lower_target_is_reached_by_fewer_drivers():
+    easy = rk.return_bridge(CFG, ASK, target_irr=0.11)
+    hard = rk.return_bridge(CFG, ASK, target_irr=0.18)
+    assert easy.combined_drivers <= hard.combined_drivers
+
+
+def test_initiation_factor_moves_the_fee_and_nothing_else():
+    flexed = sc.apply_scenario(CFG, {"initiation_factor": 1.5})
+    m0, m1 = CFG["income"]["membership"], flexed["income"]["membership"]
+    assert approx(m1["initiation_fee_usd"], m0["initiation_fee_usd"] * 1.5)
+    assert m1["annual_dues_usd"] == m0["annual_dues_usd"]
+    assert m1["cap"] == m0["cap"]
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

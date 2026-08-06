@@ -39,6 +39,7 @@ from reportlab.platypus import (
 
 from build.build_workbook import enrich, load_parcels_csv
 from model import cashflow as cfm
+from model import demand as dm
 from model import markets as mk
 from model import risk as rk
 from model import roadmap as rmap
@@ -159,6 +160,8 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     scen = sc.run_all(lcfg, ask_price=lead_ask, site_cost_premium=lead_prem)
     spread = sc.scenario_spread(scen)
     bev = rk.direct_break_evens(lcfg, lead_ask)
+    bridge = rk.return_bridge(lcfg, lead_ask, target_irr=0.15,
+                              site_cost_premium=lead_prem)
     tor, tor_base, _ = rk.tornado(lcfg)
     mc = rk.monte_carlo(lcfg, lead_ask, site_cost_premium=lead_prem)
 
@@ -177,9 +180,11 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
 
     return dict(cfg=cfg, lcfg=lcfg, universe=universe, unverified=unverified, live=live,
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
-                dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev,
+                dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev, bridge=bridge,
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
                 markets=mk.ranked_markets(), rollout=mk.rollout(),
+                demand=dm.portfolio(cfg, live),
+                demand_be={p["parcel_id"]: dm.demand_break_even(cfg, p) for p in live},
                 national=mk.national_summary(),
                 timing=rmap.timing(lcfg), milestones=rmap.milestones(lcfg),
                 platform=rmap.platform_scale(lcfg, lead_ask, lead_prem, 7),
@@ -368,9 +373,12 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(Paragraph(
         f"The lead site sits in the {S['lead'].get('market_metro')} market and reports "
         f"{int(S['lead'].get('hnw_households_90min') or 0):,} households with over $1M of "
-        f"investable assets within ninety minutes. Against that, the club needs {m['cap']} "
-        f"members — a penetration rate low enough that demand risk is a marketing question "
-        f"rather than a market-size question.", S_BODY))
+        f"investable assets within ninety minutes, against a club that needs {m['cap']} "
+        f"members. The usual next sentence is that the required penetration is a few basis "
+        f"points and demand is therefore a marketing question. We do not make that argument, "
+        f"because it reads identically for a 520,000-household catchment and a "
+        f"98,000-household one, and telling those apart is the entire job of a nationwide "
+        f"screen. Section 5B builds the pool down instead.", S_BODY))
     A(Paragraph(
         "MARKET TIERING IS A MODEL OUTPUT, NOT A SOURCED RANKING. Season days are estimated "
         "from climate; wealth, land cost, friction and incentive access are graded on ordinal "
@@ -535,6 +543,81 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
                            f"Abatement route: {p.get('tax_abatement_path')}"))
     A(PageBreak())
 
+    # ---------------- 5B. Membership demand ----------------
+    A(Paragraph("5B. MEMBERSHIP DEMAND — CAN THESE CLUBS ACTUALLY BE FILLED?", S_H1))
+    dcfg = cfg["demand"]
+    A(Paragraph(
+        f"Every dollar of dues, initiation and ancillary revenue in Section 7 assumes "
+        f"{m['cap']} members arrive on the schedule in the ramp. That is the largest "
+        f"unexamined assumption in a plan that examines everything else, and it is the one "
+        f"that varies most across a nationwide pipeline. We build the high-net-worth pool "
+        f"down to a number a founding campaign can actually reach:", S_BODY))
+    A(Paragraph(
+        f"households with over $1M investable within ninety minutes, times "
+        f"{dcfg['collector_share']:.1%} owning a car worth tracking, times "
+        f"{dcfg['track_active_share']:.0%} who actually drive it on a circuit, less the share "
+        f"a nearby competitor already holds, times the share a campaign can put an offer in "
+        f"front of. Competitor capture decays with distance from "
+        f"{dcfg['incumbent_capture_at_zero_mi']:.0%} at the gate to nothing at "
+        f"{dcfg['incumbent_decay_radius_mi']:.0f} miles, because a club nine miles away "
+        f"competes for the same wallet and one a hundred miles away does not.", S_BODY))
+
+    rows = [["Target", "Metro", "HNW <90m", "Capturable", "Coverage", "Joins/yr",
+             "Yr-1 ask", "Break-even", "Verdict"]]
+    ramp1 = float(m["ramp"][0])
+    for r in S["demand"]:
+        be = S["demand_be"].get(r.parcel_id, {})
+        p = next((x["p"] for x in S["sites"] if x["p"]["parcel_id"] == r.parcel_id), {})
+        rows.append([
+            r.parcel_id.replace("TP-", ""),
+            str(p.get("market_metro") or "").split(" – ")[0],
+            f"{r.hnw_households:,}", f"{r.capturable:,.0f}", f"{r.coverage:.1f}x",
+            f"{r.joins_per_year:,.0f}", f"{ramp1:.0f}",
+            f"{be.get('collector_share', 0):.2%}",
+            r.verdict.split("—")[0].strip(),
+        ])
+    A(table(rows, [0.85 * inch, 0.85 * inch, 0.65 * inch, 0.7 * inch, 0.58 * inch,
+                   0.55 * inch, 0.5 * inch, 0.68 * inch, 1.49 * inch]))
+
+    thin = dcfg["coverage_thin"]
+    constrained = [r for r in S["demand"] if r.coverage < thin]
+    A(Paragraph("What the funnel changes", S_H2))
+    A(B("Coverage, not penetration, is the test",
+        f"Below {thin:.1f} capturable prospects per seat, market size is the binding risk and "
+        f"no amount of marketing spend fixes it. "
+        + (f"{len(constrained)} of the {len(S['demand'])} live targets sit below that line: "
+           f"{', '.join(r.parcel_id.replace('TP-', '') for r in constrained)}."
+           if constrained else
+           "No live target sits below that line.")))
+    A(B("It disagrees with the composite, and that is the point",
+        f"The §11 catchment component scores heavily on drive time, so a site can rank near "
+        f"the top of the composite while sitting in the thinnest pool in the set. The lowest-"
+        f"coverage target here is {S['demand'][-1].parcel_id.replace('TP-', '')} at "
+        f"{S['demand'][-1].coverage:.1f}x. It carries the flag on its row in the workbook "
+        f"rather than a silent penalty in the score, because the principal set the §11 "
+        f"weights and the model does not get to re-weight them quietly."))
+    A(B("The break-even is what survives the inputs being assumed",
+        f"Every rate in this funnel is judgment, not measured conversion — the second-largest "
+        f"open item after the club economics comps. The defensible number is the last column: "
+        f"the collector-ownership share at which coverage falls to 1.0x, meaning the club "
+        f"sells out only if literally every reachable prospect joins. On the lead site that "
+        f"is {S['demand_be'].get(S['sites'][0]['p']['parcel_id'], {}).get('collector_share', 0):.2%} "
+        f"against an assumed {dcfg['collector_share']:.1%} — the assumption can be wrong by a "
+        f"wide margin before the conclusion moves."))
+    A(B("It also disciplines the ramp",
+        f"A catchment that supports {S['demand'][0].joins_per_year:,.0f} joins a year can feed "
+        f"a {ramp1:.0f}-member first year; one that supports "
+        f"{S['demand'][-1].joins_per_year:,.0f} cannot. Where the pool cannot feed the ramp, "
+        f"the flag is RAMP-CONSTRAINED and the fix is a longer lease-up in the underwriting, "
+        f"not a bigger sales budget."))
+    A(Paragraph(
+        "DEMAND FUNNEL RATES ARE ASSUMED. Collector ownership, track-active share, competitor "
+        "capture and reachability are benchmark-shaped judgments. They are applied identically "
+        "to every catchment, so the RANKING is defensible even where the level is not. "
+        "Replacing them with measured conversion from the founding campaign is a Tranche 1 "
+        "deliverable.", S_NOTE))
+    A(PageBreak())
+
     # ---------------- 6. Development plan ----------------
     A(Paragraph("6. ROADMAP — MONTH 1 TO YEAR 10", S_H1))
     T = S["timing"]
@@ -665,6 +748,58 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(PageBreak())
 
     # ---------------- 8. The ask ----------------
+    A(Paragraph("7B. THE RETURN, AND WHO IT IS FOR", S_H1))
+    br = S["bridge"]
+    A(Paragraph(
+        f"A base-case equity IRR of {_pct(cf.equity_irr, 1)} is a core-to-core-plus return "
+        f"being earned on an opportunistic risk profile. Ground-up development with "
+        f"entitlement risk is conventionally underwritten to 18% and above; stabilised core "
+        f"assets to 6–9%. This programme lands at the top of core. We state that plainly "
+        f"because a reader who prices deals for a living will see it in thirty seconds, and "
+        f"an adjective is not an answer to it.", S_BODY))
+    A(Paragraph("What would have to be true to earn an opportunistic return", S_H2))
+    A(table([["Driver", "Favourable move", "Equity IRR", "Value / cost",
+              f"Reaches {br.target_irr:.0%} alone?"]] + [
+        [r.driver, r.move, _pct(r.irr, 1), _x(r.value_to_cost),
+         "YES" if r.reaches_target else "no"]
+        for r in br.rungs
+    ], [1.5 * inch, 1.35 * inch, 1.1 * inch, 1.05 * inch, 1.85 * inch]))
+    A(Paragraph(f"<b>{br.verdict}</b>", S_BODY))
+    A(Paragraph(
+        f"The minimal path to {br.target_irr:.0%} is {br.combined_drivers} moves — "
+        f"{br.combined_label} — reaching {_pct(br.combined_irr, 1)} at "
+        f"{_x(br.combined_value_to_cost)} value to retained cost. Both are MEMBER PRICING. "
+        f"Neither is a construction outcome, a cap-rate outcome or a leverage trick. The "
+        f"entire distance between a core return and an opportunistic one on this programme "
+        f"is what a member will pay to join and to stay — which is precisely the assumption "
+        f"Section 12 makes a condition precedent and Tranche 1 buys the answer to.", S_BODY))
+
+    A(Paragraph("Three honest answers, and one honest warning", S_H2))
+    A(B("The unlevered return is the cleaner number",
+        f"At zero permanent leverage the programme returns "
+        f"{_pct(next((r.irr for r in br.rungs if 'leverage' in r.driver.lower()), None), 1)} "
+        f"because the mortgage constant exceeds the retained asset's yield on cost. An "
+        f"all-cash holder is not giving up return to avoid debt here; they are collecting it. "
+        f"Section 8 holds permanent leverage at {d['target_ltc']:.0%} for that reason."))
+    A(B("The risk is barbelled, not uniform",
+        f"{_m(4_250_000)} of Tranche 1 resolves the revenue assumption set, the abatement and "
+        f"the entitlement path before a dollar of land closes. The opportunistic-risk portion "
+        f"of this programme is roughly 4% of the peak equity requirement and it is spent "
+        f"first. What follows it is a construction programme against pre-sold inventory."))
+    A(B("The capital that prices this correctly is not an opportunistic fund",
+        "It is family-office, strategic and member-adjacent capital that holds a hard asset, "
+        "uses it, and sells the residential around it — the way the reference assets in this "
+        "typology were actually funded. An 18%-hurdle fund should decline this deal, and we "
+        "would rather they declined it now than at the IC."))
+    A(B("The warning",
+        f"If the comparable study comes back and member pricing will not support the "
+        f"assumed {_usd(m['initiation_fee_usd'])} initiation and {_usd(m['annual_dues_usd'])} "
+        f"of dues, the answer is not to stretch another driver. It is that this programme is "
+        f"a core-plus asset at a core-plus price, and the land bid has to fall to match. The "
+        f"model already solves for that: it is the maximum supportable land price in "
+        f"Section 11."))
+    A(PageBreak())
+
     A(Paragraph("8. CAPITAL STRUCTURE AND THE ASK", S_H1))
     t1 = 4_250_000
     A(Paragraph(

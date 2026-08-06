@@ -100,7 +100,7 @@ def apply_scenario(cfg: dict[str, Any], overrides: dict[str, Any]) -> dict[str, 
         "label", "dues_factor", "cap_factor", "ancillary_factor", "condo_psf_factor",
         "homesite_price_factor", "absorption_slowdown", "hard_cost_factor",
         "opex_factor", "exit_cap_bps", "perm_rate_bps", "ramp_stretch",
-        "abatement_pct", "ltc_delta", "min_dscr_delta",
+        "abatement_pct", "ltc_delta", "min_dscr_delta", "initiation_factor",
     }
     unknown = set(overrides) - known
     if unknown:
@@ -108,6 +108,13 @@ def apply_scenario(cfg: dict[str, Any], overrides: dict[str, Any]) -> dict[str, 
 
     if (f := overrides.get("dues_factor")) is not None:
         m["annual_dues_usd"] *= f
+
+    # Initiation is the strongest single lever on equity IRR in this structure,
+    # because it arrives as cash during the ramp when the equity trough is
+    # deepest -- the same reason the reference asset can run low dues against a
+    # required real-estate purchase and still work.
+    if (f := overrides.get("initiation_factor")) is not None:
+        m["initiation_fee_usd"] *= f
 
     if (f := overrides.get("cap_factor")) is not None:
         # Cap and ramp scale together -- a lower achieved cap is not a cap cut

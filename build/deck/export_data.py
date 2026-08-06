@@ -5,7 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from build.build_workbook import enrich, load_parcels_csv
-from model import cashflow as cfm, markets as mk, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
+from model import cashflow as cfm, demand as dmd, markets as mk, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
 
 PARCELS = Path("data/sites_targets.csv")
 OUT = Path(__file__).resolve().parent / "data.json"
@@ -30,6 +30,7 @@ def main() -> None:
     cov = cfm.covenant_report(cf, cfg["debt"]["min_dscr"], tested_from_year=dev + stab)
     plaus = rk.plausibility_report(lcfg, ask)
     bev = rk.direct_break_evens(lcfg, ask)
+    br = rk.return_bridge(lcfg, ask, target_irr=0.15, site_cost_premium=prem)
     tor, _b, _n = rk.tornado(lcfg)
     mc = rk.monte_carlo(lcfg, ask, site_cost_premium=prem)
     scen = sc.run_all(lcfg, ask_price=ask, site_cost_premium=prem)
@@ -73,6 +74,16 @@ def main() -> None:
               for p in universe if p.get("killed_at_gate")]
 
     nat = mk.national_summary()
+
+    dem = []
+    for r in dmd.portfolio(cfg, live):
+        be = dmd.demand_break_even(cfg, next(p for p in live if p["parcel_id"] == r.parcel_id))
+        dem.append(dict(id=r.parcel_id.replace("TP-", ""), hnw=r.hnw_households,
+                        capturable=r.capturable, coverage=r.coverage,
+                        joins=r.joins_per_year, incumbent=r.incumbent_capture,
+                        be_collector=be["collector_share"],
+                        verdict=r.verdict.split("—")[0].strip(),
+                        full=r.verdict))
 
     yrs = ts.project_income(lcfg, years=12)
     data = dict(
@@ -121,6 +132,18 @@ def main() -> None:
       rollout=[dict(phase=r.phase, horizon=r.horizon, markets=r.markets,
         rationale=r.rationale, capital=r.capital) for r in mk.rollout()],
       killed=killed,
+      demand=dem,
+      bridge=dict(base=br.base_irr, target=br.target_irr, verdict=br.verdict,
+        n=br.combined_drivers, label=br.combined_label, irr=br.combined_irr,
+        vc=br.combined_value_to_cost,
+        rungs=[dict(driver=r.driver, move=r.move, irr=r.irr, vc=r.value_to_cost,
+                    reaches=r.reaches_target) for r in br.rungs]),
+      demand_cfg=dict(collector=cfg["demand"]["collector_share"],
+        track_active=cfg["demand"]["track_active_share"],
+        thin=cfg["demand"]["coverage_thin"],
+        comfortable=cfg["demand"]["coverage_comfortable"],
+        decay_mi=cfg["demand"]["incumbent_decay_radius_mi"],
+        ramp1=m["ramp"][0]),
       scen=[dict(name=s.name, label=s.label, irr=s.equity_irr, em=s.equity_multiple,
         vc=s.value_to_cost, land=s.max_land_net, dscr=s.min_dscr_tested,
         verdict=s.verdict, peak=s.peak_equity) for s in scen],

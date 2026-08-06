@@ -465,6 +465,37 @@ tornado:
   rate_swing_bps: 100          # +/- applied to rate-style drivers
 
 # -----------------------------------------------------------------------------
+# MEMBERSHIP DEMAND FUNNEL
+# -----------------------------------------------------------------------------
+# ASSUMED, and the second-largest open item in the project after the club
+# economics comps. These rates are benchmark-shaped judgment, not measured
+# conversion. They are here because "the required membership is a few basis
+# points of the HNW pool" is a statement that reads identically for a 520,000
+# household catchment and a 98,000 household one, and a nationwide pipeline has
+# to tell those apart.
+#
+# What survives the inputs being assumed is `demand.demand_break_even`, which
+# reports how far any one of these rates can fall before coverage reaches 1.0x.
+# Quote that, not the point estimate.
+demand:
+  basis: assumed
+  collector_share: 0.085        # of HNW households owning a car worth tracking
+  track_active_share: 0.28      # of those who actually drive it on a circuit
+  reachable_share: 0.22         # unused placeholder; see reachable_share_base
+  reachable_share_base: 0.22    # of the un-captured pool a campaign can reach
+  annual_join_rate: 0.09        # of capturable prospects joining per year
+
+  # Distance-decayed, because proximity is what makes a competitor a competitor.
+  # A club nine miles away takes the same wallet; one a hundred miles away does
+  # not. 100 mi is also the sentinel in sites_targets.csv for "nothing in the
+  # club format within 100 miles", so an unserved market lands at zero capture.
+  incumbent_capture_at_zero_mi: 0.45
+  incumbent_decay_radius_mi: 100
+
+  coverage_thin: 2.0            # below this, market size IS the risk
+  coverage_comfortable: 5.0     # at or above, demand is a marketing question
+
+# -----------------------------------------------------------------------------
 # PLAUSIBILITY BANDS — internal-consistency guardrails
 # -----------------------------------------------------------------------------
 # These do not change any number. They catch pro formas that do not hang

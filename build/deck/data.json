@@ -1,5 +1,5 @@
 {
- "today": "2026-08-05",
+ "today": "2026-08-06",
  "program": {
   "miles": 4.0,
   "cap": 340,
@@ -233,6 +233,215 @@
    "why": "Nearest occupied residence 800 ft < 1500 ft with no intervening topographic or forested buffer"
   }
  ],
+ "demand": [
+  {
+   "id": "01-EPCAL",
+   "hnw": 520000,
+   "capturable": 3577.000627200001,
+   "coverage": 10.520590080000003,
+   "joins": 321.9300564480001,
+   "incumbent": 0.02250000000000002,
+   "be_collector": 0.008079394725357457,
+   "verdict": "DEMAND-COMFORTABLE",
+   "full": "DEMAND-COMFORTABLE \u2014 10.5x coverage and 322 joins a year against a 88 year-1 ramp."
+  },
+  {
+   "id": "04-CUMBERLAND",
+   "hnw": 310000,
+   "capturable": 1661.7522521600001,
+   "coverage": 4.887506624,
+   "joins": 149.5577026944,
+   "incumbent": 0.144,
+   "be_collector": 0.017391280777525553,
+   "verdict": "DEMAND-ADEQUATE",
+   "full": "DEMAND-ADEQUATE \u2014 4.9x coverage, above the 2x floor and below the 5x comfortable mark."
+  },
+  {
+   "id": "03-THOMPSON",
+   "hnw": 290000,
+   "capturable": 1310.6445228799996,
+   "coverage": 3.854836831999999,
+   "joins": 117.95800705919996,
+   "incumbent": 0.26100000000000007,
+   "be_collector": 0.02205021994560003,
+   "verdict": "DEMAND-ADEQUATE",
+   "full": "DEMAND-ADEQUATE \u2014 3.9x coverage, above the 2x floor and below the 5x comfortable mark."
+  },
+  {
+   "id": "07-BRAZOS-XING",
+   "hnw": 265000,
+   "capturable": 1106.1121995000003,
+   "coverage": 3.253271175000001,
+   "joins": 99.55009795500003,
+   "incumbent": 0.40950000000000003,
+   "be_collector": 0.02612754837444499,
+   "verdict": "DEMAND-ADEQUATE",
+   "full": "DEMAND-ADEQUATE \u2014 3.3x coverage, above the 2x floor and below the 5x comfortable mark."
+  },
+  {
+   "id": "15-HARDEE-PHOS",
+   "hnw": 168000,
+   "capturable": 1083.7263360000002,
+   "coverage": 3.1874304000000007,
+   "joins": 97.53537024,
+   "incumbent": 0.0,
+   "be_collector": 0.02666724895389088,
+   "verdict": "DEMAND-ADEQUATE",
+   "full": "DEMAND-ADEQUATE \u2014 3.2x coverage, above the 2x floor and below the 5x comfortable mark."
+  },
+  {
+   "id": "10-HENDRY-75",
+   "hnw": 155000,
+   "capturable": 1032.3297600000003,
+   "coverage": 3.036264000000001,
+   "joins": 92.90967840000002,
+   "incumbent": 0.0,
+   "be_collector": 0.027994930612094328,
+   "verdict": "DEMAND-ADEQUATE",
+   "full": "DEMAND-ADEQUATE \u2014 3.0x coverage, above the 2x floor and below the 5x comfortable mark."
+  },
+  {
+   "id": "06-PINAL-303",
+   "hnw": 210000,
+   "capturable": 947.6799763200003,
+   "coverage": 2.7872940480000006,
+   "joins": 85.29119786880003,
+   "incumbent": 0.35100000000000003,
+   "be_collector": 0.030495526677922997,
+   "verdict": "RAMP-CONSTRAINED",
+   "full": "RAMP-CONSTRAINED \u2014 2.8x coverage is adequate but the catchment feeds 85 joins a year against a year-1 ramp of 88. The pool is there; the config fills it faster than a sales team can."
+  },
+  {
+   "id": "08-MARION-OCALA",
+   "hnw": 145000,
+   "capturable": 908.02712,
+   "coverage": 2.670668,
+   "joins": 81.7224408,
+   "incumbent": 0.0,
+   "be_collector": 0.03182724322154607,
+   "verdict": "RAMP-CONSTRAINED",
+   "full": "RAMP-CONSTRAINED \u2014 2.7x coverage is adequate but the catchment feeds 82 joins a year against a year-1 ramp of 88. The pool is there; the config fills it faster than a sales team can."
+  },
+  {
+   "id": "12-CABARRUS",
+   "hnw": 132000,
+   "capturable": 865.3223040000001,
+   "coverage": 2.5450656000000005,
+   "joins": 77.87900736000002,
+   "incumbent": 0.0,
+   "be_collector": 0.033397960351198804,
+   "verdict": "RAMP-CONSTRAINED",
+   "full": "RAMP-CONSTRAINED \u2014 2.5x coverage is adequate but the catchment feeds 78 joins a year against a year-1 ramp of 88. The pool is there; the config fills it faster than a sales team can."
+  },
+  {
+   "id": "13-SH130",
+   "hnw": 178000,
+   "capturable": 780.7915660160002,
+   "coverage": 2.2964457824000006,
+   "joins": 70.27124094144001,
+   "incumbent": 0.333,
+   "be_collector": 0.037013719484013705,
+   "verdict": "RAMP-CONSTRAINED",
+   "full": "RAMP-CONSTRAINED \u2014 2.3x coverage is adequate but the catchment feeds 70 joins a year against a year-1 ramp of 88. The pool is there; the config fills it faster than a sales team can."
+  },
+  {
+   "id": "14-MAURY-QUARRY",
+   "hnw": 108000,
+   "capturable": 671.7997439999999,
+   "coverage": 1.9758815999999997,
+   "joins": 60.46197695999999,
+   "incumbent": 0.0,
+   "be_collector": 0.04301877197500094,
+   "verdict": "DEMAND-CONSTRAINED",
+   "full": "DEMAND-CONSTRAINED \u2014 2.0x coverage is below the 2x floor. Market size is the risk here, not marketing."
+  },
+  {
+   "id": "11-APEX-NV",
+   "hnw": 98000,
+   "capturable": 539.383733504,
+   "coverage": 1.5864227456,
+   "joins": 48.54453601536,
+   "incumbent": 0.144,
+   "be_collector": 0.05357966546795332,
+   "verdict": "DEMAND-CONSTRAINED",
+   "full": "DEMAND-CONSTRAINED \u2014 1.6x coverage is below the 2x floor. Market size is the risk here, not marketing."
+  }
+ ],
+ "bridge": {
+  "base": 0.08835290046680178,
+  "target": 0.15,
+  "verdict": "No single driver reaches 15%. The best is Initiation fee +50% at 12.9% against a 8.8% base. It takes 2 of them together \u2014 Initiation fee +50% + Annual dues +25% \u2014 to reach 15.4%. That is not a base case; it is 2 independent things going right at once, and the scenario set already prices that as the upside.",
+  "n": 2,
+  "label": "Initiation fee +50% + Annual dues +25%",
+  "irr": 0.15409436991951903,
+  "vc": 1.7483205482538358,
+  "rungs": [
+   {
+    "driver": "Initiation fee",
+    "move": "+50%",
+    "irr": 0.1288340083905048,
+    "vc": 1.3969959846972992,
+    "reaches": false
+   },
+   {
+    "driver": "Annual dues",
+    "move": "+25%",
+    "irr": 0.1181443079003289,
+    "vc": 1.5616997102354413,
+    "reaches": false
+   },
+   {
+    "driver": "Permanent leverage",
+    "move": "to zero",
+    "irr": 0.11699829050985874,
+    "vc": 1.2103751466789046,
+    "reaches": false
+   },
+   {
+    "driver": "Hard cost",
+    "move": "-10%",
+    "irr": 0.11570013797985379,
+    "vc": 1.53950153816735,
+    "reaches": false
+   },
+   {
+    "driver": "Condo price",
+    "move": "+30% / SF",
+    "irr": 0.11374800168473767,
+    "vc": 1.648256450773987,
+    "reaches": false
+   },
+   {
+    "driver": "Absorption",
+    "move": "1.5x faster",
+    "irr": 0.111486923700435,
+    "vc": 1.4552080324019325,
+    "reaches": false
+   },
+   {
+    "driver": "Ancillary",
+    "move": "+20%",
+    "irr": 0.10208226067016823,
+    "vc": 1.3611164819073147,
+    "reaches": false
+   },
+   {
+    "driver": "Exit cap",
+    "move": "-100 bp",
+    "irr": 0.09714612983287971,
+    "vc": 1.4040351701475295,
+    "reaches": false
+   }
+  ]
+ },
+ "demand_cfg": {
+  "collector": 0.085,
+  "track_active": 0.28,
+  "thin": 2.0,
+  "comfortable": 5.0,
+  "decay_mi": 100,
+  "ramp1": 88
+ },
  "scen": [
   {
    "name": "upside",

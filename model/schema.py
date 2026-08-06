@@ -117,6 +117,16 @@ CATCHMENT: list[Field] = [
     Field("marque_clubs_in_catchment", "Marque Clubs", "int", "Catchment"),
 ]
 
+# Derived by model/demand.py, written back onto the row by the workbook builder.
+DEMAND_OUT: list[Field] = [
+    Field("demand_capturable", "Capturable Prospects", "float", "Catchment",
+          note="HNW pool built down through collector, track-active, incumbent "
+               "and reachable shares"),
+    Field("demand_coverage", "Demand Coverage (x seats)", "float", "Catchment",
+          note="Capturable prospects per seat. Below 2.0x market size IS the risk."),
+    Field("demand_verdict", "Demand Verdict", "str", "Catchment"),
+]
+
 INFRASTRUCTURE: list[Field] = [
     Field("three_phase_power_distance_mi", "3-Phase Power (mi)", "float", "Infrastructure"),
     Field("water_source", "Water Source", "str", "Infrastructure",
@@ -213,6 +223,7 @@ PARCEL_SCHEMA: list[Field] = (
     + PHYSICAL
     + NOISE_ENTITLEMENT
     + CATCHMENT
+    + DEMAND_OUT
     + INFRASTRUCTURE
     + ENVIRONMENTAL
     + DEAL

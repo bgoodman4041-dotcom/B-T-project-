@@ -30,6 +30,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 from model import cashflow as cf_mod
+from model import demand
 from model import gates, risk as rk, scenarios as sc, scoring, two_stack
 from model.schema import PARCEL_SCHEMA, coerce
 
@@ -1086,10 +1087,85 @@ def _tab_cashflow(wb: Workbook, cfg: dict[str, Any], land_price: float,
 
 
 # =============================================================================
+# Tab: Membership Demand
+# =============================================================================
+
+def _tab_demand(wb: Workbook, cfg: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    ws = wb.create_sheet("Demand")
+    ws["A1"] = "MEMBERSHIP DEMAND — THE POOL BUILT DOWN TO CAPTURABLE SEATS"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = ("\"Required membership is a few basis points of the HNW pool\" reads identically "
+                "for a 520,000-household catchment and a 98,000-household one. This builds the "
+                "pool down to what a founding campaign can actually reach and compares it to the "
+                "seats that have to be sold.")
+    ws["A2"].font = NOTE_FONT
+    d = cfg["demand"]
+    ws["A3"] = (f"Funnel: HNW x {d['collector_share']:.1%} collector x "
+                f"{d['track_active_share']:.0%} track-active x (1 - incumbent capture) x "
+                f"reachable. Incumbent capture decays from "
+                f"{d['incumbent_capture_at_zero_mi']:.0%} at the gate to zero at "
+                f"{d['incumbent_decay_radius_mi']:.0f} mi. EVERY RATE IS ASSUMED — the "
+                f"decision-relevant number is the break-even column, not the point estimate.")
+    ws["A3"].font = NOTE_FONT
+
+    headers = ["Parcel ID", "Metro", "HNW <90 min", "Addressable", "Incumbent capture",
+               "Nearest club (mi)", "Reachable", "Capturable", "Seats", "Coverage",
+               "Joins / yr", "Yr-1 ramp ask", "Pool-limited fill (yrs)",
+               "Break-even collector share", "Verdict"]
+    _header_row(ws, headers, row=5)
+
+    results = demand.portfolio(cfg, rows)
+    cap = int(cfg["income"]["membership"]["cap"])
+    ramp1 = float(cfg["income"]["membership"]["ramp"][0])
+    by_id = {str(p.get("parcel_id")): p for p in rows}
+
+    r = 6
+    for res in results:
+        p = by_id.get(res.parcel_id, {})
+        be = demand.demand_break_even(cfg, p)
+        vals = [res.parcel_id, p.get("market_metro"), res.hnw_households, res.addressable,
+                res.incumbent_capture, p.get("nearest_motorsport_club_mi"),
+                res.reachable_share, res.capturable, cap, res.coverage,
+                res.joins_per_year, ramp1, res.fill_years,
+                be["collector_share"], res.verdict]
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row=r, column=c, value=_safe(v))
+            cell.border, cell.font = BORDER, BODY_FONT
+            if c in (3, 4, 8, 9, 11, 12):
+                cell.number_format = FMT_NUM
+            elif c in (5, 7, 14):
+                cell.number_format = FMT_PCT
+            elif c in (10, 13):
+                cell.number_format = FMT_DEC
+        # Colour the verdict, because a 1.6x coverage site sitting third on the
+        # composite is precisely the row a reader skims past.
+        vc = ws.cell(row=r, column=15)
+        if res.verdict.startswith("DEMAND-CONSTRAINED"):
+            vc.fill = PatternFill("solid", fgColor="FBEAEC")
+            vc.font = Font(name="Calibri", size=10, bold=True, color="9B1C31")
+        elif res.verdict.startswith("RAMP-CONSTRAINED"):
+            vc.fill = PatternFill("solid", fgColor="FEF3C7")
+        r += 1
+
+    thin = cfg["demand"]["coverage_thin"]
+    ws.cell(row=r + 1, column=1,
+            value=(f"Coverage below {thin:.1f}x means market size is the binding risk, not "
+                   f"marketing. The break-even column is what survives the funnel rates being "
+                   f"assumed: it is the collector-ownership share at which coverage falls to "
+                   f"1.0x — one reachable prospect per seat, which sells out only if every "
+                   f"single one of them joins.")).font = NOTE_FONT
+
+    _finish(ws, freeze="C6", ncols=len(headers), nrows=r - 1, header_row=5,
+            widths={"A": 20, "B": 20, "C": 12, "D": 12, "E": 16, "F": 15, "G": 10,
+                    "H": 11, "I": 7, "J": 10, "K": 10, "L": 13, "M": 19, "N": 22, "O": 60})
+
+
+# =============================================================================
 # Tab: Break-Even
 # =============================================================================
 
-def _tab_breakeven(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None:
+def _tab_breakeven(wb: Workbook, cfg: dict[str, Any], land_price: float,
+                   premium: float = 0.0) -> None:
     ws = wb.create_sheet("Break-Even")
     ws["A1"] = "BREAK-EVEN — HOW WRONG CAN THE ASSUMPTIONS BE"
     ws["A1"].font = Font(name="Calibri", size=14, bold=True)
@@ -1155,6 +1231,42 @@ def _tab_breakeven(wb: Workbook, cfg: dict[str, Any], land_price: float) -> None
     end = hdr + len(rk.break_even_suite(cfg, land_price))
     _finish(ws, freeze=f"A{hdr+1}", ncols=len(headers), nrows=end, header_row=hdr,
             widths={"A": 24, "B": 24, "C": 20, "D": 24, "E": 11, "F": 70})
+
+    # ---- Return bridge -------------------------------------------------------
+    # The base case earns a core return on an opportunistic risk profile. That
+    # objection deserves arithmetic, not an adjective, so the tab carries the
+    # shortest list of things that would have to go right to earn 15%.
+    br = rk.return_bridge(cfg, land_price, target_irr=0.15, site_cost_premium=premium)
+    # `row` is stale here -- the break-even suite above indexes with its own
+    # counter, so resuming from `row` wrote the bridge straight through it.
+    row = end + 3
+    ws.cell(row=row, column=1,
+            value="RETURN BRIDGE — WHAT WOULD HAVE TO BE TRUE FOR A 15% IRR").font = SEC_FONT
+    row += 1
+    _header_row(ws, ["Driver", "Favourable move", "Equity IRR", "Value / cost",
+                     "Peak equity", "Reaches 15% alone?"], row=row)
+    row += 1
+    for r in br.rungs:
+        for c, (v, fmt) in enumerate([
+            (r.driver, None), (r.move, None), (r.irr, FMT_PCT),
+            (r.value_to_cost, FMT_DEC), (r.peak_equity, FMT_USD),
+            ("YES" if r.reaches_target else "no", None),
+        ], start=1):
+            cell = ws.cell(row=row, column=c, value=_safe(v))
+            cell.border, cell.font = BORDER, BODY_FONT
+            if fmt:
+                cell.number_format = fmt
+        row += 1
+    row += 1
+    ws.cell(row=row, column=1, value=br.verdict).font = NOTE_FONT
+    row += 1
+    ws.cell(row=row, column=1,
+            value=(f"Minimal path: {br.combined_label} -> "
+                   f"{(br.combined_irr or 0):.1%} IRR at "
+                   f"{(br.combined_value_to_cost or 0):.2f}x value to retained cost. Both are "
+                   f"MEMBER PRICING — not construction, not cap rate, not leverage. The whole "
+                   f"distance between a core return and an opportunistic one is what a member "
+                   f"pays to join and to stay.")).font = NOTE_FONT
 
 
 # =============================================================================
@@ -1311,6 +1423,19 @@ def enrich(parcels: list[dict[str, Any]], cfg: dict[str, Any]) -> tuple[list[dic
         if str(p.get("confidence", "")).strip() == gates.TARGET_PROFILE_CONFIDENCE:
             sr.flags.insert(0, "TARGET-PROFILE — modeled acquisition target, NOT a "
                                "parcel under contract; identifiers pending county GIS")
+
+        # Demand coverage is a FLAG, not a kill and not a silent reweight of the
+        # §11 composite. It has to be visible on the row, because catchment
+        # scores well on drive time and a site can therefore rank high on
+        # catchment while sitting in the thinnest HNW pool in the set -- which
+        # is exactly what Las Vegas does at 1.6x coverage against a #3 rank.
+        dm = demand.assess(cfg, p)
+        p["demand_coverage"] = dm.coverage
+        p["demand_capturable"] = dm.capturable
+        p["demand_verdict"] = dm.verdict
+        if dm.verdict.startswith(("DEMAND-CONSTRAINED", "RAMP-CONSTRAINED")):
+            sr.flags.append(dm.verdict)
+
         p["killed_at_gate"] = sr.killed_at.name if sr.killed_at else ""
         p["rejection_reasons"] = " | ".join(sr.reasons)
         p["flags"] = " | ".join(sr.flags)
@@ -1386,6 +1511,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     _tab_comps(wb)
     _tab_land_comps(wb)
     _tab_risk(wb, universe)
+    _tab_demand(wb, cfg, [p for p in universe if not p.get('killed_at_gate')])
     # Analytical depth beyond the eleven §9 tabs: correlated downside, funding
     # and coverage through time, margin of safety, driver attribution,
     # distribution of outcomes, and an internal-consistency audit.
@@ -1399,7 +1525,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     ref_cfg = two_stack.site_config(cfg, lead)
     _tab_scenarios(wb, ref_cfg, ref_land or None, ref_premium)
     _tab_cashflow(wb, ref_cfg, ref_land, ref_premium)
-    _tab_breakeven(wb, ref_cfg, ref_land)
+    _tab_breakeven(wb, ref_cfg, ref_land, ref_premium)
     _tab_tornado(wb, ref_cfg)
     _tab_monte_carlo(wb, ref_cfg, ref_land, ref_premium)
     _tab_plausibility(wb, ref_cfg, ref_land)

@@ -502,3 +502,139 @@ def plausibility_report(
                   f"must be re-based before any land price is quoted.")
         ),
     }
+
+
+# =============================================================================
+# Return bridge — what would have to be true to earn an opportunistic return
+# =============================================================================
+
+@dataclass
+class Rung:
+    driver: str
+    move: str
+    irr: float | None
+    value_to_cost: float | None
+    peak_equity: float
+    reaches_target: bool
+
+
+@dataclass
+class ReturnBridge:
+    base_irr: float | None
+    target_irr: float
+    rungs: list[Rung]
+    combined_label: str
+    combined_irr: float | None
+    combined_value_to_cost: float | None
+    combined_drivers: int
+    any_single_driver_reaches: bool
+    verdict: str
+
+
+# One favourable move per driver, each sized at roughly the top of what the
+# scenario set already treats as an upside outcome. Nothing here is a stretch
+# on its own; the point of the exercise is what it takes when you need several.
+_BRIDGE_MOVES: list[tuple[str, str, dict[str, Any]]] = [
+    ("Initiation fee", "+50%", {"initiation_factor": 1.50}),
+    ("Annual dues", "+25%", {"dues_factor": 1.25}),
+    ("Condo price", "+30% / SF", {"condo_psf_factor": 1.30}),
+    ("Absorption", "1.5x faster", {"absorption_slowdown": 1 / 1.5}),
+    ("Hard cost", "-10%", {"hard_cost_factor": 0.90}),
+    ("Exit cap", "-100 bp", {"exit_cap_bps": -100}),
+    ("Ancillary", "+20%", {"ancillary_factor": 1.20}),
+    ("Permanent leverage", "to zero", {"ltc_delta": -1.0}),
+]
+
+
+def return_bridge(
+    cfg: dict[str, Any],
+    land_price: float,
+    target_irr: float = 0.15,
+    horizon: int = 12,
+    site_cost_premium: float = 0.0,
+) -> ReturnBridge:
+    """
+    The base case earns a CORE return for OPPORTUNISTIC risk, and pretending
+    otherwise is the fastest way to lose a reader who prices deals for a living.
+
+    Ground-up development with entitlement risk is conventionally underwritten
+    to 18%+; a stabilised core asset to 6-9%. This programme lands at the top of
+    core. That is a real objection and it deserves an arithmetic answer rather
+    than an adjective, so this walks every favourable driver one at a time,
+    reports which of them reaches the target ALONE, and then prices the
+    combination.
+
+    The finding it exists to surface: no single driver gets there. Reaching an
+    opportunistic return needs several independent favourable outcomes at once,
+    which is not a base case -- it is the upside scenario, and the scenario set
+    already prices it.
+    """
+    base_cf = cf_mod.project_cash_flow(cfg, land_price, horizon_operating_years=horizon,
+                                       site_cost_premium=site_cost_premium)
+    rungs: list[Rung] = []
+    for driver, move, override in _BRIDGE_MOVES:
+        c = sc.apply_scenario(cfg, override)
+        cf = cf_mod.project_cash_flow(c, land_price, horizon_operating_years=horizon,
+                                      site_cost_premium=site_cost_premium)
+        rungs.append(Rung(
+            driver=driver, move=move, irr=cf.equity_irr,
+            value_to_cost=cf.value_to_cost, peak_equity=cf.peak_equity_requirement,
+            reaches_target=cf.equity_irr is not None and cf.equity_irr >= target_irr,
+        ))
+    rungs.sort(key=lambda r: -(r.irr if r.irr is not None else -1e9))
+
+    # The MINIMAL combination that reaches the target, added strongest-first.
+    #
+    # Stacking every favourable move at once is not an answer to "what would
+    # have to be true" -- seven maxima compounded returned a 24.8% IRR at 5.8x
+    # value-to-cost, which is not a scenario anyone should quote. The useful
+    # statement is the shortest list of things that have to go right.
+    #
+    # De-levering is excluded: it is a capital-structure choice rather than a
+    # business outcome, and it is already the base case's own finding.
+    by_strength = [r for r in rungs
+                   if not any("ltc_delta" in o for d, mv, o in _BRIDGE_MOVES
+                              if d == r.driver and "ltc_delta" in o)]
+    override_by_driver = {d: o for d, mv, o in _BRIDGE_MOVES}
+    move_by_driver = {d: mv for d, mv, o in _BRIDGE_MOVES}
+
+    combo: dict[str, Any] = {}
+    labels: list[str] = []
+    ccf = base_cf
+    for r in by_strength:
+        combo.update(override_by_driver[r.driver])
+        labels.append(f"{r.driver} {move_by_driver[r.driver]}")
+        c = sc.apply_scenario(cfg, combo)
+        ccf = cf_mod.project_cash_flow(c, land_price, horizon_operating_years=horizon,
+                                       site_cost_premium=site_cost_premium)
+        if ccf.equity_irr is not None and ccf.equity_irr >= target_irr:
+            break
+
+    any_single = any(r.reaches_target for r in rungs)
+    best = rungs[0]
+    if any_single:
+        verdict = (f"{best.driver} {best.move} reaches {target_irr:.0%} on its own "
+                   f"({best.irr:.1%}). Test that driver hardest.")
+    elif ccf.equity_irr is not None and ccf.equity_irr >= target_irr:
+        verdict = (
+            f"No single driver reaches {target_irr:.0%}. The best is {best.driver} "
+            f"{best.move} at {best.irr:.1%} against a {base_cf.equity_irr:.1%} base. "
+            f"It takes {len(labels)} of them together — {' + '.join(labels)} — to reach "
+            f"{ccf.equity_irr:.1%}. That is not a base case; it is {len(labels)} "
+            f"independent things going right at once, and the scenario set already "
+            f"prices that as the upside."
+        )
+    else:
+        verdict = (
+            f"Neither any single driver nor all {len(labels)} together reach "
+            f"{target_irr:.0%} (combined {ccf.equity_irr:.1%} if defined). At the "
+            f"assumed programme this is structurally a core-plus return and should "
+            f"be marketed as one."
+        )
+
+    return ReturnBridge(
+        base_irr=base_cf.equity_irr, target_irr=target_irr, rungs=rungs,
+        combined_label=" + ".join(labels), combined_irr=ccf.equity_irr,
+        combined_value_to_cost=ccf.value_to_cost, combined_drivers=len(labels),
+        any_single_driver_reaches=any_single, verdict=verdict,
+    )
