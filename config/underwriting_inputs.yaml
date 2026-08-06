@@ -465,6 +465,87 @@ tornado:
   rate_swing_bps: 100          # +/- applied to rate-style drivers
 
 # -----------------------------------------------------------------------------
+# TRANCHE 1 — FEASIBILITY AND CONTROL BUDGET
+# -----------------------------------------------------------------------------
+# ASSUMED line items. The total was a single round number in the plan, which is
+# not a budget -- it is a wish. Each line carries the vendor type that does the
+# work and the month it lands, so an investor can see what the money buys and
+# when the answer arrives. Comp study and acoustic modelling come first because
+# they are the two that can stop the programme before land is optioned.
+#
+# Sized against a lead site; a second parallel site adds roughly the option,
+# survey, geotech and Phase I lines again.
+tranche_1:
+  basis: assumed
+  contingency_pct: 0.12
+  items:
+    - name: Comparable club economics study
+      usd: 285000
+      month: 3
+      vendor: Hospitality/club consultancy with private-club operating data
+      resolves: The largest single uncertainty in the model — dues, initiation and
+        the dues-versus-real-estate revenue split
+    - name: Founding-member demand testing
+      usd: 240000
+      month: 6
+      vendor: Direct research and a paid pre-launch waitlist
+      resolves: Replaces the assumed demand funnel with measured conversion
+    - name: Nationwide sourcing pass — 150+ parcels to identifiers
+      usd: 310000
+      month: 4
+      vendor: Land brokers and GIS/title research in the target counties
+      resolves: Turns 15 target profiles into parcels with APN, coordinates and
+        an owner to call
+    - name: Site option payments and extensions (2 sites)
+      usd: 900000
+      month: 6
+      vendor: Sellers
+      resolves: Control without ownership while entitlement risk is live
+    - name: Acoustic modelling against the actual municipal standard
+      usd: 165000
+      month: 7
+      vendor: Motorsport-specific acoustic consultant
+      resolves: Whether the circuit can be built inside the published limit,
+        before a dollar of land closes
+    - name: Phase I and Phase II environmental (2 sites)
+      usd: 420000
+      month: 9
+      vendor: Environmental engineering
+      resolves: The EPCAL pavement credit and the AOC/remediation exposure —
+        the single largest swing item in the lead site's cost basis
+    - name: Survey, geotechnical and cut/fill validation
+      usd: 380000
+      month: 10
+      vendor: Civil engineering and geotech
+      resolves: Whether the site cost premium or credit in the model is real
+    - name: Circuit concept design and fit study
+      usd: 295000
+      month: 11
+      vendor: Road-course designer
+      resolves: Whether 4.0 miles and the programme actually fit the parcel
+    - name: Entitlement counsel and municipal strategy
+      usd: 340000
+      month: 14
+      vendor: Land-use counsel admitted in the jurisdiction
+      resolves: The permitting path, the approval body and the real timeline
+    - name: Property tax abatement negotiation
+      usd: 145000
+      month: 15
+      vendor: Economic development counsel
+      resolves: A condition precedent in high-rate states; confirms or kills the
+        50% assumption
+    - name: Market and absorption study for the for-sale stack
+      usd: 175000
+      month: 12
+      vendor: Residential market research
+      resolves: Condo pricing and absorption, which drive carry through sell-out
+    - name: Sponsor overhead and programme management
+      usd: 440000
+      month: 18
+      vendor: Internal
+      resolves: Runs the above and produces the Tranche 2 submission
+
+# -----------------------------------------------------------------------------
 # MEMBERSHIP DEMAND FUNNEL
 # -----------------------------------------------------------------------------
 # ASSUMED, and the second-largest open item in the project after the club

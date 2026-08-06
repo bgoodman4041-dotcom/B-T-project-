@@ -659,6 +659,42 @@ def test_initiation_factor_moves_the_fee_and_nothing_else():
     assert m1["cap"] == m0["cap"]
 
 
+def test_tranche_1_budget_totals_from_its_line_items():
+    """
+    The plan quoted a round $4.25M that matched no set of line items. A total
+    that is not the sum of its parts is the same class of defect as a hardcoded
+    figure in a document that claims to have none.
+    """
+    t = ts.tranche_1_budget(CFG)
+    assert t["items"], "tranche_1 block is missing"
+    assert approx(t["subtotal"], sum(i["usd"] for i in t["items"]))
+    assert approx(t["total"], t["subtotal"] * (1 + t["contingency_pct"]))
+
+
+def test_the_two_kill_switch_items_land_before_the_money_is_committed():
+    """
+    Sequencing is the investor protection. The comparable study and the acoustic
+    model must both resolve before the option payments are at real risk.
+    """
+    t = ts.tranche_1_budget(CFG)
+    by_name = {i["name"].lower(): i for i in t["items"]}
+    comp = next(v for k, v in by_name.items() if "comparable club" in k)
+    acoustic = next(v for k, v in by_name.items() if "acoustic" in k)
+    spend_after = sum(i["usd"] for i in t["items"]
+                      if i["month"] > max(comp["month"], acoustic["month"]))
+    assert comp["month"] <= 6, "the largest uncertainty is not resolved early"
+    assert spend_after > t["subtotal"] * 0.4, (
+        "most of the budget is already spent by the time the kill-switch items "
+        "report — the sequencing protection is not real")
+
+
+def test_every_tranche_1_item_says_who_does_it_and_what_it_resolves():
+    for i in ts.tranche_1_budget(CFG)["items"]:
+        assert i.get("vendor"), f"{i['name']} has no vendor"
+        assert i.get("resolves"), f"{i['name']} does not say what it resolves"
+        assert i.get("month") and i["usd"] > 0
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

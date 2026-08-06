@@ -99,6 +99,19 @@ def _x(v: Any) -> str:
     return "n/m" if v in (float("inf"), float("-inf")) else f"{v:.2f}x"
 
 
+def _test_count() -> int:
+    """
+    Count test functions rather than quoting a number that goes stale. The plan
+    claims it has no transcribed figures; a hardcoded "129 unit tests" was one.
+    """
+    import re
+    root = Path(__file__).resolve().parent.parent / "tests"
+    n = 0
+    for f in sorted(root.glob("test_*.py")):
+        n += len(re.findall(r"^def test_", f.read_text(encoding="utf-8"), re.M))
+    return n
+
+
 def _ord(n: int) -> str:
     suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
     return f"{n}{suffix}"
@@ -160,6 +173,7 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     scen = sc.run_all(lcfg, ask_price=lead_ask, site_cost_premium=lead_prem)
     spread = sc.scenario_spread(scen)
     bev = rk.direct_break_evens(lcfg, lead_ask)
+    t1 = ts.tranche_1_budget(cfg)
     bridge = rk.return_bridge(lcfg, lead_ask, target_irr=0.15,
                               site_cost_premium=lead_prem)
     tor, tor_base, _ = rk.tornado(lcfg)
@@ -181,6 +195,7 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     return dict(cfg=cfg, lcfg=lcfg, universe=universe, unverified=unverified, live=live,
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev, bridge=bridge,
+                t1=t1,
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
                 markets=mk.ranked_markets(), rollout=mk.rollout(),
                 demand=dm.portfolio(cfg, live),
@@ -782,7 +797,8 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"all-cash holder is not giving up return to avoid debt here; they are collecting it. "
         f"Section 8 holds permanent leverage at {d['target_ltc']:.0%} for that reason."))
     A(B("The risk is barbelled, not uniform",
-        f"{_m(4_250_000)} of Tranche 1 resolves the revenue assumption set, the abatement and "
+        f"{_m(S['t1']['total'])} of Tranche 1 resolves the revenue assumption set, the "
+        f"abatement and "
         f"the entitlement path before a dollar of land closes. The opportunistic-risk portion "
         f"of this programme is roughly 4% of the peak equity requirement and it is spent "
         f"first. What follows it is a construction programme against pre-sold inventory."))
@@ -801,7 +817,8 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(PageBreak())
 
     A(Paragraph("8. CAPITAL STRUCTURE AND THE ASK", S_H1))
-    t1 = 4_250_000
+    t1b = S["t1"]
+    t1 = t1b["total"]
     A(Paragraph(
         "We are raising in two tranches. Tranche 1 is the money that converts this plan from "
         "an underwriting exercise into a controlled, entitled site. Tranche 2 is the "
@@ -828,6 +845,22 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
          "Draw conditions tied to permit issuance, abatement execution, pre-sale thresholds "
          "and a lender commitment"],
     ], [0.85 * inch, 2.85 * inch, 2.6 * inch]))
+    A(Paragraph("Tranche 1 — line by line, and when each answer lands", S_H2))
+    A(table([["Mo.", "Item", "Cost", "Who does it", "What it resolves"]] + [
+        [str(i["month"]), i["name"], _usd(i["usd"]), i["vendor"], i["resolves"]]
+        for i in t1b["items"]
+    ] + [
+        ["", "Subtotal", _usd(t1b["subtotal"]), "", ""],
+        ["", f"Contingency ({t1b['contingency_pct']:.0%})", _usd(t1b["contingency"]), "", ""],
+        ["", "TRANCHE 1 TOTAL", _usd(t1), "",
+         f"Complete by month {t1b['months']}"],
+    ], [0.3 * inch, 1.78 * inch, 0.66 * inch, 1.72 * inch, 2.39 * inch]))
+    A(Paragraph(
+        "Sequencing is the point. The comparable club study and the acoustic model land in "
+        "months 3 and 7 — both before the option payments are at real risk and long before "
+        "land closes. If either comes back wrong, the programme stops having spent a fraction "
+        "of the commitment, and the remaining capital is released.", S_NOTE))
+
     A(Paragraph(
         f"Tranche 1 is deliberately the smaller number and the harder gate. The programme's "
         f"largest single uncertainty is the revenue assumption set, and it can be resolved for "
@@ -871,7 +904,9 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
     A(table([
         ["Role", "Requirement", "Status"],
         ["Sponsor / developer",
-         "Land development and entitlement track record in NY, CT or NJ",
+         "Land development and entitlement track record in the selected state — the "
+         "entitlement regimes in this pipeline range from an unzoned Texas county to a "
+         "New York special permit under SEQRA, and they are not the same job",
          "To be confirmed"],
         ["Club operator",
          "Private-club or motorsport-facility operating history; accountable for the operating "
@@ -881,7 +916,9 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
          "FIA-informed road-course design with runoff and noise-attenuation experience",
          "To be appointed"],
         ["Entitlement counsel",
-         "Municipal land-use counsel in the selected jurisdiction; SEQRA or CEPA experience",
+         "Land-use counsel admitted in the selected jurisdiction. Not portable: SEQRA, "
+         "a Florida comprehensive-plan consistency finding and a Texas plat-and-TCEQ path "
+         "share no procedure",
          "To be appointed in Phase 0"],
         ["Acoustic consultant",
          "Motorsport-specific modelling against the actual municipal standard",
@@ -900,7 +937,8 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         "cannot drift from the underwriting. Each input is tagged CONFIRMED or ASSUMED."))
     A(B("Automated coherence testing",
         f"The model runs {S['plaus']['fail_count'] + S['plaus']['warn_count'] + S['plaus']['ok_count']} "
-        f"internal-consistency checks plus 129 unit tests, including a check that the live "
+        f"internal-consistency checks plus {_test_count()} unit tests, including a check "
+        f"that the live "
         f"spreadsheet formulas agree with the model to the cent. Appendix B reports current "
         f"status."))
     A(B("Quarterly reporting",

@@ -968,3 +968,28 @@ def initiation_bookends(cfg: dict[str, Any], ask_price: float | None = None) -> 
             "yoc_net_at_ask": r.yoc_net_at_ask,
         }
     return out
+
+
+def tranche_1_budget(cfg: dict[str, Any]) -> dict[str, Any]:
+    """
+    The feasibility raise, built from line items rather than asserted.
+
+    A single round number is not a budget. Each line carries the vendor type
+    that does the work and the month the answer lands, so a reader can see what
+    the money buys and in what order -- the two items that can stop the
+    programme before land is optioned come first, by design.
+    """
+    t = cfg.get("tranche_1")
+    if not t:
+        return {"items": [], "subtotal": 0.0, "contingency": 0.0, "total": 0.0}
+    items = sorted(t["items"], key=lambda i: (i["month"], -i["usd"]))
+    subtotal = float(sum(i["usd"] for i in items))
+    contingency = subtotal * float(t.get("contingency_pct", 0.0))
+    return {
+        "items": items,
+        "subtotal": subtotal,
+        "contingency": contingency,
+        "contingency_pct": float(t.get("contingency_pct", 0.0)),
+        "total": subtotal + contingency,
+        "months": max((int(i["month"]) for i in items), default=0),
+    }

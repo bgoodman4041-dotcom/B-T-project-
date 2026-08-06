@@ -1000,6 +1000,30 @@ const chartFrame = () => ({
 }
 
 // =====================================================================
+// 15b — What Tranche 1 buys
+// =====================================================================
+{
+  const s = lightSlide("Use of proceeds",
+    "What " + m$(D.tranche1) + " buys, and the month each answer lands");
+  const rows = [["Mo.", "Item", "Cost", "Who does it", "What it resolves"]];
+  D.t1.items.forEach(i => rows.push([
+    String(i.month), i.name, k$(i.usd), i.vendor, i.resolves,
+  ]));
+  rows.push(["", "Subtotal", k$(D.t1.subtotal), "", ""]);
+  rows.push(["", "Contingency " + pc(D.t1.pct, 0), k$(D.t1.contingency), "", ""]);
+  rows.push(["", "TRANCHE 1 TOTAL", m$(D.tranche1), "",
+             "Complete by month " + D.t1.months]);
+  tbl(s, M, 1.5, W - 2 * M, rows, [0.4, 2.55, 0.85, 2.65, 5.45],
+      { rowH: 0.295, fs: 8 });
+  footnote(s, "Sequencing is the point. The comparable club study and the acoustic model " +
+    "land in months 3 and 7 \u2014 both before the option payments are at real risk and " +
+    "long before land closes. If either comes back wrong the programme stops having spent " +
+    "a fraction of the commitment, and the balance is released.");
+  s.addNotes("This slide is the answer to \u2018what stops you spending my money on the " +
+    "wrong site\u2019. The two kill-switch items are the two cheapest and the two earliest.");
+}
+
+// =====================================================================
 // 16 — Close
 // =====================================================================
 {
@@ -1016,10 +1040,11 @@ const chartFrame = () => ({
     ["Commission the comparable study", "Resolves the single largest uncertainty in the model. " +
       "Six to ten weeks. Everything else waits on it."],
     ["Run the full sourcing pass", "150+ parcels to identifiers, coordinates and title. Converts " +
-      "five target profiles into a real pipeline."],
+      D.sites.length + " target profiles across " + new Set(D.sites.map(t => t.metro)).size +
+      " markets into a real pipeline."],
     ["Option the lead site", "Cheap, long, entitlement-contingent. Control without acquisition risk."],
-    ["Open the abatement conversation", "IDA or EDA. It is a condition precedent, so it starts now, " +
-      "not after the land is bought."],
+    ["Open the abatement conversation", "A condition precedent in the high-rate states, so it " +
+      "starts now, not after the land is bought."],
   ];
   steps.forEach((t, i) => {
     const y = 2.6 + i * 0.95;

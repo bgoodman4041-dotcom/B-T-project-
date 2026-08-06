@@ -953,7 +953,99 @@
    "noi": 14316921.814304372
   }
  ],
- "tranche1": 4250000,
+ "tranche1": 4586400.0,
+ "t1": {
+  "subtotal": 4095000.0,
+  "contingency": 491400.0,
+  "pct": 0.12,
+  "months": 18,
+  "items": [
+   {
+    "month": 3,
+    "name": "Comparable club economics study",
+    "usd": 285000,
+    "vendor": "Hospitality/club consultancy with private-club operating data",
+    "resolves": "The largest single uncertainty in the model \u2014 dues, initiation and the dues-versus-real-estate revenue split"
+   },
+   {
+    "month": 4,
+    "name": "Nationwide sourcing pass \u2014 150+ parcels to identifiers",
+    "usd": 310000,
+    "vendor": "Land brokers and GIS/title research in the target counties",
+    "resolves": "Turns 15 target profiles into parcels with APN, coordinates and an owner to call"
+   },
+   {
+    "month": 6,
+    "name": "Site option payments and extensions (2 sites)",
+    "usd": 900000,
+    "vendor": "Sellers",
+    "resolves": "Control without ownership while entitlement risk is live"
+   },
+   {
+    "month": 6,
+    "name": "Founding-member demand testing",
+    "usd": 240000,
+    "vendor": "Direct research and a paid pre-launch waitlist",
+    "resolves": "Replaces the assumed demand funnel with measured conversion"
+   },
+   {
+    "month": 7,
+    "name": "Acoustic modelling against the actual municipal standard",
+    "usd": 165000,
+    "vendor": "Motorsport-specific acoustic consultant",
+    "resolves": "Whether the circuit can be built inside the published limit, before a dollar of land closes"
+   },
+   {
+    "month": 9,
+    "name": "Phase I and Phase II environmental (2 sites)",
+    "usd": 420000,
+    "vendor": "Environmental engineering",
+    "resolves": "The EPCAL pavement credit and the AOC/remediation exposure \u2014 the single largest swing item in the lead site's cost basis"
+   },
+   {
+    "month": 10,
+    "name": "Survey, geotechnical and cut/fill validation",
+    "usd": 380000,
+    "vendor": "Civil engineering and geotech",
+    "resolves": "Whether the site cost premium or credit in the model is real"
+   },
+   {
+    "month": 11,
+    "name": "Circuit concept design and fit study",
+    "usd": 295000,
+    "vendor": "Road-course designer",
+    "resolves": "Whether 4.0 miles and the programme actually fit the parcel"
+   },
+   {
+    "month": 12,
+    "name": "Market and absorption study for the for-sale stack",
+    "usd": 175000,
+    "vendor": "Residential market research",
+    "resolves": "Condo pricing and absorption, which drive carry through sell-out"
+   },
+   {
+    "month": 14,
+    "name": "Entitlement counsel and municipal strategy",
+    "usd": 340000,
+    "vendor": "Land-use counsel admitted in the jurisdiction",
+    "resolves": "The permitting path, the approval body and the real timeline"
+   },
+   {
+    "month": 15,
+    "name": "Property tax abatement negotiation",
+    "usd": 145000,
+    "vendor": "Economic development counsel",
+    "resolves": "A condition precedent in high-rate states; confirms or kills the 50% assumption"
+   },
+   {
+    "month": 18,
+    "name": "Sponsor overhead and programme management",
+    "usd": 440000,
+    "vendor": "Internal",
+    "resolves": "Runs the above and produces the Tranche 2 submission"
+   }
+  ]
+ },
  "timing": {
   "entitlement": 33,
   "construction": 42,

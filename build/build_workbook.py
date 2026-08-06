@@ -176,6 +176,14 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     )
     ws["A2"].font = NOTE_FONT
 
+    t1 = two_stack.tranche_1_budget(cfg)
+    if t1["items"]:
+        ws["A4"] = (f"Tranche 1 feasibility raise ${t1['total']:,.0f} across "
+                    f"{len(t1['items'])} line items, complete by month {t1['months']} — "
+                    f"see the Tranche 1 tab. Peak construction equity is a separate and "
+                    f"later ask.")
+        ws["A4"].font = NOTE_FONT
+
     # Two verdicts, and the distinction matters. The GOVERNING tests are project
     # return, covenant coverage and value against retained cost. The gross-basis
     # yield test is reported below them because holding stabilised club NOI
@@ -1087,6 +1095,56 @@ def _tab_cashflow(wb: Workbook, cfg: dict[str, Any], land_price: float,
 
 
 # =============================================================================
+# Tab: Tranche 1 budget
+# =============================================================================
+
+def _tab_tranche1(wb: Workbook, cfg: dict[str, Any]) -> None:
+    t1 = two_stack.tranche_1_budget(cfg)
+    if not t1["items"]:
+        return
+    ws = wb.create_sheet("Tranche 1")
+    ws["A1"] = "TRANCHE 1 — FEASIBILITY AND CONTROL BUDGET"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = ("A single round number is not a budget. Each line carries the vendor type that "
+                "does the work and the month the answer lands. Sequencing is the point: the "
+                "two items that can stop the programme — the comparable club study and the "
+                "acoustic model — land before the option payments are at real risk and long "
+                "before land closes.")
+    ws["A2"].font = NOTE_FONT
+
+    headers = ["Month", "Item", "Cost", "Who does it", "What it resolves"]
+    _header_row(ws, headers, row=4)
+    r = 5
+    for i in t1["items"]:
+        for c, v in enumerate([i["month"], i["name"], i["usd"], i["vendor"], i["resolves"]],
+                              start=1):
+            cell = ws.cell(row=r, column=c, value=_safe(v))
+            cell.border, cell.font = BORDER, BODY_FONT
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            if c == 3:
+                cell.number_format = FMT_USD
+            elif c == 1:
+                cell.number_format = FMT_NUM
+        r += 1
+    last_item = r - 1
+    for label, val in (("Subtotal", t1["subtotal"]),
+                       (f"Contingency ({t1['contingency_pct']:.0%})", t1["contingency"]),
+                       ("TRANCHE 1 TOTAL", t1["total"])):
+        ws.cell(row=r, column=2, value=label).font = Font(name="Calibri", size=10, bold=True)
+        c = ws.cell(row=r, column=3, value=_safe(val))
+        c.number_format, c.border = FMT_USD, BORDER
+        c.font = Font(name="Calibri", size=10, bold=True)
+        r += 1
+    ws.cell(row=r + 1, column=2,
+            value=(f"Complete by month {t1['months']}. If the comparable study or the acoustic "
+                   f"model comes back wrong, the programme stops having spent a fraction of "
+                   f"the commitment and the balance is released.")).font = NOTE_FONT
+
+    _finish(ws, freeze="A5", ncols=len(headers), nrows=last_item, header_row=4,
+            widths={"A": 7, "B": 42, "C": 14, "D": 40, "E": 62})
+
+
+# =============================================================================
 # Tab: Membership Demand
 # =============================================================================
 
@@ -1512,6 +1570,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     _tab_land_comps(wb)
     _tab_risk(wb, universe)
     _tab_demand(wb, cfg, [p for p in universe if not p.get('killed_at_gate')])
+    _tab_tranche1(wb, cfg)
     # Analytical depth beyond the eleven §9 tabs: correlated downside, funding
     # and coverage through time, margin of safety, driver attribution,
     # distribution of outcomes, and an internal-consistency audit.

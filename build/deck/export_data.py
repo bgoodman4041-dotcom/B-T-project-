@@ -31,6 +31,7 @@ def main() -> None:
     plaus = rk.plausibility_report(lcfg, ask)
     bev = rk.direct_break_evens(lcfg, ask)
     br = rk.return_bridge(lcfg, ask, target_irr=0.15, site_cost_premium=prem)
+    t1b = ts.tranche_1_budget(cfg)
     tor, _b, _n = rk.tornado(lcfg)
     mc = rk.monte_carlo(lcfg, ask, site_cost_premium=prem)
     scen = sc.run_all(lcfg, ask_price=ask, site_cost_premium=prem)
@@ -157,7 +158,11 @@ def main() -> None:
         p50=mc.percentiles.get("p50")),
       plaus=dict(fails=plaus["fail_count"], warns=plaus["warn_count"], ok=plaus["ok_count"]),
       ramp_years=[dict(y=y.year, members=y.members, noi=y.noi) for y in yrs],
-      tranche1=4250000,
+      tranche1=t1b["total"],
+      t1=dict(subtotal=t1b["subtotal"], contingency=t1b["contingency"],
+        pct=t1b["contingency_pct"], months=t1b["months"],
+        items=[dict(month=i["month"], name=i["name"], usd=i["usd"],
+                    vendor=i["vendor"], resolves=i["resolves"]) for i in t1b["items"]]),
       timing=dict(entitlement=T.entitlement_months, construction=T.construction_months,
         opening=T.opening_month, stabilised=T.stabilisation_month,
         opening_year=T.opening_year, stabilised_year=T.stabilisation_year),
