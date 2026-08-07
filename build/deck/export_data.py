@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from build.build_workbook import enrich, load_parcels_csv
+from model import gates, scoring
 from model import cashflow as cfm, demand as dmd, markets as mk, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
 
 PARCELS = Path("data/sites_targets.csv")
@@ -133,6 +134,11 @@ def main() -> None:
       rollout=[dict(phase=r.phase, horizon=r.horizon, markets=r.markets,
         rationale=r.rationale, capital=r.capital) for r in mk.rollout(lead_site=lead)],
       killed=killed,
+      fragility=(lambda f: None if f is None else dict(
+          lead=f.lead_id.replace("TP-", ""), up=f.runner_up_id.replace("TP-", ""),
+          gap=f.gap, flips=f.flips, flip_at=f.flip_value, verdict=f.verdict))(
+          scoring.lead_site_fragility(universe, cfg, ts.underwrite, gates.screen,
+                                      ts.site_config)),
       demand=dem,
       comp=next((dict(irr=x.equity_irr, dscr=x.min_dscr_tested, vc=x.value_to_cost,
                       land=x.max_land_net, verdict=x.verdict, label=x.label)

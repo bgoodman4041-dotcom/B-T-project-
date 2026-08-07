@@ -522,6 +522,22 @@ const chartFrame = () => ({
   numberedRow(s, 1, M, 2.42, 7.3, "Why it ranks first", String(t.why || ""));
   numberedRow(s, 2, M, 3.52, 7.3, "Cost basis", String(t.note || ""));
   numberedRow(s, 3, M, 4.78, 7.3, "What would kill it", String(t.kill || ""));
+  if (D.fragility && D.fragility.flips && D.fragility.lead === t.id) {
+    s.addShape(pres.ShapeType.roundRect, {
+      x: M, y: 5.92, w: 7.3, h: 0.86, fill: { color: "FBEAEC" }, rectRadius: 0.06,
+      line: { color: "FBEAEC", width: 0 },
+    });
+    s.addText("THE LEAD IS NOT SETTLED. " + D.fragility.lead + " leads " +
+      D.fragility.up + " by " + D.fragility.gap.toFixed(1) + " points, and the lead " +
+      "rests on the site cost credit above. Losing " +
+      m$(Math.abs(t.premium) - Math.abs(D.fragility.flip_at)) + " of it hands the lead " +
+      "to " + D.fragility.up + ". Fifteen PFAS areas of concern were identified around " +
+      "that runway in 2023 \u2014 the Phase II analytical is the cheapest test in the " +
+      "programme that can change the answer.", {
+      x: M + 0.16, y: 6.02, w: 7.0, h: 0.68, fontFace: BFONT, fontSize: 9,
+      color: "7A2430", bold: true, margin: 0, lineSpacingMultiple: 1.06,
+    });
+  }
 
   statCard(s, 8.2, 1.55, 2.15, 0.95, Math.round(t.acres).toLocaleString(), "DEVELOPABLE ACRES");
   statCard(s, 10.55, 1.55, 2.15, 0.95, t.drive + " min", "BEST DRIVE TIME");

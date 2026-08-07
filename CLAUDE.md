@@ -169,6 +169,28 @@ audit tested only ratios the pricing pair *produces*, never the pair itself, so
 it reported 0 FAIL on a configuration whose revenue was half again too high.
 Both now have tests.
 
+## v2.2b — the risk register, and the lead is not settled
+
+`research/risk_register.md` + `data/risk_register.csv` (28 entries, each evidenced
+against a named precedent, not a category). The two that move the ranking:
+
+- **RR-02 EPCAL runway PFAS (Severe/High).** The Navy identified 15 new PFAS areas
+  of concern at former NWIRP Calverton in 2023, around the western runway, sourced
+  to AFFF; at the beginning of CERCLA site evaluation as of early 2025. The
+  −$9.5M cost credit's whole basis is reusing that pavement as base course.
+- **RR-04 EPCAL contested disposition (High/High).** In litigation since 2024; one
+  cause of action survived dismissal in Feb 2026; land described as in limbo.
+
+`scoring.lead_site_fragility()` prices what that means: **EPCAL leads Pinal by 0.6
+points and losing $1.36M of the $9.5M credit — 14% — hands the lead to Pinal.**
+The credit is not moved to zero; a Phase II has not been ordered and inventing the
+answer either way is the same error. The artifacts say the ranking is unsettled
+and that both finalists go into Tranche 1.
+
+Other precedents worth knowing: Lime Rock carries a **permanent injunction against
+Sunday racing**; Apex's opponents referred its conditional use permit to the
+ballot; **7 of 9 pipeline states have no right-to-race nuisance immunity statute**.
+
 ## Layout
 
 ```
@@ -197,7 +219,7 @@ research/jurisdiction_register.md Entitlement regime per target jurisdiction
 research/risk_register.md         Noise litigation and opposition history
 tests/test_model.py               72 tests; fast
 tests/test_analytics.py           70 tests; tax, cashflow, scenarios, risk, roadmap
-tests/test_markets.py             36 tests; market screen, season economics, demand, overlay
+tests/test_markets.py             40 tests; market screen, season, demand, fragility
 tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
@@ -319,6 +341,9 @@ cannot carry the vertical even if the dirt were free.
   check tested a downstream ratio, so a dues figure at the 94th percentile of the
   observed market passed while the repriced case cut NOI in half at a 63% opex
   ratio comfortably inside its band.
+- **When the top two are inside a point, say so and price what would flip it.**
+  `scoring.lead_site_fragility()`. A credit can evaporate; a premium can only be
+  bid against. Only the credit direction is fragile.
 - **A plausibility band that rejects a real operating club is broken, not strict.**
   Apex runs 187 members per track mile against a ceiling of 90.
 - **Do not rank on a column that is negative for every candidate.** The mandated
@@ -340,7 +365,7 @@ python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
 python3 tests/test_model.py               # 75 tests, fast
 python3 tests/test_analytics.py           # 83 tests, fast
-python3 tests/test_markets.py             # 36 tests, fast
+python3 tests/test_markets.py             # 40 tests, fast
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

@@ -38,6 +38,7 @@ from reportlab.platypus import (
 )
 
 from build.build_workbook import enrich, load_parcels_csv
+from model import gates, scoring
 from model import cashflow as cfm
 from model import demand as dm
 from model import markets as mk
@@ -197,6 +198,8 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev, bridge=bridge,
                 comp=comp,
+                fragility=scoring.lead_site_fragility(
+                    [p for p in universe], cfg, ts.underwrite, gates.screen, ts.site_config),
                 t1=t1,
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
                 markets=mk.ranked_markets(), rollout=mk.rollout(lead_site=lead),
@@ -576,6 +579,26 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
                 f"IRR falls to roughly 8.1%; remove it and 7.4%. A premium is a number you "
                 f"can bid against. A credit is a number that can disappear. Both sites go "
                 f"into Tranche 1 diligence, and the credit is the first thing tested.", S_BODY))
+
+    fr = S.get("fragility")
+    if fr is not None and fr.flips:
+        A(Paragraph("The lead turns on one unverified number", S_H2))
+        A(Paragraph(f"<b>{fr.verdict}</b>", S_BODY))
+        A(Paragraph(
+            "The risk register carries this as RR-02, Severe and High, evidenced against the "
+            "Navy's 2023 identification of fifteen new PFAS areas of concern at the former "
+            "NWIRP Calverton, concentrated around the western runway and sourced to firefighting "
+            "foam. As of early 2025 the Navy was reported to be at the beginning of CERCLA site "
+            "evaluation. PFAS-impacted pavement is a waste characterisation and generator "
+            "liability question, not a base-course credit. RR-04 adds that the wider EPCAL "
+            "disposition has been in litigation since 2024, with one cause of action surviving "
+            "dismissal in February 2026 and the land described throughout as in limbo.", S_BODY))
+        A(Paragraph(
+            "We are not moving the credit to zero in the base case, because a Phase II has not "
+            "been ordered and inventing the answer in either direction would be the same "
+            "error. We are saying plainly that the site ranking is not settled, that both "
+            "finalists go into Tranche 1 diligence, and that the PFAS analytical is the "
+            "cheapest test in the programme that can change the answer.", S_BODY))
 
     for s in S["sites"][:3]:
         p = s["p"]

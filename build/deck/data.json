@@ -233,6 +233,14 @@
    "why": "Nearest occupied residence 800 ft < 1500 ft with no intervening topographic or forested buffer"
   }
  ],
+ "fragility": {
+  "lead": "01-EPCAL",
+  "up": "06-PINAL-303",
+  "gap": 0.6000000000000085,
+  "flips": true,
+  "flip_at": -8142857.142857144,
+  "verdict": "THE RANKING TURNS ON ONE UNVERIFIED NUMBER. TP-01-EPCAL leads TP-06-PINAL-303 by 0.6 points on a 100-point scale, and the lead depends on a $9,500,000 site cost credit. Losing $1,357,143 of it \u2014 14% \u2014 hands the lead to TP-06-PINAL-303. That credit is the reuse of existing runway pavement as base course, on a runway around which fifteen PFAS areas of concern were identified in 2023. Order the Phase II before the ranking is treated as settled."
+ },
  "demand": [
   {
    "id": "01-EPCAL",

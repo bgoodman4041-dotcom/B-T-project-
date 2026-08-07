@@ -445,6 +445,59 @@ def test_demand_is_reported_on_a_high_composite_site_with_a_thin_pool():
             assert r.parcel_id in flagged, f"{r.parcel_id} constrained but not flagged"
 
 
+def test_lead_site_fragility_is_reported_when_the_lead_can_flip():
+    """
+    A composite separating its top two by 0.6 points is not ranking them, and
+    the lead here rests on a $9.5M cost CREDIT for reusing runway pavement on a
+    runway with fifteen PFAS areas of concern identified in 2023. If a modest
+    haircut to that credit swaps the ranking, the artifacts have to say so.
+    """
+    rows = [coerce(r) for r in _rows()]
+    fr = scoring.lead_site_fragility(rows, CFG, ts.underwrite, gates.screen, ts.site_config)
+    assert fr is not None
+    assert fr.lead_id and fr.runner_up_id and fr.lead_id != fr.runner_up_id
+    if fr.flips:
+        assert fr.flip_value is not None
+        assert "PFAS" in fr.verdict or "credit" in fr.verdict
+
+
+def test_fragility_does_not_cry_wolf_when_the_lead_carries_a_premium():
+    """A premium is a cost you can bid against; only a credit can evaporate."""
+    rows = [coerce(r) for r in _rows()]
+    for r in rows:
+        if (r.get("site_cost_premium_usd") or 0) < 0:
+            r["site_cost_premium_usd"] = abs(r["site_cost_premium_usd"])
+    fr = scoring.lead_site_fragility(rows, CFG, ts.underwrite, gates.screen, ts.site_config)
+    assert fr is not None and not fr.flips
+
+
+def test_the_risk_register_is_evidenced_and_ranked():
+    reg = ROOT / "data" / "risk_register.csv"
+    if not reg.exists():
+        return
+    with reg.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    assert len(rows) >= 15
+    for r in rows:
+        assert r["severity"] in {"Severe", "High", "Moderate", "Low"}, r["risk_id"]
+        assert r["mitigant"].strip(), f"{r['risk_id']} has no mitigant"
+        assert r["evidence_basis"].strip(), f"{r['risk_id']} is a category, not a finding"
+
+
+def test_the_comp_register_never_claims_verified():
+    """
+    Direct URL retrieval was blocked throughout the study. A row graded
+    `Verified` would be a claim the research cannot support.
+    """
+    reg = ROOT / "data" / "comps_clubs.csv"
+    if not reg.exists():
+        return
+    with reg.open(newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            assert r["confidence"].strip() != "Verified", (
+                f"{r['club']} claims Verified, but retrieval was blocked for the study")
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

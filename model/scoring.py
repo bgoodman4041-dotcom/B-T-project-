@@ -477,3 +477,98 @@ def narrative(
         kills = f"{_CRITERION_LABEL[weakest].capitalize()} at {ratios[weakest]:.0%}"
 
     return why, kills
+
+
+# =============================================================================
+# Lead-site fragility
+# =============================================================================
+
+@dataclass
+class LeadFragility:
+    lead_id: str
+    runner_up_id: str
+    gap: float
+    driver: str
+    flip_value: float | None
+    flips: bool
+    verdict: str
+
+
+def lead_site_fragility(
+    parcels: list[dict[str, Any]],
+    cfg: dict[str, Any],
+    underwrite,
+    screen,
+    site_config,
+) -> LeadFragility | None:
+    """
+    Does the site ranking survive its own largest assumption?
+
+    A composite that separates its top two by less than a point is not really
+    ranking them, and the honest question is what would have to move to swap
+    them. On this pipeline the answer is one number: the lead site carries a
+    $9.5M cost CREDIT for reusing existing runway pavement as track base course,
+    and the risk register reports fifteen PFAS areas of concern identified
+    around that runway in 2023. PFAS-impacted pavement is a waste
+    characterisation problem, not a credit.
+
+    This walks the lead site's cost premium from its modelled value toward zero
+    and reports the point at which the ranking changes hands. Callers inject the
+    model functions so this module keeps no dependency on the underwriting.
+    """
+    def ranked(override: tuple[str, float] | None) -> list[tuple[float, str]]:
+        out: list[tuple[float, str]] = []
+        for raw in parcels:
+            p = dict(raw)
+            if override and p.get("parcel_id") == override[0]:
+                p["site_cost_premium_usd"] = override[1]
+            sr = screen(p, cfg)
+            if sr.killed_at or not p.get("ask_price"):
+                continue
+            prem = float(p.get("site_cost_premium_usd") or 0.0)
+            uw = underwrite(site_config(cfg, p), str(p["parcel_id"]),
+                            ask_price=p.get("ask_price"), site_cost_premium=prem)
+            out.append((composite_score(p, cfg, uw, sr).total, str(p["parcel_id"])))
+        out.sort(reverse=True)
+        return out
+
+    base = ranked(None)
+    if len(base) < 2:
+        return None
+    (lead_score, lead_id), (up_score, up_id) = base[0], base[1]
+    lead = next((p for p in parcels if str(p.get("parcel_id")) == lead_id), {})
+    modelled = float(lead.get("site_cost_premium_usd") or 0.0)
+
+    # Only a CREDIT is fragile in this direction: a premium is a cost you can
+    # bid against, a credit is a number that can disappear.
+    if modelled >= 0:
+        return LeadFragility(
+            lead_id, up_id, lead_score - up_score, "site cost premium", None, False,
+            f"{lead_id} leads {up_id} by {lead_score - up_score:.1f} points and carries a "
+            f"cost premium rather than a credit, so its basis can only be bid, not lost.")
+
+    flip_at: float | None = None
+    steps = 21
+    for i in range(steps + 1):
+        trial = modelled * (1 - i / steps)          # walk the credit toward zero
+        r = ranked((lead_id, trial))
+        if r and r[0][1] != lead_id:
+            flip_at = trial
+            break
+
+    if flip_at is None:
+        return LeadFragility(
+            lead_id, up_id, lead_score - up_score, "site cost credit", None, False,
+            f"{lead_id} still leads with the credit written to zero. The ranking does not "
+            f"depend on it.")
+
+    lost = abs(modelled - flip_at)
+    return LeadFragility(
+        lead_id, up_id, lead_score - up_score, "site cost credit", flip_at, True,
+        f"THE RANKING TURNS ON ONE UNVERIFIED NUMBER. {lead_id} leads {up_id} by "
+        f"{lead_score - up_score:.1f} points on a 100-point scale, and the lead depends on a "
+        f"${abs(modelled):,.0f} site cost credit. Losing ${lost:,.0f} of it — "
+        f"{lost / abs(modelled):.0%} — hands the lead to {up_id}. That credit is the reuse of "
+        f"existing runway pavement as base course, on a runway around which fifteen PFAS "
+        f"areas of concern were identified in 2023. Order the Phase II before the ranking is "
+        f"treated as settled.")

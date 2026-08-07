@@ -945,9 +945,55 @@ def _tab_land_comps(wb: Workbook) -> None:
 
 
 def _tab_risk(wb: Workbook, rows: list[dict[str, Any]]) -> None:
+    """
+    The researched register when it exists, seeded from screen flags when it
+    does not. An auto-seeded flag list with empty severity, mitigant and
+    cost-to-cure columns is a table of headings, not a risk register.
+    """
+    if RISK_CSV.exists():
+        headers = ["ID", "Category", "Risk", "Applies to", "Severity", "Likelihood",
+                   "Evidence basis", "Mitigant", "Cost to cure — low",
+                   "Cost to cure — high", "Gate", "Source"]
+        keys = ["risk_id", "category", "description", "applies_to_targets", "severity",
+                "likelihood", "evidence_basis", "mitigant", "cost_to_cure_low",
+                "cost_to_cure_high", "gate", "source_url"]
+        order = {"Severe": 0, "High": 1, "Moderate": 2, "Low": 3}
+        with RISK_CSV.open(newline="", encoding="utf-8") as fh:
+            regs = sorted(csv.DictReader(fh),
+                          key=lambda r: (order.get((r.get("severity") or "").strip(), 9),
+                                         order.get((r.get("likelihood") or "").strip(), 9)))
+        data: list[list[Any]] = []
+        for r in regs:
+            row: list[Any] = []
+            for k in keys:
+                v = (r.get(k) or "").strip()
+                if k.startswith("cost_to_cure") and v:
+                    try:
+                        v = float(v)
+                    except ValueError:
+                        pass
+                row.append(v or None)
+            data.append(row)
+        ws = _simple_tab(
+            wb, "Risk Register", headers, data,
+            widths={"A": 7, "B": 15, "C": 72, "D": 20, "E": 10, "F": 11,
+                    "G": 46, "H": 72, "I": 16, "J": 16, "K": 22, "L": 44},
+            note=("Ranked by severity then likelihood. Every entry is evidenced against a "
+                  "named precedent or record, not a generic category — see the Evidence "
+                  "basis column. Research: research/risk_register.md."))
+        for i in range(len(data)):
+            cell = ws.cell(row=i + 4, column=5)
+            sev = str(cell.value or "")
+            if sev == "Severe":
+                cell.fill = PatternFill("solid", fgColor="FBEAEC")
+                cell.font = Font(name="Calibri", size=10, bold=True, color="9B1C31")
+            elif sev == "High":
+                cell.fill = PatternFill("solid", fgColor="FEF3C7")
+        return
+
     headers = ["Rank", "Parcel ID", "Risk", "Category", "Severity", "Likelihood",
                "Mitigant", "Cost to Cure", "Owner", "Source ID"]
-    data: list[list[Any]] = []
+    data = []
     n = 0
     for r in rows:
         for flag in str(r.get("flags") or "").split(" | "):
@@ -956,8 +1002,8 @@ def _tab_risk(wb: Workbook, rows: list[dict[str, Any]]) -> None:
             n += 1
             data.append([n, r.get("parcel_id"), flag.strip(), "Screen flag",
                          None, None, None, None, None, None])
-    _simple_tab(wb, "Risk Register", headers, data,
-                widths={"C": 55, "G": 45}, note="Auto-seeded from screen flags; Risk Marshal ranks and prices each.")
+    _simple_tab(wb, "Risk Register", headers, data, widths={"C": 55, "G": 45},
+                note="Auto-seeded from screen flags; Risk Marshal ranks and prices each.")
 
 
 def _tab_sources(wb: Workbook, sources: list[dict[str, Any]]) -> None:
@@ -1666,6 +1712,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
 
 SOURCES_CSV = Path(__file__).resolve().parent.parent / "data" / "sources.csv"
 COMPS_CSV = Path(__file__).resolve().parent.parent / "data" / "comps_clubs.csv"
+RISK_CSV = Path(__file__).resolve().parent.parent / "data" / "risk_register.csv"
 
 
 def _default_sources() -> list[dict[str, Any]]:
