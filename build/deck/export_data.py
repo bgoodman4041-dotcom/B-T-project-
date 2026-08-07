@@ -131,9 +131,12 @@ def main() -> None:
                     season=r.market.season_days, score=r.total,
                     clubs=r.market.existing_clubs) for r in nat["tier2"][:6]]),
       rollout=[dict(phase=r.phase, horizon=r.horizon, markets=r.markets,
-        rationale=r.rationale, capital=r.capital) for r in mk.rollout()],
+        rationale=r.rationale, capital=r.capital) for r in mk.rollout(lead_site=lead)],
       killed=killed,
       demand=dem,
+      comp=next((dict(irr=x.equity_irr, dscr=x.min_dscr_tested, vc=x.value_to_cost,
+                      land=x.max_land_net, verdict=x.verdict, label=x.label)
+                 for x in scen if x.name == "comp_repriced"), None),
       bridge=dict(base=br.base_irr, target=br.target_irr, verdict=br.verdict,
         n=br.combined_drivers, label=br.combined_label, irr=br.combined_irr,
         vc=br.combined_value_to_cost,

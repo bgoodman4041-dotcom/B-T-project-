@@ -333,21 +333,56 @@ class RolloutPhase:
     capital: str
 
 
-def rollout(baseline_days: int = 210) -> list[RolloutPhase]:
+def _phase_a(r: list[MarketScore], t1: str,
+             lead_site: dict[str, Any] | None) -> tuple[str, str, str, str, str]:
+    """Phase A, reconciled against whichever site actually leads the pipeline."""
+    top_market = t1.split(",")[0].strip()
+    if not lead_site or not lead_site.get("market_metro"):
+        return ("Phase A — Club 1", "Years 0–7",
+                f"{top_market} (top-ranked market) with a Northeast site as the alternate",
+                "Build where season length and land cost are on our side, not against us. "
+                "The Northeast stays in the set because wealth density is unmatched, but it "
+                "is the harder build and should not be the first one.",
+                "Tranche 1 + 2")
+
+    metro = str(lead_site["market_metro"])
+    pid = str(lead_site.get("parcel_id", "the lead site"))
+    if metro == top_market:
+        return ("Phase A — Club 1", "Years 0–7",
+                f"{metro} — {pid}",
+                "The top-ranked market and the top-ranked site in the pipeline are the "
+                "same place, which is the easy case. Build there.",
+                "Tranche 1 + 2")
+
+    rank = next((i + 1 for i, s in enumerate(r) if s.market.metro == metro), None)
+    return (
+        "Phase A — Club 1", "Years 0–7",
+        f"{pid} in {metro}, with {top_market} carried in parallel",
+        f"The best MARKET and the best SITE are not the same answer. {top_market} ranks first "
+        f"on the market screen; {metro} ranks {rank} of {len(r)}. The pipeline still leads "
+        f"with {pid} because the composite scores the actual dirt — catchment, entitlement "
+        f"posture and infrastructure already in the ground — not the metro average, and on "
+        f"that basis the top two are inside a point of each other. Both go into Tranche 1 "
+        f"diligence and the cost basis decides. A market rank is a prior; a site is evidence.",
+        "Tranche 1 + 2")
+
+
+def rollout(baseline_days: int = 210, lead_site: dict[str, Any] | None = None) -> list[RolloutPhase]:
+    """
+    Phases A-D.
+
+    `lead_site` matters. The best MARKET and the best SITE CURRENTLY IN THE
+    PIPELINE are different claims, and blurring them put "Phoenix (lead)" on the
+    rollout while the site table led with a New York parcel. When a lead site is
+    supplied, Phase A names it and says explicitly that it is not the top-ranked
+    market and why that is a defensible choice rather than an inconsistency.
+    """
     r = ranked_markets(baseline_days)
     t1 = ", ".join(s.market.metro for s in r if s.tier.startswith("TIER 1"))
     t2 = ", ".join(s.market.metro for s in r if s.tier.startswith("TIER 2"))
     t3 = ", ".join(s.market.metro for s in r if s.tier.startswith("TIER 3"))
     return [
-        RolloutPhase(
-            "Phase A — Club 1", "Years 0–7",
-            t1.split(",")[0].strip() + " (lead) with a Northeast site as the "
-            "alternate",
-            "Build where season length and land cost are on our side, not "
-            "against us. The Northeast remains in the set because wealth "
-            "density is unmatched, but it is the harder build and should not "
-            "be the first one.",
-            "Tranche 1 + 2"),
+        RolloutPhase(*_phase_a(r, t1, lead_site)),
         RolloutPhase(
             "Phase B — Clubs 2–3", "Years 3–10",
             t1, "Tier 1 metros in parallel entitlement once club 1 is "

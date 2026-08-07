@@ -158,8 +158,16 @@ def _initiation_recognized(
     `excluded` exist only to draw the sensitivity bookends.
     """
     m = cfg["income"]["membership"]
-    fee = m["initiation_fee_usd"]
     tenure = m["expected_tenure_years"]
+
+    # A refundable deposit is a LIABILITY, not deferred revenue. It arrives as
+    # cash and it leaves as cash; it never becomes income, so no share of it can
+    # be amortized into NOI. §3 forbids capitalizing initiation into NOI; it did
+    # not ask whether the fee is income at all, and at this price point that is
+    # the larger question.
+    refundable = float(
+        cfg["income"].get("initiation_treatment", {}).get("refundable_share", 0.0))
+    fee = m["initiation_fee_usd"] * (1.0 - refundable)
 
     joins_this_year = schedule[year - 1] - (schedule[year - 2] if year >= 2 else 0)
 

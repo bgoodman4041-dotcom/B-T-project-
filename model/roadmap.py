@@ -136,7 +136,7 @@ def milestones(cfg: dict[str, Any]) -> list[Milestone]:
         # 1 month
         ("Mandate and mobilisation",
          ["Comparable club study commissioned",
-          "Sourcing brief issued to Parcel Scout across NY/CT/NJ",
+          "Sourcing brief issued to Parcel Scout across the Tier 1 and Tier 2 metros",
           "Entitlement counsel and acoustic consultant shortlisted",
           "Tranche 1 closed and escrowed"],
          "Tranche 1 funded",
@@ -376,6 +376,75 @@ class ExitPath:
     assessment: str
 
 
+@dataclass
+class MemberBuyout:
+    exit_value_at_cap: float
+    club_debt_capacity: float
+    assessment_gap: float
+    per_member_assessment: float
+    discount_to_market: float
+    verdict: str
+
+
+def member_buyout_capacity(cfg: dict[str, Any], land_price: float,
+                           premium: float = 0.0) -> MemberBuyout:
+    """
+    Price the member-buyout exit instead of calling it "underrated".
+
+    An equity-club conversion is the standard end-state for private clubs, and
+    the exit ladder has been listing it as an alternative without saying what it
+    would actually pay. It is not a market bid. A membership buying its own club
+    is a borrower with one asset and one income stream, so the price is capped
+    by what the club can finance against its own NOI at the same covenant a
+    lender would apply anywhere else -- NOI / (min_DSCR x mortgage constant) --
+    plus whatever the members will write in cheques on top.
+
+    That distinction matters because the whole value-to-retained-cost test
+    assumes a third-party bid at the exit cap. If the realistic member price is
+    materially below it, this is not a floor under the valuation; it is a
+    discount to it, and the plan should say which.
+    """
+    cf = cf_mod.project_cash_flow(cfg, land_price, horizon_operating_years=12,
+                                  site_cost_premium=premium)
+    d = cfg["debt"]
+    mc = ts.mortgage_constant(d["permanent_rate"], d["amortization_years"],
+                              d.get("periods_per_year", 12))
+    value = cf.exit_value
+    # Derive the exit-year NOI back out of the exit value rather than re-deriving
+    # it from the underwriting. The two must be the same number by construction:
+    # comparing a financing capacity built on one NOI against a valuation built
+    # on another is the same drift this project keeps finding elsewhere.
+    noi = value * cfg["income"]["exit_cap"]
+    capacity = noi / (d["min_dscr"] * mc) if mc else 0.0
+    gap = max(0.0, value - capacity)
+    members = int(cfg["income"]["membership"]["cap"])
+    per_member = gap / members if members else 0.0
+    discount = (1 - capacity / value) if value else 0.0
+
+    init = cfg["income"]["membership"]["initiation_fee_usd"]
+    if per_member <= init * 0.5:
+        verdict = (f"CREDIBLE FLOOR. The club can finance ${capacity / 1e6:,.0f}M against its "
+                   f"own NOI and the gap to the ${value / 1e6:,.0f}M exit-cap value is "
+                   f"${per_member:,.0f} a member — inside half an initiation fee, which a "
+                   f"cohesive membership can assess.")
+    elif per_member <= init * 1.5:
+        verdict = (f"PLAUSIBLE BUT NOT A FLOOR. Financing capacity is ${capacity / 1e6:,.0f}M "
+                   f"against a ${value / 1e6:,.0f}M exit-cap value; closing the gap costs each "
+                   f"member ${per_member:,.0f}, roughly {per_member / init:.1f} initiation "
+                   f"fees. Expect a negotiated price below the cap-rate valuation.")
+    else:
+        verdict = (f"NOT A FLOOR — IT IS A DISCOUNT. The club can finance "
+                   f"${capacity / 1e6:,.0f}M, a {discount:.0%} discount to the "
+                   f"${value / 1e6:,.0f}M exit-cap value, and closing the gap would cost every "
+                   f"member ${per_member:,.0f} — about {per_member / init:.1f} initiation fees "
+                   f"on top of what they have already paid. Do not underwrite the member "
+                   f"buyout as support for the exit valuation.")
+
+    return MemberBuyout(exit_value_at_cap=value, club_debt_capacity=capacity,
+                        assessment_gap=gap, per_member_assessment=per_member,
+                        discount_to_market=discount, verdict=verdict)
+
+
 def exit_paths(cfg: dict[str, Any], land_price: float,
                premium: float = 0.0) -> list[ExitPath]:
     """Ranked by probability of actually happening, not by headline proceeds."""
@@ -383,6 +452,7 @@ def exit_paths(cfg: dict[str, Any], land_price: float,
     cf = cf_mod.project_cash_flow(cfg, land_price, horizon_operating_years=12,
                                   site_cost_premium=premium)
     lt = listing_readiness(cfg, land_price, premium)
+    mb = member_buyout_capacity(cfg, land_price, premium)
     exit_cap = cfg["income"]["exit_cap"]
 
     return [
@@ -416,10 +486,12 @@ def exit_paths(cfg: dict[str, Any], land_price: float,
                  f"that the club is worth less than it cost to keep."),
         ExitPath(5, "Member buyout / equity club conversion",
                  f"Year {T.stabilisation_year:.0f}+",
-                 "Negotiated, typically at or near the refinance value",
-                 "A cohesive, capitalised membership",
-                 "UNDERRATED. The standard end-state for private golf and country "
-                 "clubs and a genuine alternative when no third-party bid clears."),
+                 f"${mb.club_debt_capacity / 1e6:,.0f}M of club financing capacity plus a "
+                 f"${mb.per_member_assessment:,.0f} per-member assessment to reach the "
+                 f"exit-cap value",
+                 "A cohesive, capitalised membership willing to assess itself",
+                 f"The standard end-state for private clubs, and now priced rather "
+                 f"than asserted. {mb.verdict}"),
         ExitPath(6, "Platform recapitalisation",
                  f"Year {min(10, T.stabilisation_year + 2):.0f}+",
                  "Institutional capital into a multi-asset holding company",

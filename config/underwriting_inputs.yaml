@@ -177,10 +177,28 @@ income:
   # Initiation fee treatment. §3: do NOT capitalize into NOI.
   initiation_treatment:
     mode: amortized              # amortized | excluded | capitalized
+
+    # Share of the initiation fee that is a REFUNDABLE DEPOSIT rather than
+    # revenue. A refundable deposit is a liability: it is cash on day one and it
+    # never becomes income, so it cannot be amortized into NOI at any rate.
+    #
+    # 0.0 is the base case and is a DELIBERATE, UNVERIFIED choice. Two accounts
+    # report that the reference asset refunds 70% of its initiation on exit, and
+    # refundable initiation is common at this price point in golf and country
+    # clubs. If that convention holds here, initiation NOI falls from $4.25M a
+    # year to $1.275M -- a larger swing than the entire dues question. The model
+    # previously had no way to express it at all, which is why it is here at zero
+    # rather than absent: an unmodellable risk is an invisible one.
+    #
+    # RESEARCH TASK: establish refundability at Monticello, Concours and Thermal
+    # by direct call. This is a condition precedent, not a refinement.
+    refundable_share: 0.0
+
     note: >
-      Base case amortizes initiation over expected_tenure_years and includes
-      that amortized slice in NOI. The Sensitivity tab reports NOI and YoC with
-      initiation fully EXCLUDED and fully CAPITALIZED as the two bookends.
+      Base case amortizes the NON-REFUNDABLE share of initiation over
+      expected_tenure_years and includes that amortized slice in NOI. The
+      Sensitivity tab reports NOI and YoC with initiation fully EXCLUDED and
+      fully CAPITALIZED as the two bookends.
 
   # Ancillary at stabilization on a 340-member base. NOTE: the Northeast season
   # is materially shorter than the Thermal Club reference geography, so these are
@@ -359,8 +377,14 @@ scoring:
 # SENSITIVITY GRID (§9 Sensitivity tab)
 # -----------------------------------------------------------------------------
 sensitivity:
-  membership_cap: [180, 215, 250, 285, 320]
-  annual_dues_usd: [16000, 19000, 22000, 25000, 28000]
+  # Likewise brackets the 340 base cap rather than topping out below it.
+  membership_cap: [240, 275, 305, 340, 375]
+  # MUST SPAN THE BASE CASE. This axis ran 16k-28k against a base of 34k --
+  # the sensitivity grid did not contain the deal being underwritten, so every
+  # cell in it described a different club. The range now brackets the base case
+  # and reaches down to the Northeast comp ceiling ($18,500, Monticello Gold),
+  # which is where the argument actually is. [S25]
+  annual_dues_usd: [18500, 24000, 29000, 34000, 39000]
   track_hard_cost_per_mile_usd: [3400000, 3800000, 4200000, 4600000, 5000000]
   absorption_years: [4, 5, 6, 7, 8]
 
@@ -405,6 +429,33 @@ scenarios:
     exit_cap_bps: 175
     perm_rate_bps: 175
     ramp_stretch: 1.80
+
+  # THE COMP SET'S OWN VIEW OF THE REVENUE STACK.
+  #
+  # Not a stress case. This is what the model looks like repriced to what
+  # comparable clubs actually charge and actually sell, and it is here because a
+  # deck that leads with the base case while the comparable study says the
+  # revenue line is roughly half again too high would be misleading.
+  #
+  # Factors are derived from research/comps_findings.md:
+  #   dues 34,000 -> 24,000     every club where real estate is OPTIONAL prices
+  #                             dues at 18,500 or below; only Thermal (mandatory
+  #                             lot purchase) and invitation-only Concours clear
+  #                             34,000. 24,000 is the intermediate the analyst
+  #                             recommends, a new-build premium over the 18,500
+  #                             Northeast ceiling.
+  #   condo psf x0.80           operating new-build track comps price at $344-352
+  #                             /SF, which is the model's assumed HARD cost.
+  #   absorption x1.35 slower   M1 realised 17.5 units/yr, NJMP 10-15 across nine
+  #                             phases in fifteen years, against 23 assumed.
+  # Initiation is left at the base case deliberately: the Northeast ceiling of
+  # $125,000 rests on one AI-generated wiki entry about one club, which is not
+  # enough to move a scenario on.
+  comp_repriced:
+    label: "Comp-repriced — what the comparable set actually supports"
+    dues_factor: 0.706
+    condo_psf_factor: 0.80
+    absorption_slowdown: 1.35
 
   upside:
     label: "Upside — pricing power, PILOT secured"
@@ -591,7 +642,28 @@ plausibility:
   # ~7% of EGI; an unabated Nevada site at a 0.65% statutory rate runs ~4%.
   # Both are real. Only a figure outside [3.5%, 25%] means tau is mis-specified.
   property_tax_pct_of_egi: [0.035, 0.25]
-  members_per_track_mile: [40, 90]
+  # Apex Motor Club operates at 187 members per track mile (425 cap / 2.27 mi)
+  # and Club Motorsports at ~120. A ceiling of 90 flagged real operating clubs
+  # as implausible, which is a broken guardrail rather than a finding. [S25]
+  members_per_track_mile: [40, 190]
+
+  # Added after the comparable study. The audit passed a configuration whose
+  # dues sat at the 94th percentile of the observed market, because nothing was
+  # looking at the PRICING PAIR -- only at the ratios it produced downstream.
+  # Repriced to the Northeast ceiling the opex ratio was 63%, comfortably inside
+  # its band, and the audit reported 0 FAIL while NOI fell 48%.
+  #
+  # Dues-to-initiation across every club-tier publishing both: median 11.4%,
+  # mean 13.8%, IQR ~10-17%, maximum observed 23.3% (Concours, invitation-only
+  # Miami). A configuration above the observed maximum is not conservative or
+  # aggressive -- it is unobserved. [S25]
+  dues_to_initiation_ratio: [0.08, 0.235]
+
+  # Dues revenue per track mile is the invariant that actually travels, because
+  # density is inversely priced: Thermal runs 41 members/mile at $43,800 and
+  # Apex runs 187 at $8,000-15,000. Observed range $0.30M (Club Motorsports) to
+  # $3.50M (Concours) per mile. [S25]
+  dues_revenue_per_track_mile_usd: [300000, 3500000]
   reserve_per_track_mile_usd: [120000, 400000]
   value_to_cost: [0.90, 1.60]
 

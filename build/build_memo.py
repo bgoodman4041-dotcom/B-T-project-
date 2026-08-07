@@ -62,6 +62,8 @@ S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.8, leading=10.8,
                           leftIndent=11, firstLineIndent=-11, spaceAfter=1.5)
 S_NOTE = ParagraphStyle("n", fontName=SERIF_I, fontSize=7.6, leading=9.2,
                         textColor=colors.HexColor("#555555"), spaceBefore=3)
+MEMO_CITATION_LIMIT = 4
+
 S_CITE = ParagraphStyle("c", fontName=SERIF, fontSize=7.4, leading=9,
                         leftIndent=11, firstLineIndent=-11)
 
@@ -155,7 +157,7 @@ def build_memo(
             f"{_usd(diag['noi_required_at_zero_land'])} "
             f"({diag['noi_multiple_required']:.2f}&times;) merely to clear that test on free "
             f"land. This is a program problem, not a parcel problem, and no site in the "
-            f"three-state search can cure it. Recommend re-basing the revenue assumptions "
+            f"national search can cure it. Recommend re-basing the revenue assumptions "
             f"against the verified comp set before any site is put under control."
         )
     else:
@@ -169,6 +171,27 @@ def build_memo(
         )
     story.append(Paragraph("RECOMMENDATION", S_H))
     story.append(Paragraph(rec, S_BODY))
+
+    # The comparable study is the largest open item in the project and it now has
+    # a partial answer that cuts against the recommendation above. An IC memo
+    # that omits it is not a memo, it is a pitch.
+    comp = next((x for x in sc.run_all(scfg, ask_price=ask or None,
+                                       site_cost_premium=prem)
+                 if x.name == "comp_repriced"), None)
+    if comp is not None:
+        story.append(Paragraph(
+            f"<b>SUBJECT TO THE COMPARABLE SET.</b> The recommendation above rests on "
+            f"member pricing the comparable study does not support. Every club priced in "
+            f"the set that sustains dues above "
+            f"{_usd(cfg['income']['membership']['annual_dues_usd'])} either requires a "
+            f"real-estate purchase or is invitation-only; this programme cannot require one. "
+            f"Repriced to the comparable set the same site returns "
+            f"{_pct(comp.equity_irr)} equity IRR and covers at "
+            f"{_x(comp.min_dscr_tested)} against a {cfg['debt']['min_dscr']:.2f}&times; "
+            f"covenant. No comparable figure reached Verified status — retrieval was "
+            f"blocked and each carries its own confidence grade. Six named calls close the "
+            f"gap; they are Tranche 1 item one and a condition precedent to any option "
+            f"payment.", S_BODY))
 
     # --- Site ----------------------------------------------------------------
     story.append(Paragraph("SITE", S_H))
@@ -311,12 +334,25 @@ def build_memo(
     story.append(Paragraph(ask_txt, S_BODY))
 
     # --- Citations -----------------------------------------------------------
+    # A one-pager cites what it leans on, not the whole register. When the
+    # comparable study appended twenty-one rows the memo printed all of them and
+    # spilled to 186% of a page -- the register belongs in the workbook, and the
+    # memo carries the parcel's own citations plus a pointer.
     story.append(HRFlowable(width="100%", thickness=0.5,
                             color=colors.HexColor("#999999"), spaceBefore=5, spaceAfter=3))
-    for s in sources:
+    wanted = {t.strip() for t in str(parcel.get("source_ids") or "").split(",") if t.strip()}
+    cited = [s for s in sources if str(s.get("no")) in wanted]
+    if not cited:
+        cited = sources[:MEMO_CITATION_LIMIT]
+    for s in cited[:MEMO_CITATION_LIMIT]:
         story.append(Paragraph(
             f"[{s['no']}] <b>{s['name']}</b> — <i>Cited for: {s['cited_for']}</i> {s['url']}",
             S_CITE))
+    if len(sources) > len(cited[:MEMO_CITATION_LIMIT]):
+        story.append(Paragraph(
+            f"Full register — {len(sources)} entries including the comparable club study — "
+            f"is the workbook Sources tab. No comparable figure reached Verified; each "
+            f"carries its own grade.", S_CITE))
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

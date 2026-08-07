@@ -81,7 +81,7 @@ is not internally coherent, the land price is arithmetic on nonsense.
 
 Run `feasibility_diagnostic()`. If the max supportable land price is negative
 on the ranking basis, the program cannot clear the hurdle on free land, and no
-parcel in the three-state search can fix that. Say so at the top of the
+parcel in the national search can fix that. Say so at the top of the
 Executive Summary and stop ranking dirt until the revenue or cost assumptions
 move. Ranking parcels beneath an infeasible program is theater.
 

@@ -1,6 +1,6 @@
 ---
 name: track-radar
-description: Run the full car community site sourcing cycle across NY/CT/NJ - source parcels, screen through five gates, underwrite the two-stack model, and produce the Excel workbook and IC memo. Use when the user says "run track radar", asks to source or screen sites for a motorsport club, or asks for the site radar workbook.
+description: Run the full car community site sourcing cycle nationwide - source parcels, screen through five gates, underwrite the two-stack model, and produce the Excel workbook and IC memo. Use when the user says "run track radar", asks to source or screen sites for a motorsport club, or asks for the site radar workbook.
 ---
 
 # Run Track Radar
@@ -73,7 +73,7 @@ Invoke **comp-analyst**. Comps set the revenue assumptions, and the revenue
 assumptions set every land price. Running this after the underwriting is
 backwards.
 
-The four figures that matter: Northeast initiation-fee ceiling, the
+The four figures that matter: the initiation-fee ceiling in the target metro, the
 dues-to-initiation ratio, garage condo $/SF versus local industrial flex $/SF
 (*the spread is the thesis*), and membership cap per mile of pavement.
 

@@ -781,6 +781,54 @@ const chartFrame = () => ({
 }
 
 // =====================================================================
+// 11a — What the comparable study says
+// =====================================================================
+if (D.comp) {
+  const s = lightSlide("The open item",
+    "The comparable study is partly done, and it cuts against us");
+  s.addText("Every revenue figure in this deck assumes " + k$(D.program.init) +
+    " initiation and " + k$(D.program.dues) + " of annual dues. Across the clubs we " +
+    "could price, every one sustaining dues above " + k$(D.program.dues) + " either makes " +
+    "real-estate purchase MANDATORY or is invitation-only in Miami. Every club where " +
+    "real estate is optional prices dues at $18,500 or below. We sell " +
+    (D.program.condos + D.program.homes) + " units against a " + D.program.cap +
+    "-member cap \u2014 purchase cannot be mandatory here.", {
+    x: M, y: 1.45, w: 7.8, h: 1.15, fontFace: BFONT, fontSize: 12, color: ASPHALT,
+    margin: 0, lineSpacingMultiple: 1.14,
+  });
+
+  const rows = [["", "Base case", "Repriced to the comp set"]];
+  rows.push(["Equity IRR", pc(D.econ.irr), pc(D.comp.irr)]);
+  rows.push(["Minimum DSCR from conversion", xx(D.econ.min_dscr), xx(D.comp.dscr)]);
+  rows.push(["Value / retained cost", xx(D.econ.vc), xx(D.comp.vc)]);
+  rows.push(["Max supportable land \u2014 net", m$(D.sites[0].max_land), m$(D.comp.land)]);
+  tbl(s, M, 2.78, 7.8, rows, [3.4, 2.2, 2.2], { rowH: 0.44, fs: 10.5 });
+
+  statCard(s, 8.6, 1.45, 4.1, 1.15, pc(D.comp.irr), "EQUITY IRR, REPRICED",
+    { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
+  statCard(s, 8.6, 2.75, 4.1, 1.15, xx(D.comp.dscr), "COVERAGE \u2014 COVENANT IS " +
+    xx(D.econ.covenant), { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
+  s.addText("Two things are true at once and we are not going to resolve them for you. " +
+    "The base case is internally coherent and passes every consistency test we run. The " +
+    "comparable set says its revenue line is roughly half again too high.\n\nNothing in " +
+    "the research is Verified \u2014 direct retrieval was blocked throughout, so every " +
+    "figure came through a search index with its own confidence grade. Six named phone " +
+    "calls close most of the gap. That is why Tranche 1 buys the comparable study first " +
+    "and everything else second.", {
+    x: 8.6, y: 4.06, w: 4.1, h: 2.0, fontFace: BFONT, fontSize: 9.5, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.12,
+  });
+  footnote(s, "Repriced case: dues to $24,000 (the intermediate between the $18,500 " +
+    "Northeast ceiling and the base case), condo pricing to 80% (operating new-build " +
+    "track comps sell at $344\u2013$352/SF, which is our assumed hard cost), absorption " +
+    "35% slower (M1 realised 17.5 units a year, NJMP 10\u201315 across nine phases in " +
+    "fifteen years, against 23 assumed).");
+  s.addNotes("Put this slide in front of them yourself. An investor who finds this after " +
+    "diligence never comes back; one who is handed it on slide 12 knows what the Tranche 1 " +
+    "money is actually for.");
+}
+
+// =====================================================================
 // 11b — The return, and who it is for
 // =====================================================================
 {

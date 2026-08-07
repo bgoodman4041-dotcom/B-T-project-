@@ -316,6 +316,34 @@ def _score_all() -> dict:
     return out
 
 
+def test_rollout_phase_a_reconciles_market_rank_against_the_actual_lead_site():
+    """
+    The best MARKET and the best SITE IN THE PIPELINE are different claims.
+    Blurring them put "Phoenix (lead)" on the rollout slide while the site table
+    on the next page led with a New York parcel, and nothing flagged it.
+    """
+    rows = [coerce(r) for r in _rows()]
+    lead = max((p for p in rows if p.get("ask_price")),
+               key=lambda p: p.get("hnw_households_90min") or 0)
+    a = mk.rollout(lead_site=lead)[0]
+    assert str(lead["parcel_id"]) in a.markets, "Phase A does not name the lead site"
+    top = mk.ranked_markets()[0].market.metro
+    if lead.get("market_metro") != top:
+        assert top in a.rationale, "Phase A does not reconcile against the top market"
+        assert "rank" in a.rationale.lower()
+
+
+def test_rollout_without_a_lead_site_still_names_the_top_market():
+    a = mk.rollout()[0]
+    assert mk.ranked_markets()[0].market.metro in a.markets
+
+
+def test_rollout_covers_every_tier_and_ends_with_a_watch_list():
+    phases = mk.rollout()
+    assert len(phases) == 5
+    assert "Watch list" in phases[-1].phase
+
+
 # =============================================================================
 # Membership demand
 # =============================================================================

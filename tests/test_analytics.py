@@ -695,6 +695,80 @@ def test_every_tranche_1_item_says_who_does_it_and_what_it_resolves():
         assert i.get("month") and i["usd"] > 0
 
 
+# =============================================================================
+# What the comparable study changed
+# =============================================================================
+
+def test_refundable_initiation_is_not_revenue():
+    """
+    A refundable deposit is a liability. It arrives as cash and it leaves as
+    cash and it never becomes income, so no share of it can be amortized into
+    NOI. The model had no way to express this at all, which made a reported
+    70%-refundable convention at the reference asset an invisible risk rather
+    than a priced one.
+    """
+    base = ts.underwrite(CFG, "BASE")
+    for share in (0.30, 0.70):
+        c = copy.deepcopy(CFG)
+        c["income"]["initiation_treatment"]["refundable_share"] = share
+        flexed = ts.underwrite(c, "FLEX")
+        assert flexed.stabilized_noi < base.stabilized_noi
+    full = copy.deepcopy(CFG)
+    full["income"]["initiation_treatment"]["refundable_share"] = 1.0
+    excluded = copy.deepcopy(CFG)
+    excluded["income"]["initiation_treatment"]["mode"] = "excluded"
+    assert approx(ts.underwrite(full, "A").stabilized_noi,
+                  ts.underwrite(excluded, "B").stabilized_noi), (
+        "a fully refundable fee must be identical to excluding initiation entirely")
+
+
+def test_base_case_refundable_share_is_zero_and_explicit():
+    """Zero is a choice here, not an absence. It must be stated in the config."""
+    assert "refundable_share" in CFG["income"]["initiation_treatment"]
+    assert CFG["income"]["initiation_treatment"]["refundable_share"] == 0.0
+
+
+def test_comp_repriced_scenario_exists_and_is_worse_than_base():
+    """
+    The comparable set is the largest open item in the project and it now has a
+    partial answer that cuts against the base case. It is carried as a named
+    scenario so every artifact reports it, rather than living in a research file
+    nobody opens.
+    """
+    results = {r.name: r for r in sc.run_all(CFG, ask_price=ASK)}
+    assert "comp_repriced" in results, "the comparable-set case is not in the scenario set"
+    comp, base = results["comp_repriced"], results["base"]
+    assert comp.max_land_net < base.max_land_net
+    assert (comp.equity_irr or -1) < (base.equity_irr or 0)
+
+
+def test_comp_repriced_is_not_hidden_between_upside_and_base():
+    """It must be at least as adverse as the base case on every governing test."""
+    r = {x.name: x for x in sc.run_all(CFG, ask_price=ASK)}
+    c, b = r["comp_repriced"], r["base"]
+    assert c.min_dscr_tested <= b.min_dscr_tested
+    assert (c.value_to_cost or 0) <= (b.value_to_cost or 0)
+
+
+def test_the_pricing_pair_is_audited_not_just_its_downstream_ratios():
+    """
+    The audit passed a configuration whose dues sat at the 94th percentile of
+    the observed market, because every check tested a ratio the pair PRODUCES
+    rather than the pair itself. Repriced to the Northeast ceiling the opex
+    ratio was 63%, inside its band, and the audit reported 0 FAIL while NOI fell
+    by half.
+    """
+    names = {c.name for c in rk.plausibility_report(CFG, ASK)["checks"]}
+    assert "Dues / initiation ratio" in names
+    assert "Dues revenue per track mile" in names
+
+    absurd = copy.deepcopy(CFG)
+    absurd["income"]["membership"]["annual_dues_usd"] = 60_000
+    flagged = [c for c in rk.plausibility_report(absurd, ASK)["checks"]
+               if c.name == "Dues / initiation ratio" and c.severity != "OK"]
+    assert flagged, "a dues/initiation pair no operator has demonstrated was not flagged"
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

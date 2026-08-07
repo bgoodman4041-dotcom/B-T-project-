@@ -148,6 +148,15 @@ def _governing_verdict(cfg: dict[str, Any], rows: list[dict[str, Any]]) -> dict[
 # Tab: Executive Summary
 # =============================================================================
 
+def _lead_ask(rows: list[dict[str, Any]]) -> float:
+    return float(next((p.get("ask_price") for p in rows if p.get("ask_price")), 0.0) or 0.0)
+
+
+def _lead_premium(rows: list[dict[str, Any]]) -> float:
+    return float(next((p.get("site_cost_premium_usd") for p in rows
+                       if p.get("ask_price")), 0.0) or 0.0)
+
+
 def _markets_line(rows: list[dict[str, Any]]) -> str:
     """Describe the geography from the DATA, not from a constant that goes stale
     the moment the pipeline leaves its original three states."""
@@ -176,13 +185,22 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     )
     ws["A2"].font = NOTE_FONT
 
-    t1 = two_stack.tranche_1_budget(cfg)
-    if t1["items"]:
-        ws["A4"] = (f"Tranche 1 feasibility raise ${t1['total']:,.0f} across "
-                    f"{len(t1['items'])} line items, complete by month {t1['months']} — "
-                    f"see the Tranche 1 tab. Peak construction equity is a separate and "
-                    f"later ask.")
-        ws["A4"].font = NOTE_FONT
+    # The comparable study is the largest open item in the project and it now has
+    # a partial answer that cuts against the base case. It belongs at the top of
+    # the summary, not three tabs in.
+    comp = next((r for r in sc.run_all(cfg, ask_price=_lead_ask(rows),
+                                       site_cost_premium=_lead_premium(rows))
+                 if r.name == "comp_repriced"), None)
+    if comp:
+        cell = ws.cell(row=3, column=1, value=(
+            f"COMPARABLE-SET WARNING — the base case above assumes member pricing the "
+            f"comparable study does not support. Repriced to what comparable clubs "
+            f"actually charge and sell, this programme returns "
+            f"{(comp.equity_irr or 0):.1%} equity IRR, covers at "
+            f"{comp.min_dscr_tested:.2f}x against a {cfg['debt']['min_dscr']:.2f}x "
+            f"covenant, and exits at {(comp.value_to_cost or 0):.2f}x retained cost. "
+            f"See the Scenarios and Comps tabs. Resolving this is Tranche 1 item one."))
+        cell.font = Font(name="Calibri", size=10, bold=True, color="9B1C31")
 
     # Two verdicts, and the distinction matters. The GOVERNING tests are project
     # return, covenant coverage and value against retained cost. The gross-basis
@@ -197,6 +215,14 @@ def _tab_exec_summary(wb: Workbook, rows: list[dict[str, Any]], cfg: dict[str, A
     ws["A5"].alignment = Alignment(wrap_text=True, vertical="top")
     ws["A5"].fill = GREEN if gov["clears"] else RED
     ws.merge_cells("A5:J6")
+
+    t1 = two_stack.tranche_1_budget(cfg)
+    if t1["items"]:
+        ws["A10"] = (f"Tranche 1 feasibility raise ${t1['total']:,.0f} across "
+                     f"{len(t1['items'])} line items, complete by month {t1['months']} — "
+                     f"see the Tranche 1 tab. Peak construction equity is a separate and "
+                     f"later ask.")
+        ws["A10"].font = NOTE_FONT
 
     ws["A7"] = "SECONDARY — gross-basis yield on cost (see business plan §13)"
     ws["A7"].font = SEC_FONT
@@ -849,25 +875,65 @@ def _tab_physical(wb: Workbook, rows: list[dict[str, Any]]) -> None:
 
 def _tab_comps(wb: Workbook) -> None:
     """
-    §7 forbids stating any comp figure from memory. This tab ships as a
-    structured blank for Comp Analyst to populate with cited, dated research.
+    §7 forbids stating any comp figure from memory. This reads the researched
+    register when it exists and falls back to a structured blank when it does
+    not -- a missing file must show as UNRESEARCHED, never as an empty table
+    that reads like "no comparables exist".
+
+    Every row carries its own confidence grade. NOTHING here is `Verified`:
+    direct URL fetch was blocked environment-wide during the study, so every
+    figure was retrieved through a search index. One human browsing session
+    upgrades most of it, and until then the grade on the row is the honest
+    statement of what it is.
     """
-    headers = ["Club", "State", "Acres", "Track Miles", "Membership Cap", "Initiation Fee",
-               "Annual Dues", "Garage Condo $/SF", "Local Industrial Flex $/SF",
-               "Spread", "Absorption (months)", "Members per Track Mile",
-               "Dues ÷ Initiation", "Source ID", "Data As-Of", "Confidence"]
-    clubs = [
-        ("Monticello Motor Club", "NY"), ("New Jersey Motorsports Park", "NJ"),
-        ("Thompson Speedway Motorsports Park", "CT"), ("Lime Rock Park", "CT"),
-        ("Palmer Motorsports Park", "MA"), ("Club Motorsports", "NH"),
-        ("M1 Concourse", "MI"), ("Iron Gate Motor Condos", "VT"),
-        ("Autobahn Country Club", "IL"), ("Atlanta Motorsports Park", "GA"),
-        ("Apex Motor Club", "AZ"), ("The Concours Club", "FL"),
-        ("The Thermal Club", "CA"),
-    ]
-    data = [[name, st] + [None] * 11 + [None, "UNRESEARCHED"] for name, st in clubs]
-    _simple_tab(wb, "Comps", headers, data, widths={"A": 34, "B": 5},
-                note="§7: every cell below must be pulled and cited. Do not fill from memory.")
+    headers = ["Club", "Location", "ST", "Status", "Acres", "Track mi", "Tier",
+               "Initiation", "Annual dues", "Real estate required?",
+               "Condo $", "Condo SF", "Condo $/SF", "Season days",
+               "Confidence", "Source", "As-of", "Note"]
+    numeric = {"acreage", "track_miles", "initiation_fee_usd", "annual_dues_usd",
+               "garage_condo_price_usd", "garage_condo_sf", "garage_condo_psf",
+               "season_days_published"}
+    keys = ["club", "location", "state", "status", "acreage", "track_miles",
+            "membership_tier", "initiation_fee_usd", "annual_dues_usd",
+            "real_estate_required", "garage_condo_price_usd", "garage_condo_sf",
+            "garage_condo_psf", "season_days_published", "confidence",
+            "source_url", "source_date", "note"]
+
+    data: list[list[Any]] = []
+    if COMPS_CSV.exists():
+        with COMPS_CSV.open(newline="", encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                row: list[Any] = []
+                for k in keys:
+                    v = (r.get(k) or "").strip()
+                    if k in numeric and v:
+                        try:
+                            v = float(v)
+                        except ValueError:
+                            pass
+                    row.append(v or None)
+                data.append(row)
+    if not data:
+        data = [[name, None, st] + [None] * 11 + ["UNRESEARCHED", None, None, None]
+                for name, st in [
+                    ("Monticello Motor Club", "NY"), ("The Thermal Club", "CA"),
+                    ("Apex Motor Club", "AZ"), ("M1 Concourse", "MI"),
+                    ("The Concours Club", "FL"), ("Autobahn Country Club", "IL")]]
+
+    ws = _simple_tab(
+        wb, "Comps", headers, data, widths={"A": 26, "B": 22, "D": 11, "G": 26,
+                                            "J": 19, "O": 30, "P": 46, "R": 70},
+        note=("§7: no figure below is Verified. Direct URL fetch was blocked "
+              "environment-wide during the study, so everything here came through a "
+              "search index — read the Confidence column on every row. The register "
+              "is data/comps_clubs.csv; the analysis is research/comps_findings.md."))
+    for i in range(len(data)):
+        cell = ws.cell(row=i + 4, column=15)
+        conf = str(cell.value or "")
+        if conf.startswith("UNRESEARCHED"):
+            cell.fill = PatternFill("solid", fgColor="FBEAEC")
+        elif conf.startswith("Unverified"):
+            cell.fill = PatternFill("solid", fgColor="FEF3C7")
 
 
 def _tab_land_comps(wb: Workbook) -> None:
@@ -1599,6 +1665,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
 
 
 SOURCES_CSV = Path(__file__).resolve().parent.parent / "data" / "sources.csv"
+COMPS_CSV = Path(__file__).resolve().parent.parent / "data" / "comps_clubs.csv"
 
 
 def _default_sources() -> list[dict[str, Any]]:

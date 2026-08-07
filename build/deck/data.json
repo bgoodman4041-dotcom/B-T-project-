@@ -1,5 +1,5 @@
 {
- "today": "2026-08-06",
+ "today": "2026-08-07",
  "program": {
   "miles": 4.0,
   "cap": 340,
@@ -180,8 +180,8 @@
   {
    "phase": "Phase A \u2014 Club 1",
    "horizon": "Years 0\u20137",
-   "markets": "Phoenix \u2013 Scottsdale (lead) with a Northeast site as the alternate",
-   "rationale": "Build where season length and land cost are on our side, not against us. The Northeast remains in the set because wealth density is unmatched, but it is the harder build and should not be the first one.",
+   "markets": "TP-01-EPCAL in New York metro, with Phoenix \u2013 Scottsdale carried in parallel",
+   "rationale": "The best MARKET and the best SITE are not the same answer. Phoenix \u2013 Scottsdale ranks first on the market screen; New York metro ranks 23 of 23. The pipeline still leads with TP-01-EPCAL because the composite scores the actual dirt \u2014 catchment, entitlement posture and infrastructure already in the ground \u2014 not the metro average, and on that basis the top two are inside a point of each other. Both go into Tranche 1 diligence and the cost basis decides. A market rank is a prior; a site is evidence.",
    "capital": "Tranche 1 + 2"
   },
   {
@@ -367,6 +367,14 @@
    "full": "DEMAND-CONSTRAINED \u2014 1.6x coverage is below the 2x floor. Market size is the risk here, not marketing."
   }
  ],
+ "comp": {
+  "irr": -0.0010473255235741085,
+  "dscr": 0.8829816292513404,
+  "vc": 0.5837263637624078,
+  "land": -68436595.27477801,
+  "verdict": "COVENANT FAILS",
+  "label": "Comp-repriced \u2014 what the comparable set actually supports"
+ },
  "bridge": {
   "base": 0.08835290046680178,
   "target": 0.15,
@@ -486,6 +494,17 @@
    "dscr": -0.19627550300641103,
    "verdict": "COVENANT FAILS",
    "peak": 339527606.52928424
+  },
+  {
+   "name": "comp_repriced",
+   "label": "Comp-repriced \u2014 what the comparable set actually supports",
+   "irr": -0.0010473255235741085,
+   "em": 0.988509973777612,
+   "vc": 0.5837263637624078,
+   "land": -68436595.27477801,
+   "dscr": 0.8829816292513404,
+   "verdict": "COVENANT FAILS",
+   "peak": 109937610.99718755
   }
  ],
  "lev": [
@@ -889,7 +908,7 @@
  "plaus": {
   "fails": 0,
   "warns": 1,
-  "ok": 6
+  "ok": 8
  },
  "ramp_years": [
   {
@@ -1062,7 +1081,7 @@
    "objective": "Mandate and mobilisation",
    "deliverables": [
     "Comparable club study commissioned",
-    "Sourcing brief issued to Parcel Scout across NY/CT/NJ",
+    "Sourcing brief issued to Parcel Scout across the Tier 1 and Tier 2 metros",
     "Entitlement counsel and acoustic consultant shortlisted",
     "Tranche 1 closed and escrowed"
    ],
@@ -1302,9 +1321,9 @@
    "rank": 5,
    "route": "Member buyout / equity club conversion",
    "timing": "Year 10+",
-   "basis": "Negotiated, typically at or near the refinance value",
-   "requires": "A cohesive, capitalised membership",
-   "assessment": "UNDERRATED. The standard end-state for private golf and country clubs and a genuine alternative when no third-party bid clears."
+   "basis": "$113M of club financing capacity plus a $184,849 per-member assessment to reach the exit-cap value",
+   "requires": "A cohesive, capitalised membership willing to assess itself",
+   "assessment": "The standard end-state for private clubs, and now priced rather than asserted. PLAUSIBLE BUT NOT A FLOOR. Financing capacity is $113M against a $176M exit-cap value; closing the gap costs each member $184,849, roughly 1.2 initiation fees. Expect a negotiated price below the cap-rate valuation."
   },
   {
    "rank": 6,

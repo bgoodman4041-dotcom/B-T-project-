@@ -132,6 +132,43 @@ matters: Pinal carries a priced cost *premium*, EPCAL a $9.5M cost *credit* that
 depends on a Phase II result nobody has ordered. Halve it and EPCAL's IRR falls
 to 8.1%.
 
+## v2.2 — what the comparable study found
+
+`research/comps_findings.md` + `data/comps_clubs.csv` (41 rows, 22 clubs). **No
+figure reached `Verified`**: direct URL fetch was blocked environment-wide, so
+everything came through a search index and carries its own confidence grade.
+
+**The Thermal $7,200 dues figure was wrong.** Thermal is $3,200/mo = $38,400/yr
+plus $450/mo ground maintenance — ~$43,800 all-in, 29% *above* the model, not
+79% below. The structural point survives in a sharper form:
+
+> Every club in the set sustaining dues above $34,000 either makes real-estate
+> purchase **mandatory** (Thermal) or is invitation-only in Miami (Concours).
+> Every club where real estate is optional prices dues at **$18,500 or below**.
+> This programme sells 190 units against a 340-member cap, so purchase cannot be
+> mandatory. **The model takes Thermal's dues without Thermal's gate.**
+
+| Finding | Model | Comp set |
+|---|---|---|
+| Dues / initiation ratio | 22.7% — **94th percentile** | median 11.4%, max observed 23.3% |
+| Northeast initiation ceiling | $150,000 | **$125,000** (Monticello Gold; one AI-wiki datum, 5× gap to #2) |
+| Garage condo $/SF | $530 sale on $350 cost | operating new-build track comps sell at **$344–352** — the model's *cost* |
+| Long Island industrial | assumed 3× spread | asks **~$509/SF**. No spread at the lead site |
+| Absorption | 23 units/yr | M1 realised 17.5; NJMP 10–15 across nine phases in fifteen years |
+| Members / track mile | 85, band [40, 90] | Apex runs **187**. The band rejected a real operating club |
+| Refundable initiation | not modellable | Thermal reportedly refunds **70%** — $4.25M/yr of NOI becomes $1.28M |
+
+`scenarios.comp_repriced` carries this into every artifact: **−0.1% IRR, 0.88×
+DSCR against a 1.30× covenant, 0.58× value to retained cost.** The base case is
+unchanged — that is the principal's call — but no artifact leads with the base
+case without the comp warning beside it.
+
+**Two defects the study exposed.** `sensitivity.annual_dues_usd` ran $16k–$28k
+against a $34k base: the grid did not contain the deal. And the plausibility
+audit tested only ratios the pricing pair *produces*, never the pair itself, so
+it reported 0 FAIL on a configuration whose revenue was half again too high.
+Both now have tests.
+
 ## Layout
 
 ```
@@ -153,9 +190,14 @@ model/scenarios.py                Base/Downside/Severe/Upside correlated bundles
 model/risk.py                     Break-evens, tornado, Monte Carlo, plausibility audit
 model/roadmap.py                  10-horizon milestones, platform scale, listing test, exit ladder
 model/markets.py                  23 US metros, six-driver composite, rollout Phases A-D
+model/demand.py                   HNW pool -> capturable seats; coverage and break-even
+data/comps_clubs.csv              41 rows, 22 clubs. NOTHING is Verified — read the grade
+research/comps_findings.md        The comparable study. Read before touching income assumptions
+research/jurisdiction_register.md Entitlement regime per target jurisdiction
+research/risk_register.md         Noise litigation and opposition history
 tests/test_model.py               72 tests; fast
 tests/test_analytics.py           70 tests; tax, cashflow, scenarios, risk, roadmap
-tests/test_markets.py             25 tests; market screen, season economics, site overlay
+tests/test_markets.py             36 tests; market screen, season economics, demand, overlay
 tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
@@ -267,6 +309,18 @@ cannot carry the vertical even if the dirt were free.
 - **Test the covenant from conversion everywhere, including in the Monte Carlo.**
   `cf.min_dscr` is the whole-hold minimum and includes lease-up. Used as the
   covenant test it makes every draw fail and reports a structural zero.
+- **A sensitivity axis must span its own base case.** The dues axis ran $16k–$28k
+  against a $34k base, so every cell described a different club and the base was
+  an extrapolation off the end. `test_every_sensitivity_axis_spans_its_own_base_case`.
+- **A refundable deposit is a liability, not deferred revenue.** It is cash in and
+  cash out and never becomes income, so no share of it amortizes into NOI.
+  `initiation_treatment.refundable_share`.
+- **Audit the pricing PAIR, not only the ratios it produces.** Every plausibility
+  check tested a downstream ratio, so a dues figure at the 94th percentile of the
+  observed market passed while the repriced case cut NOI in half at a 63% opex
+  ratio comfortably inside its band.
+- **A plausibility band that rejects a real operating club is broken, not strict.**
+  Apex runs 187 members per track mile against a ceiling of 90.
 - **Do not rank on a column that is negative for every candidate.** The mandated
   gross basis is negative for any merchant build regardless of the dirt, so the
   20-point yield component scored zero on all 15 sites and a fifth of the
@@ -284,9 +338,9 @@ python3 build/build_business_plan.py --parcels data/sites_targets.csv --out dist
 python3 build/build_memo.py          --parcels data/sites_targets.csv --rank 1 --out dist/
 python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
-python3 tests/test_model.py               # 73 tests, fast
-python3 tests/test_analytics.py           # 70 tests, fast
-python3 tests/test_markets.py             # 25 tests, fast
+python3 tests/test_model.py               # 75 tests, fast
+python3 tests/test_analytics.py           # 83 tests, fast
+python3 tests/test_markets.py             # 36 tests, fast
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

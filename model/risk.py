@@ -470,6 +470,25 @@ def plausibility_report(
                     "and abatement reaches this use in some states and not others -- "
                     "the band spans the national range, so a miss means the tau inputs "
                     "are wrong, not that the jurisdiction is unusual"),
+        # The two checks the audit was missing. Everything else here tests a
+        # RATIO the configuration produces; these test the PRICING PAIR that
+        # produces them, which is where the comparable study found the problem.
+        _band_check("Dues / initiation ratio",
+                    (cfg["income"]["membership"]["annual_dues_usd"]
+                     / cfg["income"]["membership"]["initiation_fee_usd"]
+                     if cfg["income"]["membership"]["initiation_fee_usd"] else None),
+                    p["dues_to_initiation_ratio"], ".1%",
+                    "clubs price the upfront-versus-recurring trade inside a tight "
+                    "band; a pair outside it is not aggressive or conservative, it "
+                    "is a pair no operator has demonstrated it can collect"),
+        _band_check("Dues revenue per track mile",
+                    (cfg["income"]["membership"]["cap"]
+                     * cfg["income"]["membership"]["annual_dues_usd"] / miles
+                     if miles else None),
+                    p["dues_revenue_per_track_mile_usd"], ",.0f",
+                    "the invariant that travels across clubs, because density is "
+                    "inversely priced -- low member-per-mile IS the product at the "
+                    "top of the market"),
         _band_check("Members per track mile",
                     cfg["income"]["membership"]["cap"] / miles if miles else None,
                     p["members_per_track_mile"], ".0f",

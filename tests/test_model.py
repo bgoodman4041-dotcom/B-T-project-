@@ -778,6 +778,41 @@ def test_config_validation_rejects_bad_weights():
     raise AssertionError("bad weight table must raise")
 
 
+def test_every_sensitivity_axis_spans_its_own_base_case():
+    """
+    The dues axis ran $16k-$28k against a $34k base case: the grid did not
+    contain the deal being underwritten, so every cell described a different
+    club and the "base" cell was an extrapolation off the end of the axis.
+    An axis that does not bracket its own base case is not a sensitivity.
+    """
+    sens = CFG["sensitivity"]
+    m = CFG["income"]["membership"]
+    fs = CFG["for_sale"]["garage_condos"]
+    bases = {
+        "membership_cap": m["cap"],
+        "annual_dues_usd": m["annual_dues_usd"],
+        "track_hard_cost_per_mile_usd": CFG["cost"]["track"]["hard_cost_per_mile_usd"],
+        "absorption_years": fs["units"] / fs["absorption_units_per_year"],
+    }
+    for axis, base in bases.items():
+        vals = sens[axis]
+        assert min(vals) <= base <= max(vals), (
+            f"sensitivity axis {axis} spans {min(vals)}-{max(vals)} but the base "
+            f"case is {base} — the grid does not contain the deal")
+
+
+def test_plausibility_band_does_not_reject_an_operating_club():
+    """
+    Apex Motor Club runs 425 members over 2.27 miles = 187 per mile, and Club
+    Motorsports ~120. A ceiling of 90 flagged real operating clubs as
+    implausible, which is a broken guardrail, not a finding. [S25]
+    """
+    lo, hi = CFG["plausibility"]["members_per_track_mile"]
+    for club, per_mile in (("Apex", 187), ("Club Motorsports", 120),
+                           ("Concours", 100), ("Thermal", 41)):
+        assert lo <= per_mile <= hi, f"band rejects {club} at {per_mile}/mile"
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

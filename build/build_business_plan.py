@@ -173,6 +173,7 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     scen = sc.run_all(lcfg, ask_price=lead_ask, site_cost_premium=lead_prem)
     spread = sc.scenario_spread(scen)
     bev = rk.direct_break_evens(lcfg, lead_ask)
+    comp = next((r for r in scen if r.name == "comp_repriced"), None)
     t1 = ts.tranche_1_budget(cfg)
     bridge = rk.return_bridge(lcfg, lead_ask, target_irr=0.15,
                               site_cost_premium=lead_prem)
@@ -195,9 +196,10 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     return dict(cfg=cfg, lcfg=lcfg, universe=universe, unverified=unverified, live=live,
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev, bridge=bridge,
+                comp=comp,
                 t1=t1,
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
-                markets=mk.ranked_markets(), rollout=mk.rollout(),
+                markets=mk.ranked_markets(), rollout=mk.rollout(lead_site=lead),
                 demand=dm.portfolio(cfg, live),
                 demand_be={p["parcel_id"]: dm.demand_break_even(cfg, p) for p in live},
                 national=mk.national_summary(),
@@ -265,6 +267,36 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"{_m(uw.stabilized_noi_after_tax)} of net operating income after property tax in "
         f"operating year {S['stab']}.", S_BODY))
 
+    if S["comp"] is not None:
+        c = S["comp"]
+        A(Paragraph("Read this before the numbers", S_H2))
+        A(Paragraph(
+            f"<b>The comparable club study is partially complete and it cuts against this "
+            f"plan.</b> Every revenue figure below assumes member pricing — "
+            f"{_usd(m['initiation_fee_usd'])} initiation and {_usd(m['annual_dues_usd'])} of "
+            f"annual dues — that the comparable set does not support. Across the clubs we "
+            f"could price, every one that sustains dues above {_usd(m['annual_dues_usd'])} "
+            f"either makes real-estate purchase mandatory or is invitation-only in Miami. "
+            f"Every club where real estate is optional prices dues at $18,500 or below. This "
+            f"programme sells {fs['garage_condos']['units'] + fs['homesites']['units']} units "
+            f"against a {m['cap']}-member cap, so purchase cannot be mandatory here.", S_BODY))
+        A(Paragraph(
+            f"Repriced to what the comparable set actually charges and sells, the programme "
+            f"returns <b>{_pct(c.equity_irr, 1)}</b> equity IRR, covers at "
+            f"<b>{_x(c.min_dscr_tested)}</b> against a {d['min_dscr']:.2f}× covenant, and "
+            f"exits at <b>{_x(c.value_to_cost)}</b> of retained cost. That case is carried "
+            f"as a named scenario in Section 7, not as a footnote, and it is the reason "
+            f"Tranche 1 buys the comparable study first and everything else second.", S_BODY))
+        A(Paragraph(
+            "Two things are true at once, and the plan does not resolve them for you. The "
+            "base case is internally coherent and passes every consistency test in Appendix "
+            "B. The comparable set says its revenue line is roughly half again too high. "
+            "Nothing in the research reached strict Verified status — direct URL retrieval "
+            "was blocked throughout, so every comparable figure came through a search index "
+            "and each carries its own confidence grade in the workbook. Six named phone "
+            "calls, listed in Section 12, close most of the gap for a few thousand dollars.",
+            S_NOTE))
+
     A(Paragraph("Headline economics — lead site", S_H2))
     A(table([
         ["Metric", "Base case", "Note"],
@@ -289,7 +321,8 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         "capital. The held club is the residual asset and the source of terminal value."))
     A(B("It is not a stabilised-yield play",
         f"The retained club does not clear a {cfg['meta']['hurdle_yoc']:.2%} yield on a gross "
-        f"development basis, and no site in the three-state search changes that. Section 7 "
+        f"development basis, and no site in a {S['national']['markets_screened']}-metro "
+        f"national search changes that. Section 7 "
         f"recommends replacing that test with a project-return and coverage test, and "
         f"explains why. An investor underwriting this as a core yield asset should decline."))
     A(B("Returns are mid-single to low-double digit, not opportunistic",

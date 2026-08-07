@@ -36,7 +36,7 @@ garage condo $/SF, and realized sell-out pace.
 
 Four derived figures matter more than the raw table:
 
-1. **Initiation fee ceiling in the Northeast.** What the market has actually
+1. **Initiation fee ceiling in the target metro.** What the market has actually
    proven it will pay, not what a club lists.
 2. **Dues-to-initiation ratio.** The recurring-to-upfront mix across the set.
 3. **Garage condo $/SF versus local industrial flex $/SF.** *The spread is the
