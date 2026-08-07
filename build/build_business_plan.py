@@ -42,6 +42,7 @@ from model import gates, scoring
 from model import cashflow as cfm
 from model import demand as dm
 from model import markets as mk
+from model import respec as rs
 from model import risk as rk
 from model import roadmap as rmap
 from model import scenarios as sc
@@ -175,6 +176,7 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     spread = sc.scenario_spread(scen)
     bev = rk.direct_break_evens(lcfg, lead_ask)
     comp = next((r for r in scen if r.name == "comp_repriced"), None)
+    respec_r = rs.search(lcfg, lead_ask, lead_prem, parcel=lead)
     t1 = ts.tranche_1_budget(cfg)
     bridge = rk.return_bridge(lcfg, lead_ask, target_irr=0.15,
                               site_cost_premium=lead_prem)
@@ -197,7 +199,7 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     return dict(cfg=cfg, lcfg=lcfg, universe=universe, unverified=unverified, live=live,
                 lead=lead, lead_ask=lead_ask, uw=uw, cf=cf, cov=cov, stab=stab,
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev, bridge=bridge,
-                comp=comp,
+                comp=comp, respec=respec_r,
                 fragility=scoring.lead_site_fragility(
                     [p for p in universe], cfg, ts.underwrite, gates.screen, ts.site_config),
                 t1=t1,
@@ -870,6 +872,64 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"a core-plus asset at a core-plus price, and the land bid has to fall to match. The "
         f"model already solves for that: it is the maximum supportable land price in "
         f"Section 11."))
+    A(PageBreak())
+
+    A(Paragraph("7C. IF THE COMPARABLE SET IS RIGHT, IS THERE A PROGRAMME THAT WORKS?",
+                S_H1))
+    R = S["respec"]
+    b, best = R.baseline, R.best_feasible
+    A(Paragraph(
+        f"Section 1 says the comparable study cuts the revenue line by roughly half. The "
+        f"obvious reading is that the deal is dead. That reading skips a step. A pro forma "
+        f"can be wrong in two ways: it can be the right programme at the wrong prices, or the "
+        f"wrong programme. Repricing to the comparable set and stopping there tests only the "
+        f"first. So we held the comp-supported prices fixed and searched the programme "
+        f"itself — track length, membership cap, and the number of units for sale — across "
+        f"{len(R.variants)} configurations, scored on the same governing tests.", S_BODY))
+    if best is not None:
+        A(table([
+            ["", "As configured", "Re-specified"],
+            ["Membership cap", f"{b.member_cap}", f"{best.member_cap}"],
+            ["Track miles", f"{b.track_miles:.2f}", f"{best.track_miles:.2f}"],
+            ["Members per track mile", f"{b.members_per_mile:.0f}",
+             f"{best.members_per_mile:.0f}"],
+            ["Garage condos", f"{b.condo_units}", f"{best.condo_units}"],
+            ["Stabilised NOI", _m(b.stabilized_noi), _m(best.stabilized_noi)],
+            ["Equity IRR", _pct(b.equity_irr, 1), _pct(best.equity_irr, 1)],
+            ["Minimum DSCR", _x(b.min_dscr), _x(best.min_dscr)],
+            ["Value / retained cost", _x(b.value_to_cost), _x(best.value_to_cost)],
+            ["Peak equity", _m(b.peak_equity), _m(best.peak_equity)],
+            ["Demand coverage at the lead site",
+             f"{(b.demand_coverage or 0):.1f}x", f"{(best.demand_coverage or 0):.1f}x"],
+        ], [2.3 * inch, 2.2 * inch, 2.35 * inch]))
+    A(Paragraph(f"<b>{R.verdict}</b>", S_BODY))
+
+    A(Paragraph("Three things the search settles", S_H2))
+    A(B("Track length is not the lever, and the intuition that it is was wrong",
+        f"The circuit is roughly 7% of non-land cost. Across the searched range track "
+        f"length is worth {R.track_sensitivity_bps:.0f} basis points of equity IRR. A shorter "
+        f"course is a smaller parcel, a cheaper entitlement and a wider set of eligible "
+        f"sites — all real, none of them the answer to the comparable set."))
+    A(B("More for-sale product makes it worse, not better",
+        f"Worth {R.condo_sensitivity_bps:.0f} basis points across the range, and it moves the "
+        f"wrong way. The for-sale vertical is 43% of non-land cost; it draws soft cost and "
+        f"contingency like every other hard dollar, so a garage condo costs "
+        f"{_usd(uw.for_sale.loaded_cost_psf)}/SF to deliver against a hard cost of "
+        f"{_usd(fs['garage_condos']['hard_cost_psf'])}. At the "
+        f"{_usd(fs['garage_condos']['sale_price_psf'])}/SF in the base case that is "
+        f"{_usd(uw.for_sale.condo_margin_per_unit)} a unit and it works. At the $344–352/SF "
+        f"operating new-build track comps actually achieve, the same unit loses money on "
+        f"every sale, and in a merchant build the carry runs until the last one closes."))
+    A(B("Member count is the lever, and demand — not design — is what bounds it",
+        "Lower dues need more payers; that is arithmetic. What is not arithmetic is whether "
+        "the catchment supplies them. Section 5B is the constraint on this table, and it is "
+        "why the search will not recommend a configuration the market cannot fill even when "
+        "the arithmetic clears."))
+    A(Paragraph(
+        "This section is a diagnostic, not a proposal. It says the comparable-set case is a "
+        "specification question as well as a pricing one, and it names which dial matters. "
+        "Re-specifying the programme is a decision for the principal and it changes the "
+        "product, the parcel requirement and the member proposition all at once.", S_NOTE))
     A(PageBreak())
 
     A(Paragraph("8. CAPITAL STRUCTURE AND THE ASK", S_H1))

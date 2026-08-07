@@ -845,6 +845,54 @@ if (D.comp) {
 }
 
 // =====================================================================
+// 11a2 — Is there a programme that works at comp pricing?
+// =====================================================================
+if (D.respec && D.respec.best) {
+  const R = D.respec, b = R.base, k = R.best;
+  const s = lightSlide("The other reading",
+    "Mis-priced, or mis-specified? We tested the second one too.");
+  s.addText("A pro forma can be the right programme at the wrong prices, or the wrong " +
+    "programme. Repricing to the comparable set and stopping tests only the first. So we " +
+    "held the comp-supported prices FIXED and searched the programme \u2014 track length, " +
+    "membership cap, units for sale \u2014 across " + R.n + " configurations, on the same " +
+    "governing tests.", {
+    x: M, y: 1.44, w: 7.9, h: 0.78, fontFace: BFONT, fontSize: 11.5, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.12,
+  });
+  const rows = [["", "As configured", "Re-specified"]];
+  rows.push(["Membership cap", String(b.cap), String(k.cap)]);
+  rows.push(["Track miles", b.mi.toFixed(2), k.mi.toFixed(2)]);
+  rows.push(["Members per mile", b.permi.toFixed(0), k.permi.toFixed(0)]);
+  rows.push(["Garage condos", String(b.condos), String(k.condos)]);
+  rows.push(["Equity IRR", pc(b.irr), pc(k.irr)]);
+  rows.push(["Minimum DSCR", xx(b.dscr), xx(k.dscr)]);
+  rows.push(["Value / retained cost", xx(b.vc), xx(k.vc)]);
+  rows.push(["Demand coverage", b.cov.toFixed(1) + "x", k.cov.toFixed(1) + "x"]);
+  tbl(s, M, 2.34, 7.9, rows, [3.1, 2.4, 2.4], { rowH: 0.36, fs: 9.5 });
+
+  statCard(s, 9.25, 1.44, 3.45, 1.0, pc(k.irr),
+    "RE-SPECIFIED, AT COMP PRICES", { fill: "E8F0E9" });
+  s.addText("Three things this settles.\n\n" +
+    "TRACK LENGTH IS NOT THE LEVER. The circuit is ~7% of non-land cost and worth " +
+    R.track_bps.toFixed(0) + " bp of IRR across the range.\n\n" +
+    "MORE FOR-SALE MAKES IT WORSE \u2014 " + R.condo_bps.toFixed(0) + " bp, moving the " +
+    "wrong way. A garage condo costs " + k$(D.condo.loaded_psf) + "/SF to deliver once it " +
+    "draws soft cost and contingency, not the " + k$(D.condo.raw_psf) + " hard cost. At " +
+    k$(D.condo.sale_psf) + " that is " + k$(D.condo.unit_margin) + " a unit and it works. " +
+    "At the $344\u2013352 operating comps achieve, it loses money on every sale.\n\n" +
+    "MEMBER COUNT IS THE LEVER, and demand bounds it \u2014 not design.", {
+    x: 9.25, y: 2.6, w: 3.45, h: 3.4, fontFace: BFONT, fontSize: 9, color: GREY,
+    margin: 0, lineSpacingMultiple: 1.1,
+  });
+  footnote(s, "A diagnostic, not a proposal. It says the comparable-set case is a " +
+    "specification question as well as a pricing one, and names which dial matters. " +
+    "Re-specifying changes the product, the parcel requirement and the member " +
+    "proposition at once \u2014 that is the principal's call, not the model's.");
+  s.addNotes("This is the slide that turns 'your comps kill the deal' into 'here is the " +
+    "version that survives them'. Do not oversell it \u2014 it is a diagnostic.");
+}
+
+// =====================================================================
 // 11b — The return, and who it is for
 // =====================================================================
 {

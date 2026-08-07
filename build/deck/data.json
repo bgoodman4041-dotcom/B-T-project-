@@ -375,6 +375,40 @@
    "full": "DEMAND-CONSTRAINED \u2014 1.6x coverage is below the 2x floor. Market size is the risk here, not marketing."
   }
  ],
+ "respec": {
+  "n": 120,
+  "verdict": "THE COMP CASE IS A SPECIFICATION PROBLEM, NOT ONLY A PRICING ONE. At comp-supported pricing the configured programme returns -0.1% and covers at 0.88x. A 510-member club on 2.25 miles with 110 garage condos returns 13.5% and covers at 2.29x \u2014 clearing every governing test on the same dirt at the same prices. The lever is MEMBER COUNT, not track length: across the searched range track length is worth 107 bp of IRR and the for-sale count 776 bp, and the for-sale count moves the WRONG WAY \u2014 more units lower the return, because the vertical is 43% of non-land cost on a thin comp-supported margin and the carry runs until the last one sells.",
+  "track_bps": 106.53267893669161,
+  "condo_bps": 775.6699610814043,
+  "base": {
+   "cap": 340,
+   "mi": 4.0,
+   "condos": 140,
+   "irr": -0.0010473255235741085,
+   "dscr": 0.8829816292513404,
+   "vc": 0.5837263637624078,
+   "permi": 85.0,
+   "cov": 10.520590080000003
+  },
+  "best": {
+   "cap": 510,
+   "mi": 2.25,
+   "condos": 110,
+   "irr": 0.13468390627635077,
+   "dscr": 2.2897219180020105,
+   "vc": 1.2809713764903883,
+   "permi": 226.66666666666666,
+   "cov": 7.013726720000002
+  }
+ },
+ "condo": {
+  "loaded_psf": 454.3,
+  "raw_psf": 350,
+  "sale_psf": 530,
+  "unit_margin": 83789.99999999991,
+  "raw_margin": 0.35459193245778614,
+  "loaded_margin": 0.1786503283302064
+ },
  "comp": {
   "irr": -0.0010473255235741085,
   "dscr": 0.8829816292513404,
@@ -915,8 +949,8 @@
  },
  "plaus": {
   "fails": 0,
-  "warns": 1,
-  "ok": 8
+  "warns": 0,
+  "ok": 10
  },
  "ramp_years": [
   {

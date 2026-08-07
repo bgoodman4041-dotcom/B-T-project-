@@ -635,7 +635,16 @@ demand:
 # combination is impossible. Bands are judgment, flagged as assumed.
 plausibility:
   basis: assumed
+  # Tested on the FULLY LOADED margin -- after the soft-cost and contingency
+  # load the model applies to for-sale vertical cost. The raw figure runs
+  # roughly double and flagged the wrong direction.
   for_sale_gross_margin: [0.10, 0.35]      # merchant-build norm
+
+  # The condo line on its own, per unit, fully loaded. Zero is the floor that
+  # matters: below it every sale destroys value and more units make it worse.
+  # Operating new-build track comps sell at $344-352/SF against a $454/SF
+  # fully-loaded cost, so this check is the one that catches comp repricing.
+  condo_margin_per_unit_usd: [0, 400000]
   condo_price_to_cost_ratio: [1.25, 1.85]
   opex_ratio_of_egi: [0.45, 0.80]          # private club operating ratio
   # Spans the national range, not the Northeast one. An abated NY site runs

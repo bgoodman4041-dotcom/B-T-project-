@@ -215,6 +215,37 @@ course — but § 22a-69-1.8 exempts motorsport during hours the town authorises
 In CT the special-permit hours condition *is* the noise entitlement. More
 survivable than an absolute cap, and entirely political.
 
+## v2.3 — mis-priced, or mis-specified?
+
+The comp study says the revenue line is half again too high. The obvious reading
+is that the deal is dead; that reading skips a step. `model/respec.py` holds the
+comp-supported PRICING fixed and searches the PROGRAMME.
+
+| At comp pricing | As configured | Re-specified |
+|---|---|---|
+| Cap / miles / condos | 340 / 4.0 / 140 | **510 / 2.25 / 110** |
+| Equity IRR | −0.1% | **13.5%** |
+| Min DSCR | 0.88× | **2.29×** |
+| Value / retained cost | 0.58× | **1.28×** |
+
+Three things the search settles, two of them counterintuitive:
+
+- **Track length is not the lever.** The circuit is 7% of non-land cost; 2.25→4.0
+  miles is worth ~107 bp of IRR. A shorter course is a smaller parcel and a
+  cheaper entitlement — real, but not the answer.
+- **More for-sale product makes it WORSE** — ~776 bp, moving the wrong way.
+- **Member count is the lever, and `demand.py` bounds it, not design.**
+
+**The defect that hid this.** `for_sale.gross_margin_pct` reported 35.5% against
+a fully-loaded 17.9%: it ignored the 1.298× soft-cost-and-contingency load the
+model itself applies to the same vertical dollars. So the plausibility band
+warned the margin was too HIGH on a figure that is fine once loaded, while the
+real exposure went unreported. A garage condo costs **$454/SF** to deliver, not
+$350. At $530 that is +$84k a unit; at the $344–352 operating comps achieve it is
+**−$226k a unit**, and in a merchant build the carry runs until the last one
+sells. `loaded_margin_pct`, `loaded_cost_psf` and `condo_margin_per_unit` are now
+reported and audited.
+
 ## Layout
 
 ```
@@ -237,6 +268,7 @@ model/risk.py                     Break-evens, tornado, Monte Carlo, plausibilit
 model/roadmap.py                  10-horizon milestones, platform scale, listing test, exit ladder
 model/markets.py                  23 US metros, six-driver composite, rollout Phases A-D
 model/demand.py                   HNW pool -> capturable seats; coverage and break-even
+model/respec.py                   Holds comp pricing fixed, searches the programme
 data/comps_clubs.csv              41 rows, 22 clubs. NOTHING is Verified — read the grade
 research/comps_findings.md        The comparable study. Read before touching income assumptions
 research/jurisdiction_register.md Entitlement regime per target jurisdiction
@@ -355,6 +387,13 @@ cannot carry the vertical even if the dirt were free.
 - **Test the covenant from conversion everywhere, including in the Monte Carlo.**
   `cf.min_dscr` is the whole-hold minimum and includes lease-up. Used as the
   covenant test it makes every draw fail and reports a structural zero.
+- **Report the FULLY LOADED for-sale margin.** Vertical cost sits in hard cost and
+  draws soft cost and contingency, so a unit costs `hard × (1+soft) × (1+cont)` to
+  deliver. The raw margin ran roughly double and made the audit flag the wrong
+  direction.
+- **Test whether the marginal unit is profitable, not just the blended margin.**
+  At comp pricing the garage condos lose money on every sale, which is why the
+  re-specification search wants fewer of them.
 - **A sensitivity axis must span its own base case.** The dues axis ran $16k–$28k
   against a $34k base, so every cell described a different club and the base was
   an extrapolation off the end. `test_every_sensitivity_axis_spans_its_own_base_case`.
@@ -387,9 +426,9 @@ python3 build/build_business_plan.py --parcels data/sites_targets.csv --out dist
 python3 build/build_memo.py          --parcels data/sites_targets.csv --rank 1 --out dist/
 python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
-python3 tests/test_model.py               # 75 tests, fast
-python3 tests/test_analytics.py           # 83 tests, fast
-python3 tests/test_markets.py             # 40 tests, fast
+python3 tests/test_model.py               # 78 tests, fast
+python3 tests/test_analytics.py           # 88 tests, fast
+python3 tests/test_markets.py             # 43 tests, fast
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

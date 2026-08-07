@@ -452,14 +452,24 @@ def plausibility_report(
     miles = cfg["cost"]["track"]["miles"]
 
     checks = [
-        _band_check("For-sale gross margin", fs.gross_margin_pct,
+        # Checked on the LOADED margin. The raw figure ignores the soft-cost and
+        # contingency load that the model itself applies to the same vertical
+        # dollars, so it ran roughly double and the band flagged the wrong
+        # direction on a product that was fine.
+        _band_check("For-sale margin (fully loaded)", fs.loaded_margin_pct,
                     p["for_sale_gross_margin"], ".1%",
                     "merchant-build development does not clear this; the for-sale "
                     "stack is subsidising the income stack"),
         _band_check("Condo price / hard cost", condo["sale_price_psf"] / condo["hard_cost_psf"],
                     p["condo_price_to_cost_ratio"], ".2f",
                     "implies a spread over cost that local flex-industrial comps "
-                    "must actually support"),
+                    "must actually support -- note this is RAW hard cost; the loaded "
+                    "check below is the one that decides"),
+        _band_check("Garage condo margin / unit (loaded)", fs.condo_margin_per_unit,
+                    p["condo_margin_per_unit_usd"], ",.0f",
+                    "a unit delivered below its fully-loaded cost destroys value on "
+                    "every sale and more units make it worse; a raw-cost margin "
+                    "cannot see this"),
         _band_check("Opex ratio of EGI", stab.opex / stab.egi if stab.egi else None,
                     p["opex_ratio_of_egi"], ".1%",
                     "private club operating ratios cluster tightly; an outlier "

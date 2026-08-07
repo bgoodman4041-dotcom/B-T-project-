@@ -813,6 +813,49 @@ def test_plausibility_band_does_not_reject_an_operating_club():
         assert lo <= per_mile <= hi, f"band rejects {club} at {per_mile}/mile"
 
 
+def test_for_sale_margin_is_reported_fully_loaded():
+    """
+    `build_cost_stack` puts for-sale vertical cost into HARD cost, where it draws
+    soft cost and contingency like every other hard dollar. The reported margin
+    ignored that load entirely -- 35.5% against a fully-loaded 17.9% -- so the
+    plausibility band warned the margin was too HIGH on a figure that is fine
+    once loaded, while the real exposure went unreported.
+    """
+    fs = two_stack.project_for_sale(CFG)
+    cost = CFG["cost"]
+    load = (1 + cost["soft_cost_pct_of_hard"]) * (1 + cost["contingency_pct"])
+    assert load > 1.2, "fixture drift: there is no soft/contingency load to test"
+    assert fs.loaded_margin_pct < fs.gross_margin_pct
+    assert abs(fs.loaded_cost_psf
+               - CFG["for_sale"]["garage_condos"]["hard_cost_psf"] * load) < 1e-6
+
+
+def test_the_condo_margin_goes_negative_at_observed_comp_pricing():
+    """
+    Operating new-build track comps sell at $344-352/SF against a $454/SF
+    fully-loaded cost. At that price every garage condo is delivered at a loss,
+    and more units make it worse -- which is invisible in a raw-cost margin and
+    is why the programme search wants fewer of them.
+    """
+    import copy as _c
+    c = _c.deepcopy(CFG)
+    c["for_sale"]["garage_condos"]["sale_price_psf"] = 348
+    assert two_stack.project_for_sale(c).condo_margin_per_unit < 0
+    assert two_stack.project_for_sale(CFG).condo_margin_per_unit > 0, (
+        "the base case condo should still be profitable; only comp pricing breaks it")
+
+
+def test_the_audit_catches_a_loss_making_condo_line():
+    import copy as _c
+    from model import risk as _rk
+    c = _c.deepcopy(CFG)
+    c["for_sale"]["garage_condos"]["sale_price_psf"] = 348
+    flagged = [x for x in _rk.plausibility_report(c, 9_800_000)["checks"]
+               if x.severity != "OK"]
+    assert any("margin" in x.name.lower() for x in flagged), (
+        "a for-sale stack delivered below cost passed the audit")
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_") and callable(f)]
     failed = 0

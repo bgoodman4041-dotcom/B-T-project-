@@ -350,7 +350,10 @@ class ForSaleResult:
     total_gross_revenue: float
     cost_of_sale: float
     net_proceeds: float            # after cost of sale, BEFORE vertical cost
-    gross_margin_pct: float        # margin on the for-sale component alone
+    gross_margin_pct: float        # RAW: revenue less vertical hard cost only
+    loaded_margin_pct: float       # after the soft-cost and contingency load
+    loaded_cost_psf: float         # condo hard cost grossed up by that load
+    condo_margin_per_unit: float   # dollars per garage condo, fully loaded
     sellout_years: float
 
     @property
@@ -382,6 +385,32 @@ def project_for_sale(cfg: dict[str, Any]) -> ForSaleResult:
     vertical = condo_cost + home_cost
     margin = (net - vertical) / gross_rev if gross_rev else 0.0
 
+    # THE MARGIN THAT ACTUALLY DECIDES THE STACK.
+    #
+    # `build_cost_stack` puts for-sale vertical cost into HARD cost, where it
+    # then draws soft cost and contingency exactly like every other hard dollar.
+    # A unit therefore costs hard x (1 + soft%) x (1 + contingency%) to deliver,
+    # not `hard`. The raw margin above ignores that load entirely: it reported
+    # 35.5% where the fully-loaded blended figure is 17.9%, roughly double. The
+    # plausibility band was consequently warning that the margin was too HIGH on
+    # a figure that is comfortably inside the band once loaded, while the real
+    # exposure went unreported.
+    #
+    # The real exposure is the condo line on its own, because that is the
+    # product the comparable set prices. Fully loaded it costs $454/SF to
+    # deliver against a $530 assumed sale -- a workable $84k a unit. At the
+    # $344-352/SF that operating new-build track comps actually achieve, the
+    # same unit LOSES roughly $226k. That is why the programme re-specification
+    # search wants fewer garage condos at comp pricing, not more, and it is not
+    # visible anywhere in a raw-cost margin.
+    cost_cfg = cfg["cost"]
+    load = (1 + cost_cfg["soft_cost_pct_of_hard"]) * (1 + cost_cfg["contingency_pct"])
+    loaded_vertical = vertical * load
+    loaded_margin = (net - loaded_vertical) / gross_rev if gross_rev else 0.0
+    loaded_psf = c["hard_cost_psf"] * load
+    condo_unit_margin = (
+        c["avg_sf"] * (c["sale_price_psf"] * (1 - c["cost_of_sale_pct"]) - loaded_psf))
+
     sellout = max(
         c["units"] / c["absorption_units_per_year"] if c["absorption_units_per_year"] else 0.0,
         h["units"] / h["absorption_units_per_year"] if h["absorption_units_per_year"] else 0.0,
@@ -396,6 +425,9 @@ def project_for_sale(cfg: dict[str, Any]) -> ForSaleResult:
         cost_of_sale=cos,
         net_proceeds=net,
         gross_margin_pct=margin,
+        loaded_margin_pct=loaded_margin,
+        loaded_cost_psf=loaded_psf,
+        condo_margin_per_unit=condo_unit_margin,
         sellout_years=sellout,
     )
 

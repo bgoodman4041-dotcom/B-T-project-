@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from build.build_workbook import enrich, load_parcels_csv
 from model import gates, scoring
-from model import cashflow as cfm, demand as dmd, markets as mk, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
+from model import cashflow as cfm, demand as dmd, markets as mk, respec as rsp, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
 
 PARCELS = Path("data/sites_targets.csv")
 OUT = Path(__file__).resolve().parent / "data.json"
@@ -140,6 +140,26 @@ def main() -> None:
           scoring.lead_site_fragility(universe, cfg, ts.underwrite, gates.screen,
                                       ts.site_config)),
       demand=dem,
+      respec=(lambda R: dict(
+          n=len(R.variants), verdict=R.verdict,
+          track_bps=R.track_sensitivity_bps, condo_bps=R.condo_sensitivity_bps,
+          base=dict(cap=R.baseline.member_cap, mi=R.baseline.track_miles,
+                    condos=R.baseline.condo_units, irr=R.baseline.equity_irr,
+                    dscr=R.baseline.min_dscr, vc=R.baseline.value_to_cost,
+                    permi=R.baseline.members_per_mile, cov=R.baseline.demand_coverage),
+          best=None if R.best_feasible is None else dict(
+                    cap=R.best_feasible.member_cap, mi=R.best_feasible.track_miles,
+                    condos=R.best_feasible.condo_units, irr=R.best_feasible.equity_irr,
+                    dscr=R.best_feasible.min_dscr, vc=R.best_feasible.value_to_cost,
+                    permi=R.best_feasible.members_per_mile,
+                    cov=R.best_feasible.demand_coverage)))(
+          rsp.search(lcfg, ask, prem, parcel=lead)),
+      condo=dict(loaded_psf=uw.for_sale.loaded_cost_psf,
+                 raw_psf=cfg["for_sale"]["garage_condos"]["hard_cost_psf"],
+                 sale_psf=cfg["for_sale"]["garage_condos"]["sale_price_psf"],
+                 unit_margin=uw.for_sale.condo_margin_per_unit,
+                 raw_margin=uw.for_sale.gross_margin_pct,
+                 loaded_margin=uw.for_sale.loaded_margin_pct),
       comp=next((dict(irr=x.equity_irr, dscr=x.min_dscr_tested, vc=x.value_to_cost,
                       land=x.max_land_net, verdict=x.verdict, label=x.label)
                  for x in scen if x.name == "comp_repriced"), None),

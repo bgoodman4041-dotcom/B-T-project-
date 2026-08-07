@@ -31,6 +31,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from model import cashflow as cf_mod
 from model import demand
+from model import respec as rsp
 from model import gates, risk as rk, scenarios as sc, scoring, two_stack
 from model.schema import PARCEL_SCHEMA, coerce
 
@@ -1257,6 +1258,70 @@ def _tab_tranche1(wb: Workbook, cfg: dict[str, Any]) -> None:
 
 
 # =============================================================================
+# Tab: Programme re-specification
+# =============================================================================
+
+def _tab_respec(wb: Workbook, cfg: dict[str, Any], land_price: float,
+                premium: float, parcel: dict[str, Any] | None) -> None:
+    if not land_price or "comp_repriced" not in cfg.get("scenarios", {}):
+        return
+    R = rsp.search(cfg, land_price, premium, parcel=parcel)
+    ws = wb.create_sheet("Re-specification")
+    ws["A1"] = "PROGRAMME RE-SPECIFICATION AT COMP-SUPPORTED PRICING"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = ("A pro forma can be the right programme at the wrong prices, or the wrong "
+                "programme. Repricing to the comparable set and stopping there tests only "
+                "the first. This holds the comp-supported PRICING fixed and searches the "
+                "programme: track length, membership cap, units for sale.")
+    ws["A2"].font = NOTE_FONT
+    ws["A3"] = R.verdict
+    ws["A3"].font = Font(name="Calibri", size=10, bold=True)
+    ws["A3"].alignment = Alignment(wrap_text=True, vertical="top")
+    ws.merge_cells("A3:J5")
+
+    headers = ["Track miles", "Member cap", "Garage condos", "Members / mile",
+               "Stabilised NOI", "Equity IRR", "Min DSCR", "Value / cost",
+               "Peak equity", "Demand coverage", "Clears all three?"]
+    _header_row(ws, headers, row=7)
+    r = 8
+    for v in R.variants[:40]:
+        vals = [v.track_miles, v.member_cap, v.condo_units, v.members_per_mile,
+                v.stabilized_noi, v.equity_irr, v.min_dscr, v.value_to_cost,
+                v.peak_equity, v.demand_coverage,
+                "YES" if v.clears and v.demand_ok is not False
+                else ("demand" if v.clears else "no")]
+        for c, val in enumerate(vals, start=1):
+            cell = ws.cell(row=r, column=c, value=_safe(val))
+            cell.border, cell.font = BORDER, BODY_FONT
+            if c in (1, 8, 10):
+                cell.number_format = FMT_DEC
+            elif c in (2, 3, 4):
+                cell.number_format = FMT_NUM
+            elif c in (5, 9):
+                cell.number_format = FMT_USD
+            elif c == 6:
+                cell.number_format = FMT_PCT
+            elif c == 7:
+                cell.number_format = "0.00x"
+        if v.clears and v.demand_ok is not False:
+            ws.cell(row=r, column=11).fill = PatternFill("solid", fgColor="E8F0E9")
+        r += 1
+
+    ws.cell(row=r + 1, column=1, value=(
+        f"Track length is worth {R.track_sensitivity_bps:.0f} bp of equity IRR across the "
+        f"searched range and the for-sale count {R.condo_sensitivity_bps:.0f} bp — and the "
+        f"for-sale count moves the WRONG WAY. The vertical is 43% of non-land cost and draws "
+        f"soft cost and contingency like every other hard dollar, so more units add cost and "
+        f"carry faster than proceeds. A diagnostic, not a proposal: re-specifying changes the "
+        f"product, the parcel requirement and the member proposition at once."
+    )).font = NOTE_FONT
+
+    _finish(ws, freeze="A8", ncols=len(headers), nrows=r - 1, header_row=7,
+            widths={"A": 12, "B": 11, "C": 14, "D": 14, "E": 16, "F": 11, "G": 10,
+                    "H": 12, "I": 14, "J": 16, "K": 18})
+
+
+# =============================================================================
 # Tab: Membership Demand
 # =============================================================================
 
@@ -1712,6 +1777,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     _tab_tornado(wb, ref_cfg)
     _tab_monte_carlo(wb, ref_cfg, ref_land, ref_premium)
     _tab_plausibility(wb, ref_cfg, ref_land)
+    _tab_respec(wb, ref_cfg, ref_land, ref_premium, lead or None)
     _tab_sources(wb, sources or _default_sources())
     _tab_unverified(wb, unverified)
 

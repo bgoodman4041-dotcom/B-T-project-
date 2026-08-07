@@ -442,7 +442,7 @@ def test_plausibility_still_catches_an_inflated_for_sale_margin():
     c = copy.deepcopy(CFG)
     c["for_sale"]["garage_condos"]["sale_price_psf"] *= 1.6
     rep = rk.plausibility_report(c, ASK)
-    margins = [x for x in rep["checks"] if "gross margin" in x.name.lower()]
+    margins = [x for x in rep["checks"] if "for-sale margin" in x.name.lower()]
     assert margins and margins[0].severity in {"WARN", "FAIL"}
 
 
@@ -472,7 +472,7 @@ def test_plausibility_passes_a_coherent_pro_forma():
     c["for_sale"]["garage_condos"]["sale_price_psf"] = 500
     c["for_sale"]["homesites"]["price_per_unit_usd"] = 640_000
     rep = rk.plausibility_report(c, ASK)
-    margin = [x for x in rep["checks"] if "gross margin" in x.name.lower()][0]
+    margin = [x for x in rep["checks"] if "for-sale margin" in x.name.lower()][0]
     assert margin.passed, margin.message
 
 
@@ -789,6 +789,66 @@ def test_the_memo_fits_on_one_page():
         path = bm.build_memo(live[0], CFG, ts.feasibility_diagnostic(CFG), out_dir=tmp)
         pages = len(re.findall(rb"/Type\s*/Page[^s]", path.read_bytes()))
     assert pages == 1, f"the one-page IC memo is {pages} pages"
+
+
+# =============================================================================
+# Programme re-specification
+# =============================================================================
+
+def test_respec_finds_a_programme_that_clears_at_comp_pricing():
+    """
+    A pro forma can be mis-PRICED or mis-SPECIFIED. Repricing to the comparable
+    set and stopping tests only the first. At comp pricing the configured
+    programme is dead; the question is whether any programme works on the same
+    dirt at the same prices.
+    """
+    from model import respec
+    r = respec.search(CFG, ASK, track_miles=(2.5, 4.0), member_caps=(340, 470),
+                      condo_units=(110, 140))
+    assert r.baseline is not None and r.variants
+    if r.best_feasible is not None:
+        assert (r.best_feasible.equity_irr or 0) > (r.baseline.equity_irr or 0)
+        assert r.best_feasible.member_cap >= CFG["income"]["membership"]["cap"], (
+            "the lever at comp pricing is member count; a smaller club should not win")
+
+
+def test_respec_confirms_track_length_is_not_the_lever():
+    """
+    The circuit is ~7% of non-land cost. The intuition that a shorter track
+    rescues the economics is wrong and the search has to be able to say so.
+    """
+    from model import respec
+    r = respec.search(CFG, ASK, track_miles=(2.25, 4.0), member_caps=(470,),
+                      condo_units=(140,))
+    assert r.track_sensitivity_bps < 200, (
+        f"track length moved IRR {r.track_sensitivity_bps:.0f} bp — if that is "
+        f"really the lever, the module's headline finding is wrong")
+
+
+def test_respec_ranks_variants_by_irr_and_reports_a_verdict():
+    from model import respec
+    r = respec.search(CFG, ASK, track_miles=(2.5, 4.0), member_caps=(340, 470),
+                      condo_units=(140,))
+    irrs = [v.equity_irr for v in r.variants if v.equity_irr is not None]
+    assert irrs == sorted(irrs, reverse=True)
+    assert r.verdict and ("SPECIFICATION" in r.verdict or "NO PROGRAMME" in r.verdict)
+
+
+def test_respec_will_not_recommend_a_club_the_catchment_cannot_fill():
+    """
+    A variant that clears the governing tests but needs more members than the
+    market supplies is not a solution. When a parcel is supplied, demand
+    coverage gates the recommendation.
+    """
+    from model import respec
+    thin = {"parcel_id": "THIN", "hnw_households_90min": 30_000,
+            "nearest_motorsport_club_mi": 100.0,
+            "marque_clubs_in_catchment": 2, "exotic_dealers_in_catchment": 2}
+    r = respec.search(CFG, ASK, track_miles=(2.5,), member_caps=(340, 510),
+                      condo_units=(140,), parcel=thin)
+    assert all(v.demand_coverage is not None for v in r.variants)
+    if r.best_feasible is not None:
+        assert r.best_feasible.demand_ok is not False
 
 
 if __name__ == "__main__":
