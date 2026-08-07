@@ -191,6 +191,30 @@ Other precedents worth knowing: Lime Rock carries a **permanent injunction again
 Sunday racing**; Apex's opponents referred its conditional use permit to the
 ballot; **7 of 9 pipeline states have no right-to-race nuisance immunity statute**.
 
+## v2.2c — the jurisdiction register
+
+`research/jurisdiction_register.md`, 15 jurisdictions. Same retrieval caveat:
+search-index, not primary text. **Nine of fifteen sites carry a blank daytime
+dBA** — six because nothing is published, three because the table would not
+open. Both stay blank. Both are a phone call, not a number.
+
+**Every researched entitlement path is longer than assumed.** Mean 23.4 → 31.3
+months; 14 of 15 revise upward; Litchfield +21, Hendry +18, EPCAL +12. Applied
+to `data/sites_targets.csv`. Sites more than 15% over the programme's 33-month
+assumption now carry an `ENTITLEMENT-LONG` flag, because the roadmap runs one
+period and the sites now span 18–54 months.
+
+**Abatement corrected against the statute actually available.** TX Ch. 312 cut
+0.35 → 0.15 (it sunsets 2029-09-01); NC 0.10 → 0.20 (NCGS 105-277.13, declining
+five-year); NJ 0.50 → 0.40. **AZ, FL and NV confirmed at zero** — no mechanism
+reaches a private recreation use, and a test now enforces that.
+
+**The Connecticut finding inverts its own analysis.** RCSA § 22a-69 sets an
+absolute 61 dBA industrial-to-residential daytime limit, which would end a road
+course — but § 22a-69-1.8 exempts motorsport during hours the town authorises.
+In CT the special-permit hours condition *is* the noise entitlement. More
+survivable than an absolute cap, and entirely political.
+
 ## Layout
 
 ```

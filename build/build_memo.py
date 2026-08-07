@@ -54,15 +54,15 @@ FRAME_H = LETTER[1] - 2 * MARGIN
 S_TITLE = ParagraphStyle("t", fontName=SERIF_B, fontSize=13.5, leading=16, spaceAfter=1)
 S_SUB = ParagraphStyle("s", fontName=SERIF_I, fontSize=8.5, leading=10,
                        textColor=colors.HexColor("#444444"), spaceAfter=5)
-S_H = ParagraphStyle("h", fontName=SERIF_B, fontSize=9.5, leading=11.5,
-                     spaceBefore=5, spaceAfter=2)
-S_BODY = ParagraphStyle("b", fontName=SERIF, fontSize=8.8, leading=10.8,
-                        alignment=TA_JUSTIFY, spaceAfter=1.5)
-S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.8, leading=10.8,
-                          leftIndent=11, firstLineIndent=-11, spaceAfter=1.5)
+S_H = ParagraphStyle("h", fontName=SERIF_B, fontSize=9.2, leading=11,
+                     spaceBefore=3.5, spaceAfter=1.5)
+S_BODY = ParagraphStyle("b", fontName=SERIF, fontSize=8.5, leading=10.2,
+                        alignment=TA_JUSTIFY, spaceAfter=1.2)
+S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.5, leading=10.2,
+                          leftIndent=11, firstLineIndent=-11, spaceAfter=1.2)
 S_NOTE = ParagraphStyle("n", fontName=SERIF_I, fontSize=7.6, leading=9.2,
                         textColor=colors.HexColor("#555555"), spaceBefore=3)
-MEMO_CITATION_LIMIT = 4
+MEMO_CITATION_LIMIT = 2
 
 S_CITE = ParagraphStyle("c", fontName=SERIF, fontSize=7.4, leading=9,
                         leftIndent=11, firstLineIndent=-11)
@@ -368,7 +368,19 @@ def build_memo(
                                 topPadding=0, bottomPadding=0)])])
 
     # Measure before committing: a "one-pager" that spills is a defect.
-    used = sum(f.wrap(FRAME_W, FRAME_H)[1] for f in story)
+    #
+    # wrap() returns the flowable's own height and NOTHING ELSE. Summing it
+    # ignores spaceBefore and spaceAfter on every paragraph, which on a memo of
+    # this density is over an inch of real estate -- the check passed while the
+    # PDF ran to two pages. Count the spacing.
+    used = 0.0
+    for f in story:
+        used += f.wrap(FRAME_W, FRAME_H)[1]
+        style = getattr(f, "style", None)
+        used += getattr(style, "spaceBefore", 0) or 0
+        used += getattr(style, "spaceAfter", 0) or 0
+        used += getattr(f, "spaceBefore", 0) or 0 if style is None else 0
+        used += getattr(f, "spaceAfter", 0) or 0 if style is None else 0
     doc.build(story)
 
     if used > FRAME_H:

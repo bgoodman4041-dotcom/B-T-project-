@@ -769,6 +769,28 @@ def test_the_pricing_pair_is_audited_not_just_its_downstream_ratios():
     assert flagged, "a dues/initiation pair no operator has demonstrated was not flagged"
 
 
+def test_the_memo_fits_on_one_page():
+    """
+    It is called a one-page IC memo. The height check that guards that ignored
+    spaceBefore and spaceAfter on every paragraph -- over an inch of real estate
+    at this density -- so it passed while the PDF ran to two pages.
+    """
+    import re
+    import tempfile
+
+    from build import build_memo as bm
+    from build.build_workbook import enrich, load_parcels_csv
+
+    root = Path(__file__).resolve().parent.parent
+    universe, _ = enrich(load_parcels_csv(root / "data" / "sites_targets.csv"), CFG)
+    live = sorted([p for p in universe if not p.get("killed_at_gate")],
+                  key=lambda p: p.get("composite_score") or 0, reverse=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = bm.build_memo(live[0], CFG, ts.feasibility_diagnostic(CFG), out_dir=tmp)
+        pages = len(re.findall(rb"/Type\s*/Page[^s]", path.read_bytes()))
+    assert pages == 1, f"the one-page IC memo is {pages} pages"
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

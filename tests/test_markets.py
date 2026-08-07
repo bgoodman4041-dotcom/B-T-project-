@@ -471,6 +471,46 @@ def test_fragility_does_not_cry_wolf_when_the_lead_carries_a_premium():
     assert fr is not None and not fr.flips
 
 
+def test_entitlement_timelines_match_the_researched_register():
+    """
+    Fourteen of fifteen researched paths ran LONGER than assumed, mean 23.4 ->
+    31.3 months. Optimism that consistent is a bias, not noise, and it must not
+    drift back.
+    """
+    rows = [coerce(r) for r in _rows()]
+    months = [float(r["permitting_timeline_months"]) for r in rows
+              if r.get("permitting_timeline_months")]
+    assert len(months) == len(rows), "a site lost its entitlement timeline"
+    assert sum(months) / len(months) > 28, (
+        "mean entitlement path is back below the researched 31.3 months")
+    assert max(months) >= 48, "the hardest jurisdiction is no longer represented"
+
+
+def test_long_entitlement_sites_are_flagged_against_the_programme_assumption():
+    from build.build_workbook import enrich
+    universe, _ = enrich([dict(r) for r in _rows()], CFG)
+    default = CFG["roadmap"]["entitlement_months"]
+    for p in universe:
+        ent = p.get("permitting_timeline_months")
+        if ent and float(ent) > default * 1.15:
+            assert "ENTITLEMENT-LONG" in str(p.get("flags") or ""), (
+                f"{p['parcel_id']} runs {ent} months against a {default}-month "
+                f"programme assumption and carries no flag")
+
+
+def test_no_abatement_is_claimed_where_no_statute_reaches_this_use():
+    """
+    Confirmed by the jurisdiction register: AZ, FL and NV have no mechanism that
+    reaches a private recreation use. Claiming one there is the same error as
+    carrying the New York PILOT nationwide.
+    """
+    for r in _rows():
+        if r["state"] in {"AZ", "FL", "NV"}:
+            assert float(r["property_tax_abatement_pct"] or 0) == 0.0, (
+                f"{r['parcel_id']} claims abatement in {r['state']}, where none "
+                f"reaches this use")
+
+
 def test_the_risk_register_is_evidenced_and_ranked():
     reg = ROOT / "data" / "risk_register.csv"
     if not reg.exists():

@@ -1606,6 +1606,18 @@ def enrich(parcels: list[dict[str, Any]], cfg: dict[str, Any]) -> tuple[list[dic
         if dm.verdict.startswith(("DEMAND-CONSTRAINED", "RAMP-CONSTRAINED")):
             sr.flags.append(dm.verdict)
 
+        # The roadmap runs one entitlement period for the programme; the sites
+        # now carry researched per-jurisdiction periods spanning 18 to 54 months.
+        # Where a site's own path is materially longer than the programme
+        # assumption, the schedule in the plan is describing a different site.
+        ent = p.get("permitting_timeline_months")
+        default_ent = cfg["roadmap"]["entitlement_months"]
+        if ent and float(ent) > default_ent * 1.15:
+            sr.flags.append(
+                f"ENTITLEMENT-LONG — {int(ent)} month researched path against a "
+                f"{default_ent}-month programme assumption; the roadmap in the plan "
+                f"under-runs this site by {int(ent) - default_ent} months")
+
         p["killed_at_gate"] = sr.killed_at.name if sr.killed_at else ""
         p["rejection_reasons"] = " | ".join(sr.reasons)
         p["flags"] = " | ".join(sr.flags)
