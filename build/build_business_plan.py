@@ -614,6 +614,43 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
                            f"{str(p.get('zoning_posture','')).replace('_',' ')}; "
                            f"{p.get('permitting_timeline_months')} month estimated path. "
                            f"Abatement route: {p.get('tax_abatement_path')}"))
+    A(Paragraph("The noise position, stated three ways and never guessed", S_H2))
+    rows2 = [["Target", "Daytime dBA", "Citation / what is missing", "Standard"]]
+    for site in S["sites"]:
+        p = site["p"]
+        dba = p.get("noise_ordinance_dba_day")
+        cit = str(p.get("noise_ordinance_citation") or "")
+        rows2.append([
+            p["parcel_id"].replace("TP-", ""),
+            f"{dba:.0f}" if dba else "—",
+            cit if cit else "No ordinance located — see the Jurisdictions tab for the "
+                            "office to call",
+            (str(p.get("noise_exemption") or "")[:80] + "…")
+            if p.get("noise_exemption") else str(p.get("noise_standard_type") or "—"),
+        ])
+    A(table(rows2, [0.78 * inch, 0.68 * inch, 3.24 * inch, 2.15 * inch]))
+    A(Paragraph(
+        "A dash is a research task with a named office behind it, not an absence of risk and "
+        "not a number we were willing to estimate. Two of the dashes are ordinances that "
+        "exist and publish a table we could not open; the rest are jurisdictions where "
+        "nothing is published at all. Neither gets a figure.", S_NOTE))
+
+    A(Paragraph("Connecticut inverts its own analysis, and it is worth understanding why",
+                S_H2))
+    A(Paragraph(
+        "RCSA § 22a-69 sets an <b>absolute 61 dBA</b> daytime limit at a residential receptor "
+        "from an industrial emitter, with a further −5 dBA for discrete tones. Taken at face "
+        "value that ends a road course before it starts. But § 22a-69-1.8 exempts \u201cnoise "
+        "created by the use of property for purposes of conducting speed or endurance events "
+        "involving motor vehicles\u201d during the specific periods the town authorises.", S_BODY))
+    A(Paragraph(
+        "So in Connecticut the state noise standard does not bind racing during authorised "
+        "hours, and <b>the hours-of-operation condition in the special permit IS the noise "
+        "entitlement</b>. There is no independent dBA ceiling to design to and no state agency "
+        "to appeal to — everything turns on what the commission writes into the condition. "
+        "That is materially more survivable than an absolute cap and it is entirely political, "
+        "which is how the composite treats it: a smaller discount than an unverified "
+        "ordinance, a larger one than a comfortable published limit.", S_BODY))
     A(PageBreak())
 
     # ---------------- 5B. Membership demand ----------------

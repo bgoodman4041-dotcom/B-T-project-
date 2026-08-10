@@ -1,5 +1,5 @@
 {
- "today": "2026-08-07",
+ "today": "2026-08-10",
  "program": {
   "miles": 4.0,
   "cap": 340,
@@ -233,13 +233,99 @@
    "why": "Nearest occupied residence 800 ft < 1500 ft with no intervening topographic or forested buffer"
   }
  ],
+ "noise": [
+  {
+   "id": "01-EPCAL",
+   "dba": 65.0,
+   "cit": "Riverhead Town Code, Noise, Article I [21]",
+   "exempt": false,
+   "std": "absolute, by receiving-property category"
+  },
+  {
+   "id": "06-PINAL-303",
+   "dba": null,
+   "cit": "Pinal County Ord. No. 050306-ENO as amended by 031611-ENO-01 [46] \u2014 PUBLISHED BUT NOT RETRIEVED. Table 1 sets Leq limits by land-use class and time of day. Call Pinal County Planning & Development, (520) 509-3555.",
+   "exempt": false,
+   "std": "Leq"
+  },
+  {
+   "id": "11-APEX-NV",
+   "dba": null,
+   "cit": "Clark County Code \u00a7 30.68.020, Table 30.68-1 [50] \u2014 PUBLISHED BUT NOT RETRIEVED. Limits set by time period and zoning district.",
+   "exempt": false,
+   "std": "absolute"
+  },
+  {
+   "id": "15-HARDEE-PHOS",
+   "dba": null,
+   "cit": "",
+   "exempt": false,
+   "std": ""
+  },
+  {
+   "id": "08-MARION-OCALA",
+   "dba": 65.0,
+   "cit": "Marion County Code Ch. 13 \u00a7\u00a7 13-7, 13-8, 13-10 [56]",
+   "exempt": false,
+   "std": "absolute, by land-use acoustic category"
+  },
+  {
+   "id": "10-HENDRY-75",
+   "dba": null,
+   "cit": "",
+   "exempt": false,
+   "std": ""
+  },
+  {
+   "id": "12-CABARRUS",
+   "dba": 65.0,
+   "cit": "Cabarrus County Code Ch. 30, Art. II, \u00a7 30-27 [64][65]",
+   "exempt": false,
+   "std": "absolute, emitter-side"
+  },
+  {
+   "id": "13-SH130",
+   "dba": null,
+   "cit": "",
+   "exempt": false,
+   "std": ""
+  },
+  {
+   "id": "07-BRAZOS-XING",
+   "dba": null,
+   "cit": "",
+   "exempt": false,
+   "std": ""
+  },
+  {
+   "id": "03-THOMPSON",
+   "dba": 61.0,
+   "cit": "RCSA \u00a7 22a-69 (CT DEEP), Class C emitter to Class A receptor [31][32]",
+   "exempt": true,
+   "std": "absolute, \u22125 dBA for discrete tones"
+  },
+  {
+   "id": "04-CUMBERLAND",
+   "dba": 65.0,
+   "cit": "N.J.A.C. 7:29, industrial/commercial to residential [43]",
+   "exempt": false,
+   "std": "absolute"
+  },
+  {
+   "id": "14-MAURY-QUARRY",
+   "dba": null,
+   "cit": "",
+   "exempt": false,
+   "std": ""
+  }
+ ],
  "fragility": {
   "lead": "01-EPCAL",
   "up": "06-PINAL-303",
-  "gap": 0.6000000000000085,
-  "flips": true,
-  "flip_at": -8142857.142857144,
-  "verdict": "THE RANKING TURNS ON ONE UNVERIFIED NUMBER. TP-01-EPCAL leads TP-06-PINAL-303 by 0.6 points on a 100-point scale, and the lead depends on a $9,500,000 site cost credit. Losing $1,357,143 of it \u2014 14% \u2014 hands the lead to TP-06-PINAL-303. That credit is the reuse of existing runway pavement as base course, on a runway around which fifteen PFAS areas of concern were identified in 2023. Order the Phase II before the ranking is treated as settled."
+  "gap": 2.5,
+  "flips": false,
+  "flip_at": null,
+  "verdict": "TP-01-EPCAL still leads with the credit written to zero. The ranking does not depend on it."
  },
  "demand": [
   {
@@ -601,9 +687,9 @@
    "drive": 95,
    "irr": 0.08835290046680178,
    "dscr": 2.0178050061250445,
-   "score": 65.9,
+   "score": 67.8,
    "why": "Airport airfield gives it an inherited noise floor; infrastructure cost at 100% and physical suitability at 97%",
-   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "kill": "The income stack cannot carry the vertical at any land price on the gross basis",
    "note": "CREDIT: existing runway pavement usable as base course; municipal water/sewer at boundary; offset by Phase II and AOC remediation allowance",
    "zoning": "special_permit",
    "months": 42,
@@ -709,9 +795,9 @@
    "drive": 22,
    "irr": 0.07492581497056963,
    "dscr": 1.8022442697390897,
-   "score": 57.1,
+   "score": 58.7,
    "why": "Reclaimed quarry gives it an inherited noise floor; physical suitability at 89% and catchment at 81%",
-   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "kill": "The income stack cannot carry the vertical at any land price on the gross basis",
    "note": "Karst and sinkhole geotechnical program with grouting allowance; SWFWMD/SJRWMD ERP stormwater with no off-site outfall \u2014 retention on site; well and package plant. Springs-protection nutrient limits constrain irrigation",
    "zoning": "special_permit",
    "months": 30,
@@ -745,6 +831,33 @@
    "abate_path": "NONE for this use \u2014 assume full ad valorem"
   },
   {
+   "id": "12-CABARRUS",
+   "muni": "Cabarrus / Rowan County, US-29 corridor",
+   "county": "Cabarrus, NC",
+   "metro": "Charlotte \u2013 Concord",
+   "region": "Southeast",
+   "tier": "Tier 2",
+   "season": 265,
+   "tax_rate": 0.0105,
+   "abate": 0.2,
+   "yoc": 0.05123739266151016,
+   "max_land": -13117778.1688222,
+   "acres": 385.0,
+   "prior": "brownfield",
+   "ask": 11600000.0,
+   "premium": 2600000.0,
+   "drive": 14,
+   "irr": 0.08320156793264813,
+   "dscr": 1.9690749741868103,
+   "score": 55.1,
+   "why": "Infrastructure cost at 100% and catchment at 80%",
+   "kill": "The income stack cannot carry the vertical at any land price on the gross basis",
+   "note": "CREDIT: municipal water and sewer within 0.4 mi, rail-served industrial frontage, and NC brownfields agreement caps remediation liability. Offset by Piedmont grading and structure demolition",
+   "zoning": "special_permit",
+   "months": 20,
+   "abate_path": "NC has no abatement statute; economic development grants (One NC / Building Reuse) are cash, not tax relief"
+  },
+  {
    "id": "13-SH130",
    "muni": "Caldwell / Guadalupe County, SH-130 corridor",
    "county": "Caldwell, TX",
@@ -770,33 +883,6 @@
    "zoning": "as_of_right",
    "months": 18,
    "abate_path": "TX Ch. 312 county abatement \u2014 discretionary"
-  },
-  {
-   "id": "12-CABARRUS",
-   "muni": "Cabarrus / Rowan County, US-29 corridor",
-   "county": "Cabarrus, NC",
-   "metro": "Charlotte \u2013 Concord",
-   "region": "Southeast",
-   "tier": "Tier 2",
-   "season": 265,
-   "tax_rate": 0.0105,
-   "abate": 0.2,
-   "yoc": 0.05123739266151016,
-   "max_land": -13117778.1688222,
-   "acres": 385.0,
-   "prior": "brownfield",
-   "ask": 11600000.0,
-   "premium": 2600000.0,
-   "drive": 14,
-   "irr": 0.08320156793264813,
-   "dscr": 1.9690749741868103,
-   "score": 53.8,
-   "why": "Infrastructure cost at 100% and catchment at 80%",
-   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
-   "note": "CREDIT: municipal water and sewer within 0.4 mi, rail-served industrial frontage, and NC brownfields agreement caps remediation liability. Offset by Piedmont grading and structure demolition",
-   "zoning": "special_permit",
-   "months": 20,
-   "abate_path": "NC has no abatement statute; economic development grants (One NC / Building Reuse) are cash, not tax relief"
   },
   {
    "id": "07-BRAZOS-XING",
@@ -844,9 +930,9 @@
    "drive": 48,
    "irr": 0.062091315591048746,
    "dscr": 1.5604894950206396,
-   "score": 51.2,
+   "score": 50.9,
    "why": "Catchment at 87% and infrastructure cost at 76%",
-   "kill": "An unverified noise ordinance \u2014 the number is not yet known",
+   "kill": "A daytime dBA limit a road course cannot meet without heavy mitigation",
    "note": "Ledge removal in the northern third; well field and subsurface disposal; 0.9 mi three-phase extension",
    "zoning": "special_permit",
    "months": 30,
@@ -871,7 +957,7 @@
    "drive": 52,
    "irr": 0.06743700966189511,
    "dscr": 1.6614462627232838,
-   "score": 50.0,
+   "score": 50.8,
    "why": "Catchment at 93% and physical suitability at 86%",
    "kill": "A map amendment with no as-of-right fallback",
    "note": "Landfill cap cannot carry pavement \u2014 track alignment must avoid the footprint; differential settlement monitoring; NJDEP CEA/deed notice compliance; 2.4 mi utility extension",

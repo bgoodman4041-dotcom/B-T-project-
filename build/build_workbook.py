@@ -1258,6 +1258,73 @@ def _tab_tranche1(wb: Workbook, cfg: dict[str, Any]) -> None:
 
 
 # =============================================================================
+# Tab: Jurisdictions
+# =============================================================================
+
+def _tab_jurisdictions(wb: Workbook) -> None:
+    """
+    The entitlement regime per target jurisdiction, with the noise position
+    stated as one of three things and never as a guess: a cited limit, a cited
+    ordinance whose table could not be retrieved, or nothing published. Nine of
+    fifteen carry a blank daytime dBA and every one of them names the office to
+    call instead. §10 is absolute here -- an unpublished ordinance is a research
+    task, not a number.
+    """
+    if not JURIS_CSV.exists():
+        return
+    headers = ["Target", "Jurisdiction", "ST", "Zoning citation", "Posture",
+               "Approval body", "Noise citation", "dBA day", "Measurement point",
+               "Standard", "Statutory exemption", "State overlays",
+               "Abatement statute", "Abatement %", "Assumed mo.", "Researched mo.",
+               "Confidence", "Call if blank"]
+    keys = ["target", "jurisdiction", "state", "zoning_citation", "use_posture",
+            "approval_body", "noise_citation", "noise_dba_day",
+            "noise_measurement_point", "noise_standard_type", "noise_exemption",
+            "state_overlays", "abatement_statute", "abatement_realistic_pct",
+            "timeline_assumed_months", "timeline_researched_months", "confidence",
+            "call_if_blank"]
+    numeric = {"noise_dba_day", "abatement_realistic_pct",
+               "timeline_assumed_months", "timeline_researched_months"}
+    with JURIS_CSV.open(newline="", encoding="utf-8") as fh:
+        recs = list(csv.DictReader(fh))
+    data: list[list[Any]] = []
+    for r in recs:
+        row: list[Any] = []
+        for k in keys:
+            v = (r.get(k) or "").strip()
+            if k in numeric and v:
+                try:
+                    v = float(v)
+                except ValueError:
+                    pass
+            row.append(v if v != "" else None)
+        data.append(row)
+
+    over = sum(1 for r in recs
+               if r["timeline_researched_months"] and r["timeline_assumed_months"]
+               and float(r["timeline_researched_months"]) > float(r["timeline_assumed_months"]))
+    blanks = sum(1 for r in recs if not r["noise_dba_day"])
+    ws = _simple_tab(
+        wb, "Jurisdictions", headers, data,
+        widths={"A": 20, "B": 40, "C": 4, "D": 40, "E": 22, "F": 42, "G": 56, "H": 9,
+                "I": 40, "J": 26, "K": 52, "L": 52, "M": 46, "N": 11, "O": 11,
+                "P": 13, "Q": 11, "R": 58},
+        note=(f"{blanks} of {len(recs)} carry a BLANK daytime dBA — some because nothing is "
+              f"published, some because the published table could not be retrieved. Both stay "
+              f"blank and both name the office to call. {over} of {len(recs)} researched "
+              f"entitlement paths run LONGER than assumed. Nothing here is Verified: direct "
+              f"URL retrieval was blocked, so every row is search-index retrieval of a named "
+              f"primary section. Research: research/jurisdiction_register.md."))
+    for i, r in enumerate(recs):
+        if not r["noise_dba_day"]:
+            ws.cell(row=i + 4, column=8).fill = PatternFill("solid", fgColor="FEF3C7")
+        if (r["timeline_researched_months"] and r["timeline_assumed_months"]
+                and float(r["timeline_researched_months"])
+                > float(r["timeline_assumed_months"]) * 1.15):
+            ws.cell(row=i + 4, column=16).fill = PatternFill("solid", fgColor="FBEAEC")
+
+
+# =============================================================================
 # Tab: Programme re-specification
 # =============================================================================
 
@@ -1758,6 +1825,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     _tab_comps(wb)
     _tab_land_comps(wb)
     _tab_risk(wb, universe)
+    _tab_jurisdictions(wb)
     _tab_demand(wb, cfg, [p for p in universe if not p.get('killed_at_gate')])
     _tab_tranche1(wb, cfg)
     # Analytical depth beyond the eleven §9 tabs: correlated downside, funding
@@ -1791,6 +1859,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
 SOURCES_CSV = Path(__file__).resolve().parent.parent / "data" / "sources.csv"
 COMPS_CSV = Path(__file__).resolve().parent.parent / "data" / "comps_clubs.csv"
 RISK_CSV = Path(__file__).resolve().parent.parent / "data" / "risk_register.csv"
+JURIS_CSV = Path(__file__).resolve().parent.parent / "data" / "jurisdictions.csv"
 
 
 def _default_sources() -> list[dict[str, Any]]:

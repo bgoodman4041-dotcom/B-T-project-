@@ -194,9 +194,13 @@ ballot; **7 of 9 pipeline states have no right-to-race nuisance immunity statute
 ## v2.2c — the jurisdiction register
 
 `research/jurisdiction_register.md`, 15 jurisdictions. Same retrieval caveat:
-search-index, not primary text. **Nine of fifteen sites carry a blank daytime
-dBA** — six because nothing is published, three because the table would not
-open. Both stay blank. Both are a phone call, not a number.
+search-index, not primary text. **Nine of fifteen sites carry a blank daytime dBA** — seven because nothing is
+published, two because the ordinance exists and its table would not open. Both
+stay blank and both name the office to call. The six that ARE published are now
+recorded with their citation and measurement point: Riverhead 65, CT 61 (both
+sites), NJAC 7:29 65, Marion 65, Cabarrus 65. §10 cuts both ways — never invent
+one, and do not leave a cited one blank either, because that applies an
+unverified-ordinance discount to a site whose regime is on the record.
 
 **Every researched entitlement path is longer than assumed.** Mean 23.4 → 31.3
 months; 14 of 15 revise upward; Litchfield +21, Hendry +18, EPCAL +12. Applied
@@ -213,7 +217,12 @@ reaches a private recreation use, and a test now enforces that.
 absolute 61 dBA industrial-to-residential daytime limit, which would end a road
 course — but § 22a-69-1.8 exempts motorsport during hours the town authorises.
 In CT the special-permit hours condition *is* the noise entitlement. More
-survivable than an absolute cap, and entirely political.
+survivable than an absolute cap, and entirely political — so `noise_exemption`
+carries it and `score_entitlement` applies ×0.88 rather than the ×0.75
+tight-ordinance penalty a bare 61 would trigger.
+
+`data/jurisdictions.csv` (15 rows, 18 columns) is the machine-readable register
+and drives the **Jurisdictions** tab.
 
 ## v2.3 — mis-priced, or mis-specified?
 
@@ -272,6 +281,7 @@ model/respec.py                   Holds comp pricing fixed, searches the program
 data/comps_clubs.csv              41 rows, 22 clubs. NOTHING is Verified — read the grade
 research/comps_findings.md        The comparable study. Read before touching income assumptions
 research/jurisdiction_register.md Entitlement regime per target jurisdiction
+data/jurisdictions.csv            15 jurisdictions; noise, abatement, timeline, who to call
 research/risk_register.md         Noise litigation and opposition history
 tests/test_model.py               72 tests; fast
 tests/test_analytics.py           70 tests; tax, cashflow, scenarios, risk, roadmap
@@ -365,8 +375,13 @@ cannot carry the vertical even if the dirt were free.
   an exact comparison called it a breach. Use `_at_least`.
 - **Scenarios move drivers together; the tornado moves them one at a time.**
   They answer different questions. Never quote a one-at-a-time flex as downside.
-- **Never invent a dBA limit.** An unpublished ordinance is a research task and
-  a named phone call, not a number.
+- **Never invent a dBA limit** — and never leave a cited one blank. An
+  unpublished ordinance is a research task and a named phone call. A published
+  one belongs on the row with its citation and measurement point; omitting it
+  applies an unverified-ordinance discount to a regime that is on the record.
+- **A statutory exemption displaces the numeric limit.** CT RCSA § 22a-69-1.8
+  exempts motorsport during town-authorised hours, so scoring a bare 61 dBA
+  penalises a constraint that does not apply. `noise_exemption`.
 - **The four identifiers are non-negotiable.** Live URL, APN, lat/long,
   municipality — or the parcel goes to `Unverified`.
 - **No merged cells inside filter ranges.** A filter range overlapping a merge
@@ -428,7 +443,7 @@ python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
 python3 tests/test_model.py               # 78 tests, fast
 python3 tests/test_analytics.py           # 88 tests, fast
-python3 tests/test_markets.py             # 43 tests, fast
+python3 tests/test_markets.py             # 47 tests, fast
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

@@ -208,9 +208,19 @@ def test_no_target_profile_carries_a_fabricated_identifier():
 
 
 def test_no_target_profile_invents_a_dba_limit():
-    """§10: an unpublished ordinance is a phone call, not a number."""
+    """
+    §10: an unpublished ordinance is a phone call, not a number.
+
+    This asserted that EVERY dBA cell was blank, which was right while nothing
+    had been researched and wrong the moment six jurisdictions produced cited,
+    published limits. The doctrine is "never invent one", not "never record
+    one" -- so the test is now that no figure appears without a citation behind
+    it, which is the thing that actually matters.
+    """
     for r in _rows():
-        assert not r["noise_ordinance_dba_day"], f"{r['parcel_id']} invented a dBA limit"
+        if r["noise_ordinance_dba_day"]:
+            assert r["noise_ordinance_citation"].strip(), (
+                f"{r['parcel_id']} carries a dBA limit with no citation — invented")
 
 
 def test_the_pipeline_is_actually_nationwide():
@@ -509,6 +519,81 @@ def test_no_abatement_is_claimed_where_no_statute_reaches_this_use():
             assert float(r["property_tax_abatement_pct"] or 0) == 0.0, (
                 f"{r['parcel_id']} claims abatement in {r['state']}, where none "
                 f"reaches this use")
+
+
+def test_a_published_dba_is_recorded_and_an_unpublished_one_stays_blank():
+    """
+    §10 is absolute: never invent a dBA limit. It cuts both ways -- where a limit
+    IS published and cited, leaving it blank understates what is known and makes
+    the composite apply an unverified-ordinance discount to a site whose regime
+    is on the record.
+    """
+    rows = _rows()
+    with_dba = [r for r in rows if r["noise_ordinance_dba_day"]]
+    assert with_dba, "no site carries a researched dBA limit"
+    for r in with_dba:
+        assert r["noise_ordinance_citation"].strip(), (
+            f"{r['parcel_id']} has a dBA figure and no citation — that is an invented number")
+        assert r["noise_measurement_point"].strip(), f"{r['parcel_id']} has no measurement point"
+    # A citation without a number is legitimate and must stay that way: the
+    # ordinance exists, the table would not open, and the register says so.
+    cited_blank = [r for r in rows
+                   if r["noise_ordinance_citation"].strip() and not r["noise_ordinance_dba_day"]]
+    for r in cited_blank:
+        assert "NOT RETRIEVED" in r["noise_ordinance_citation"].upper(), (
+            f"{r['parcel_id']} cites an ordinance with no limit and no explanation")
+
+
+def test_the_connecticut_exemption_is_recorded_and_respected():
+    """
+    RCSA § 22a-69 sets an absolute 61 dBA industrial-to-residential daytime
+    limit, which would end a road course. § 22a-69-1.8 exempts motorsport during
+    town-authorised hours, so the permit's hours condition IS the entitlement.
+    Recording the bare 61 without the exemption fires a tight-ordinance penalty
+    for a constraint that does not apply.
+    """
+    rows = [coerce(r) for r in _rows()]
+    ct = [p for p in rows if p.get("state") == "CT"]
+    assert ct, "fixture drift: no Connecticut site left"
+    for p in ct:
+        assert p.get("noise_exemption"), f"{p['parcel_id']} records 61 dBA with no exemption"
+
+    exempt = dict(ct[0])
+    bare = dict(exempt)
+    bare["noise_exemption"] = ""
+    s_exempt, _ = scoring.score_entitlement(exempt, None)
+    s_bare, _ = scoring.score_entitlement(bare, None)
+    assert s_exempt > s_bare, (
+        "the exemption must relieve the tight-ordinance penalty — it displaces the limit")
+
+
+def test_an_exemption_is_not_treated_as_better_than_a_comfortable_limit():
+    """It is more survivable than an absolute cap, and it is political. Not free."""
+    base = {"prior_use": "airport_airfield", "nearest_residence_ft": 5000,
+            "residences_within_1mi": 10, "zoning_posture": "special_permit"}
+    comfortable = dict(base, noise_ordinance_dba_day=65.0)
+    exempt = dict(base, noise_ordinance_dba_day=61.0,
+                  noise_exemption="RCSA § 22a-69-1.8 during authorised hours")
+    assert scoring.score_entitlement(exempt, None)[0] < \
+        scoring.score_entitlement(comfortable, None)[0]
+
+
+def test_the_jurisdiction_register_csv_is_complete_and_honest():
+    reg = ROOT / "data" / "jurisdictions.csv"
+    if not reg.exists():
+        return
+    with reg.open(newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    targets = {r["parcel_id"] for r in _rows()}
+    assert {r["target"] for r in rows} == targets, "a target has no jurisdiction row"
+    for r in rows:
+        assert r["confidence"].strip() != "Verified", (
+            f"{r['target']} claims Verified; retrieval was blocked for this study")
+        if not r["noise_dba_day"]:
+            assert r["call_if_blank"].strip() or "NOT RETRIEVED" in r["noise_citation"].upper(), (
+                f"{r['target']} has no dBA and names nobody to call")
+        assert float(r["timeline_researched_months"]) >= float(r["timeline_assumed_months"]), (
+            f"{r['target']} researched shorter than assumed — check the extraction")
 
 
 def test_the_risk_register_is_evidenced_and_ranked():

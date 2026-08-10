@@ -82,6 +82,11 @@ NOISE_ENTITLEMENT: list[Field] = [
     Field("noise_ordinance_dba_day", "Daytime dBA Limit", "float", "Noise & Entitlement",
           note="NEVER invent. Blank means unpublished -- name the clerk to call."),
     Field("noise_measurement_point", "Measurement Point", "str", "Noise & Entitlement"),
+    Field("noise_exemption", "Statutory Noise Exemption", "str", "Noise & Entitlement",
+          note="A statute that DISPLACES the numeric limit for this use. CT RCSA "
+               "§ 22a-69-1.8 exempts motorsport during town-authorised hours, which "
+               "makes the special-permit hours condition the noise entitlement and "
+               "the dBA figure informational."),
     Field("noise_standard_type", "Absolute or Ambient-Relative", "str", "Noise & Entitlement"),
     Field("zoning_district", "Zoning District", "str", "Noise & Entitlement"),
     Field("zoning_posture", "Outdoor Rec Posture", "str", "Noise & Entitlement",

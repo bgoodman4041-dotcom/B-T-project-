@@ -497,10 +497,14 @@ const chartFrame = () => ({
   statCard(s, 8.5, 4.95, 2.0, 0.9, String(D.sites.length), "TARGETS UNDERWRITTEN");
   statCard(s, 10.7, 4.95, 2.0, 0.9, "0", "UNDER CONTRACT",
     { fill: "FBEAEC", vcolor: RED, lcolor: "7A2430" });
+  const withDba = D.noise ? D.noise.filter(n => n.dba).length : 0;
   footnote(s, "TARGET PROFILES: each row is a typology and a submarket, not an identified " +
     "parcel. Assessor identifiers, coordinates and title work are a Tranche 1 deliverable. " +
     "Ask prices are indicative for the submarket. Tax shows the local effective rate and any " +
-    "abatement assumed; a dash means no abatement statute reaches this use in that state.");
+    "abatement assumed; a dash means no abatement statute reaches this use in that state. " +
+    "Noise: " + withDba + " of " + (D.noise ? D.noise.length : 0) + " jurisdictions publish a " +
+    "daytime dBA limit we could cite; the rest are blank on purpose and name the office to " +
+    "call \u2014 we do not estimate a noise ordinance.");
   s.addNotes("Be explicit that nothing is under contract. The red card does that work for you " +
     "before anyone asks. If asked why the top two are so close, that is slide 7b.");
 }

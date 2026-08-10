@@ -102,8 +102,23 @@ def score_entitlement(parcel: dict[str, Any], screen: ScreenResult | None) -> tu
         s *= 0.55
         notes.append("prior denial of comparable use x0.55")
 
+    # A statutory exemption DISPLACES the numeric limit for this use, so the dBA
+    # figure is informational rather than binding and the tight-ordinance penalty
+    # would be pricing a constraint that does not apply. Connecticut is the case:
+    # RCSA § 22a-69 sets an absolute 61 dBA industrial-to-residential daytime
+    # limit, which would end a road course -- but § 22a-69-1.8 exempts motorsport
+    # during hours the town authorises. The special-permit hours condition IS the
+    # noise entitlement there. That is more survivable than an absolute cap and
+    # entirely political, so it takes a smaller discount rather than none.
+    exemption = str(parcel.get("noise_exemption") or "").strip()
     dba = parcel.get("noise_ordinance_dba_day")
-    if dba is None:
+    if exemption:
+        s *= 0.88
+        notes.append(
+            "statutory exemption displaces the numeric limit x0.88 — the hours "
+            "condition in the permit is the noise entitlement, which is more "
+            "survivable than an absolute cap and entirely political")
+    elif dba is None:
         s *= 0.90
         notes.append("ordinance unverified x0.90 (uncertainty discount, not a penalty)")
     elif float(dba) < 65:

@@ -134,6 +134,12 @@ def main() -> None:
       rollout=[dict(phase=r.phase, horizon=r.horizon, markets=r.markets,
         rationale=r.rationale, capital=r.capital) for r in mk.rollout(lead_site=lead)],
       killed=killed,
+      noise=[dict(id=p["parcel_id"].replace("TP-", ""),
+                  dba=p.get("noise_ordinance_dba_day"),
+                  cit=p.get("noise_ordinance_citation") or "",
+                  exempt=bool(p.get("noise_exemption")),
+                  std=p.get("noise_standard_type") or "")
+             for p in live],
       fragility=(lambda f: None if f is None else dict(
           lead=f.lead_id.replace("TP-", ""), up=f.runner_up_id.replace("TP-", ""),
           gap=f.gap, flips=f.flips, flip_at=f.flip_value, verdict=f.verdict))(
