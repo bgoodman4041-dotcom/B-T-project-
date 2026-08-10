@@ -505,7 +505,10 @@ class LeadFragility:
     gap: float
     driver: str
     flip_value: float | None
-    flips: bool
+    flips: bool                     # does the COMPOSITE ranking change hands?
+    economics_flip: bool            # does the runner-up out-EARN the lead?
+    lead_irr_at_zero: float | None
+    runner_up_irr: float | None
     verdict: str
 
 
@@ -515,21 +518,30 @@ def lead_site_fragility(
     underwrite,
     screen,
     site_config,
+    cash_flow=None,
 ) -> LeadFragility | None:
     """
     Does the site ranking survive its own largest assumption?
 
-    A composite that separates its top two by less than a point is not really
+    A composite that separates its top two by a point or two is not really
     ranking them, and the honest question is what would have to move to swap
-    them. On this pipeline the answer is one number: the lead site carries a
+    them. On this pipeline the candidate is one number: the lead site carries a
     $9.5M cost CREDIT for reusing existing runway pavement as track base course,
     and the risk register reports fifteen PFAS areas of concern identified
     around that runway in 2023. PFAS-impacted pavement is a waste
     characterisation problem, not a credit.
 
-    This walks the lead site's cost premium from its modelled value toward zero
-    and reports the point at which the ranking changes hands. Callers inject the
-    model functions so this module keeps no dependency on the underwriting.
+    TWO QUESTIONS, NOT ONE. This walks the lead's cost premium toward zero and
+    asks both whether the COMPOSITE changes hands and whether the runner-up
+    simply out-EARNS the lead. They are not the same question and they do not
+    have the same answer here: the composite spends only 20 of its 100 points on
+    yield, so a swing worth well over a hundred basis points of equity IRR can
+    move the ranking by two points and change nothing. When the two disagree,
+    saying only "the ranking holds" would be true and misleading.
+
+    `cash_flow` is optional; without it the economic test is skipped rather than
+    guessed. Callers inject the model functions so this module keeps no import
+    dependency on the underwriting.
     """
     def ranked(override: tuple[str, float] | None) -> list[tuple[float, str]]:
         out: list[tuple[float, str]] = []
@@ -556,9 +568,19 @@ def lead_site_fragility(
 
     # Only a CREDIT is fragile in this direction: a premium is a cost you can
     # bid against, a credit is a number that can disappear.
+    # Economics at the stress point: strip the credit and compare returns.
+    lead_irr = up_irr = None
+    if cash_flow is not None:
+        lead_irr = _irr_at(cash_flow, cfg, site_config, lead, 0.0)
+        up = next((p for p in parcels if str(p.get("parcel_id")) == up_id), {})
+        up_irr = _irr_at(cash_flow, cfg, site_config, up,
+                         float(up.get("site_cost_premium_usd") or 0.0))
+    econ_flip = (lead_irr is not None and up_irr is not None and up_irr > lead_irr)
+
     if modelled >= 0:
         return LeadFragility(
             lead_id, up_id, lead_score - up_score, "site cost premium", None, False,
+            econ_flip, lead_irr, up_irr,
             f"{lead_id} leads {up_id} by {lead_score - up_score:.1f} points and carries a "
             f"cost premium rather than a credit, so its basis can only be bid, not lost.")
 
@@ -572,14 +594,29 @@ def lead_site_fragility(
             break
 
     if flip_at is None:
-        return LeadFragility(
-            lead_id, up_id, lead_score - up_score, "site cost credit", None, False,
-            f"{lead_id} still leads with the credit written to zero. The ranking does not "
-            f"depend on it.")
+        if econ_flip:
+            verdict = (
+                f"THE RANKING HOLDS AND THE ECONOMICS DO NOT, WHICH IS THE MORE USEFUL "
+                f"ANSWER. Write the ${abs(modelled):,.0f} site cost credit at {lead_id} down "
+                f"to zero and it still leads {up_id} on the composite by "
+                f"{lead_score - up_score:.1f} points — but it returns {lead_irr:.1%} against "
+                f"{up_irr:.1%}, so the runner-up out-earns it by "
+                f"{(up_irr - lead_irr) * 10000:.0f} basis points. The composite spends 20 of "
+                f"its 100 points on yield, so a swing of this size barely moves it. That "
+                f"credit is the reuse of existing runway pavement as base course, on a runway "
+                f"around which fifteen PFAS areas of concern were identified in 2023. Rank on "
+                f"the composite if you like; fund the one that earns more.")
+        else:
+            verdict = (
+                f"{lead_id} still leads {up_id} with the credit written to zero, on the "
+                f"composite and on return. The ranking does not depend on it.")
+        return LeadFragility(lead_id, up_id, lead_score - up_score, "site cost credit",
+                             None, False, econ_flip, lead_irr, up_irr, verdict)
 
     lost = abs(modelled - flip_at)
     return LeadFragility(
         lead_id, up_id, lead_score - up_score, "site cost credit", flip_at, True,
+        econ_flip, lead_irr, up_irr,
         f"THE RANKING TURNS ON ONE UNVERIFIED NUMBER. {lead_id} leads {up_id} by "
         f"{lead_score - up_score:.1f} points on a 100-point scale, and the lead depends on a "
         f"${abs(modelled):,.0f} site cost credit. Losing ${lost:,.0f} of it — "
@@ -587,3 +624,13 @@ def lead_site_fragility(
         f"existing runway pavement as base course, on a runway around which fifteen PFAS "
         f"areas of concern were identified in 2023. Order the Phase II before the ranking is "
         f"treated as settled.")
+
+
+def _irr_at(cash_flow, cfg, site_config, parcel: dict[str, Any],
+            premium: float) -> float | None:
+    ask = parcel.get("ask_price")
+    if not ask:
+        return None
+    cf = cash_flow(site_config(cfg, parcel), float(ask), horizon_operating_years=12,
+                   site_cost_premium=premium)
+    return cf.equity_irr

@@ -144,9 +144,17 @@ plus $450/mo ground maintenance — ~$43,800 all-in, 29% *above* the model, not
 
 > Every club in the set sustaining dues above $34,000 either makes real-estate
 > purchase **mandatory** (Thermal) or is invitation-only in Miami (Concours).
-> Every club where real estate is optional prices dues at **$18,500 or below**.
-> This programme sells 190 units against a 340-member cap, so purchase cannot be
-> mandatory. **The model takes Thermal's dues without Thermal's gate.**
+> Where real estate is OPTIONAL, the highest dues outside that Miami club is
+> **$20,000** — NJMP, which charges *no initiation fee at all* — and the highest
+> optional-purchase club that also charges a six-figure initiation is Monticello
+> Gold at **$18,500** against our $150,000/$34,000. This programme sells 190
+> units against a 340-member cap, so purchase cannot be mandatory.
+> **The model takes Thermal's dues without Thermal's gate.**
+
+The first draft of that claim said "$18,500 or below, no exceptions." It had two:
+Concours at $35,000 (carved out as invitation-only) and **NJMP at $20,000, which
+no carve-out covered**. `test_the_optional_real_estate_dues_claim_matches_the_data`
+now pins the sentence to the register.
 
 | Finding | Model | Comp set |
 |---|---|---|
@@ -181,11 +189,17 @@ against a named precedent, not a category). The two that move the ranking:
 - **RR-04 EPCAL contested disposition (High/High).** In litigation since 2024; one
   cause of action survived dismissal in Feb 2026; land described as in limbo.
 
-`scoring.lead_site_fragility()` prices what that means: **EPCAL leads Pinal by 0.6
-points and losing $1.36M of the $9.5M credit — 14% — hands the lead to Pinal.**
-The credit is not moved to zero; a Phase II has not been ordered and inventing the
-answer either way is the same error. The artifacts say the ranking is unsettled
-and that both finalists go into Tranche 1.
+`scoring.lead_site_fragility()` asks TWO questions, because they have different
+answers. Does the composite change hands? No — write the $9.5M credit to zero and
+EPCAL still leads Pinal by 2.5 points. Does the runner-up out-EARN it? **Yes: at
+zero credit EPCAL returns 7.4% against Pinal's 9.2%, 180 bp worse.**
+
+That gap is the finding. The composite spends 20 of its 100 points on yield, so a
+$9.5M swing worth 145 bp of IRR moves the ranking by two points and changes
+nothing. Rank on the composite if you like; fund the one that earns more. The
+credit is not moved to zero in the base case — a Phase II has not been ordered and
+inventing the answer either way is the same error — and both finalists go into
+Tranche 1.
 
 Other precedents worth knowing: Lime Rock carries a **permanent injunction against
 Sunday racing**; Apex's opponents referred its conditional use permit to the
@@ -283,9 +297,10 @@ research/comps_findings.md        The comparable study. Read before touching inc
 research/jurisdiction_register.md Entitlement regime per target jurisdiction
 data/jurisdictions.csv            15 jurisdictions; noise, abatement, timeline, who to call
 research/risk_register.md         Noise litigation and opposition history
-tests/test_model.py               72 tests; fast
-tests/test_analytics.py           70 tests; tax, cashflow, scenarios, risk, roadmap
-tests/test_markets.py             40 tests; market screen, season, demand, fragility
+tests/test_model.py               78 tests; the closed-form identities
+tests/test_analytics.py           88 tests; tax, cashflow, scenarios, risk, roadmap
+tests/test_markets.py             47 tests; market screen, season, demand, fragility
+tests/test_data_integrity.py      23 tests; every data file against every other
 tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
@@ -419,9 +434,11 @@ cannot carry the vertical even if the dirt were free.
   check tested a downstream ratio, so a dues figure at the 94th percentile of the
   observed market passed while the repriced case cut NOI in half at a 63% opex
   ratio comfortably inside its band.
-- **When the top two are inside a point, say so and price what would flip it.**
-  `scoring.lead_site_fragility()`. A credit can evaporate; a premium can only be
-  bid against. Only the credit direction is fragile.
+- **Ask whether the RANKING flips and whether the ECONOMICS flip. They differ.**
+  `scoring.lead_site_fragility()`. Yield is 20 of 100 points, so a swing worth
+  145 bp of IRR can move the composite two points and change nothing. Reporting
+  only "the ranking holds" would be true and misleading. A credit can evaporate;
+  a premium can only be bid against, so only the credit direction is fragile.
 - **A plausibility band that rejects a real operating club is broken, not strict.**
   Apex runs 187 members per track mile against a ceiling of 90.
 - **Do not rank on a column that is negative for every candidate.** The mandated
@@ -444,6 +461,7 @@ python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 python3 tests/test_model.py               # 78 tests, fast
 python3 tests/test_analytics.py           # 88 tests, fast
 python3 tests/test_markets.py             # 47 tests, fast
+python3 tests/test_data_integrity.py      # 23 tests, fast — run after ANY data edit
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

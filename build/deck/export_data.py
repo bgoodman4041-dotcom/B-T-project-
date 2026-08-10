@@ -142,9 +142,11 @@ def main() -> None:
              for p in live],
       fragility=(lambda f: None if f is None else dict(
           lead=f.lead_id.replace("TP-", ""), up=f.runner_up_id.replace("TP-", ""),
-          gap=f.gap, flips=f.flips, flip_at=f.flip_value, verdict=f.verdict))(
+          gap=f.gap, flips=f.flips, flip_at=f.flip_value, verdict=f.verdict,
+          econ_flip=f.economics_flip, lead_irr=f.lead_irr_at_zero,
+          up_irr=f.runner_up_irr))(
           scoring.lead_site_fragility(universe, cfg, ts.underwrite, gates.screen,
-                                      ts.site_config)),
+                                      ts.site_config, cfm.project_cash_flow)),
       demand=dem,
       respec=(lambda R: dict(
           n=len(R.variants), verdict=R.verdict,

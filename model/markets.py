@@ -202,13 +202,18 @@ MARKETS: list[Market] = [
            "is 90+ minutes out. Real demand, brutal supply side",
            "Former airfields (Suffolk County), Hudson Valley quarry belt, "
            "closed golf courses (Litchfield), capped landfills (South Jersey)"),
-    Market("Boston", "Northeast", "MA / NH", 200, "very high", "high", "high",
+    # Named for the catchment, not for one city. A 90-minute radius from the
+    # northeast-Connecticut / Rhode Island border reaches Boston, Providence AND
+    # Hartford, and a site there is not a New York metro site -- Greenwich is
+    # 132 minutes away, past the mandate's own drive ceiling.
+    Market("Boston – Providence", "Northeast", "MA / RI / NH / CT", 200,
+           "very high", "high", "high",
            "moderate", "Club Motorsports (Tamworth NH), Palmer Motorsports Park",
            "Two facilities serve the region from 2+ hours out; nothing inside "
            "90 minutes of the metro",
-           "Central Massachusetts and southern New Hampshire acreage; former "
-           "quarries and gravel operations"),
-    Market("Philadelphia", "Northeast", "PA / DE", 220, "high", "moderate",
+           "Central Massachusetts, northeast Connecticut and southern New "
+           "Hampshire acreage; former quarries and gravel operations"),
+    Market("Philadelphia", "Northeast", "PA / NJ / DE", 220, "high", "moderate",
            "high", "moderate", "None confirmed",
            "Large wealthy metro with no club product and cheaper land than "
            "New York; Brandywine and Chester County wealth is deep",

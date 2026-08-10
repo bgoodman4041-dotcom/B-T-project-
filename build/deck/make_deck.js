@@ -526,18 +526,27 @@ const chartFrame = () => ({
   numberedRow(s, 1, M, 2.42, 7.3, "Why it ranks first", String(t.why || ""));
   numberedRow(s, 2, M, 3.52, 7.3, "Cost basis", String(t.note || ""));
   numberedRow(s, 3, M, 4.78, 7.3, "What would kill it", String(t.kill || ""));
-  if (D.fragility && D.fragility.flips && D.fragility.lead === t.id) {
+  if (D.fragility && (D.fragility.flips || D.fragility.econ_flip) &&
+      D.fragility.lead === t.id) {
     s.addShape(pres.ShapeType.roundRect, {
       x: M, y: 5.92, w: 7.3, h: 0.86, fill: { color: "FBEAEC" }, rectRadius: 0.06,
       line: { color: "FBEAEC", width: 0 },
     });
-    s.addText("THE LEAD IS NOT SETTLED. " + D.fragility.lead + " leads " +
-      D.fragility.up + " by " + D.fragility.gap.toFixed(1) + " points, and the lead " +
-      "rests on the site cost credit above. Losing " +
-      m$(Math.abs(t.premium) - Math.abs(D.fragility.flip_at)) + " of it hands the lead " +
-      "to " + D.fragility.up + ". Fifteen PFAS areas of concern were identified around " +
-      "that runway in 2023 \u2014 the Phase II analytical is the cheapest test in the " +
-      "programme that can change the answer.", {
+    const F = D.fragility;
+    const msg = F.flips
+      ? ("THE LEAD IS NOT SETTLED. " + F.lead + " leads " + F.up + " by " +
+         F.gap.toFixed(1) + " points and the lead rests on the site cost credit above. " +
+         "Losing " + m$(Math.abs(t.premium) - Math.abs(F.flip_at)) + " of it hands the " +
+         "lead to " + F.up + ".")
+      : ("THE RANKING HOLDS AND THE ECONOMICS DO NOT. Write the credit above down to " +
+         "zero and " + F.lead + " still leads " + F.up + " by " + F.gap.toFixed(1) +
+         " points \u2014 but it returns " + pc(F.lead_irr) + " against " + pc(F.up_irr) +
+         ", so the runner-up out-earns it by " +
+         ((F.up_irr - F.lead_irr) * 10000).toFixed(0) + " bp. The composite spends 20 of " +
+         "100 points on yield, so a swing this size barely moves it.");
+    s.addText(msg + " Fifteen PFAS areas of concern were identified around that runway " +
+      "in 2023 \u2014 the Phase II analytical is the cheapest test in the programme " +
+      "that can change the answer.", {
       x: M + 0.16, y: 6.02, w: 7.0, h: 0.68, fontFace: BFONT, fontSize: 9,
       color: "7A2430", bold: true, margin: 0, lineSpacingMultiple: 1.06,
     });
@@ -809,8 +818,10 @@ if (D.comp) {
   s.addText("Every revenue figure in this deck assumes " + k$(D.program.init) +
     " initiation and " + k$(D.program.dues) + " of annual dues. Across the clubs we " +
     "could price, every one sustaining dues above " + k$(D.program.dues) + " either makes " +
-    "real-estate purchase MANDATORY or is invitation-only in Miami. Every club where " +
-    "real estate is optional prices dues at $18,500 or below. We sell " +
+    "real-estate purchase MANDATORY or is invitation-only in Miami. Where real estate is " +
+    "OPTIONAL the highest dues outside that Miami club is $20,000 \u2014 and that club " +
+    "charges no initiation fee at all. The highest optional-purchase club that also " +
+    "charges a six-figure initiation is $18,500. We sell " +
     (D.program.condos + D.program.homes) + " units against a " + D.program.cap +
     "-member cap \u2014 purchase cannot be mandatory here.", {
     x: M, y: 1.45, w: 7.8, h: 1.15, fontFace: BFONT, fontSize: 12, color: ASPHALT,

@@ -237,21 +237,21 @@
   {
    "id": "01-EPCAL",
    "dba": 65.0,
-   "cit": "Riverhead Town Code, Noise, Article I [21]",
+   "cit": "Riverhead Town Code, Noise, Article I [S25]",
    "exempt": false,
    "std": "absolute, by receiving-property category"
   },
   {
    "id": "06-PINAL-303",
    "dba": null,
-   "cit": "Pinal County Ord. No. 050306-ENO as amended by 031611-ENO-01 [46] \u2014 PUBLISHED BUT NOT RETRIEVED. Table 1 sets Leq limits by land-use class and time of day. Call Pinal County Planning & Development, (520) 509-3555.",
+   "cit": "Pinal County Ord. No. 050306-ENO as amended by 031611-ENO-01 [S29] \u2014 PUBLISHED BUT NOT RETRIEVED. Table 1 sets Leq limits by land-use class and time of day. Call Pinal County Planning & Development, (520) 509-3555.",
    "exempt": false,
    "std": "Leq"
   },
   {
    "id": "11-APEX-NV",
    "dba": null,
-   "cit": "Clark County Code \u00a7 30.68.020, Table 30.68-1 [50] \u2014 PUBLISHED BUT NOT RETRIEVED. Limits set by time period and zoning district.",
+   "cit": "Clark County Code \u00a7 30.68.020, Table 30.68-1 [S31] \u2014 PUBLISHED BUT NOT RETRIEVED. Limits set by time period and zoning district.",
    "exempt": false,
    "std": "absolute"
   },
@@ -265,7 +265,7 @@
   {
    "id": "08-MARION-OCALA",
    "dba": 65.0,
-   "cit": "Marion County Code Ch. 13 \u00a7\u00a7 13-7, 13-8, 13-10 [56]",
+   "cit": "Marion County Code Ch. 13 \u00a7\u00a7 13-7, 13-8, 13-10 [S30]",
    "exempt": false,
    "std": "absolute, by land-use acoustic category"
   },
@@ -279,7 +279,7 @@
   {
    "id": "12-CABARRUS",
    "dba": 65.0,
-   "cit": "Cabarrus County Code Ch. 30, Art. II, \u00a7 30-27 [64][65]",
+   "cit": "Cabarrus County Code Ch. 30, Art. II, \u00a7 30-27 [S32]",
    "exempt": false,
    "std": "absolute, emitter-side"
   },
@@ -300,14 +300,14 @@
   {
    "id": "03-THOMPSON",
    "dba": 61.0,
-   "cit": "RCSA \u00a7 22a-69 (CT DEEP), Class C emitter to Class A receptor [31][32]",
+   "cit": "RCSA \u00a7 22a-69 (CT DEEP), Class C emitter to Class A receptor [S26][S27]",
    "exempt": true,
    "std": "absolute, \u22125 dBA for discrete tones"
   },
   {
    "id": "04-CUMBERLAND",
    "dba": 65.0,
-   "cit": "N.J.A.C. 7:29, industrial/commercial to residential [43]",
+   "cit": "N.J.A.C. 7:29, industrial/commercial to residential [S28]",
    "exempt": false,
    "std": "absolute"
   },
@@ -325,7 +325,10 @@
   "gap": 2.5,
   "flips": false,
   "flip_at": null,
-  "verdict": "TP-01-EPCAL still leads with the credit written to zero. The ranking does not depend on it."
+  "verdict": "THE RANKING HOLDS AND THE ECONOMICS DO NOT, WHICH IS THE MORE USEFUL ANSWER. Write the $9,500,000 site cost credit at TP-01-EPCAL down to zero and it still leads TP-06-PINAL-303 on the composite by 2.5 points \u2014 but it returns 7.4% against 9.2%, so the runner-up out-earns it by 180 basis points. The composite spends 20 of its 100 points on yield, so a swing of this size barely moves it. That credit is the reuse of existing runway pavement as base course, on a runway around which fifteen PFAS areas of concern were identified in 2023. Rank on the composite if you like; fund the one that earns more.",
+  "econ_flip": true,
+  "lead_irr": 0.07422506764996478,
+  "up_irr": 0.09226468696051837
  },
  "demand": [
   {
@@ -711,7 +714,7 @@
    "prior": "reclaimed quarry",
    "ask": 8200000.0,
    "premium": 3400000.0,
-   "drive": 45,
+   "drive": 58,
    "irr": 0.09226468696051837,
    "dscr": 2.1346368245405984,
    "score": 65.3,
@@ -738,7 +741,7 @@
    "prior": "sand gravel pit",
    "ask": 9600000.0,
    "premium": 7100000.0,
-   "drive": 28,
+   "drive": 42,
    "irr": 0.08543241639713053,
    "dscr": 2.0263017876325256,
    "score": 61.4,
@@ -846,7 +849,7 @@
    "prior": "brownfield",
    "ask": 11600000.0,
    "premium": 2600000.0,
-   "drive": 14,
+   "drive": 28,
    "irr": 0.08320156793264813,
    "dscr": 1.9690749741868103,
    "score": 55.1,
@@ -915,7 +918,7 @@
    "id": "03-THOMPSON",
    "muni": "Thompson / Putnam",
    "county": "Windham, CT",
-   "metro": "New York metro",
+   "metro": "Boston \u2013 Providence",
    "region": "Northeast",
    "tier": "Tier 3",
    "season": 200,

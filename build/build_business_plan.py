@@ -201,7 +201,8 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
                 dev=dev, plaus=plaus, scen=scen, spread=spread, bev=bev, bridge=bridge,
                 comp=comp, respec=respec_r,
                 fragility=scoring.lead_site_fragility(
-                    [p for p in universe], cfg, ts.underwrite, gates.screen, ts.site_config),
+                    [p for p in universe], cfg, ts.underwrite, gates.screen,
+                    ts.site_config, cfm.project_cash_flow),
                 t1=t1,
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
                 markets=mk.ranked_markets(), rollout=mk.rollout(lead_site=lead),
@@ -282,9 +283,13 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
             f"annual dues — that the comparable set does not support. Across the clubs we "
             f"could price, every one that sustains dues above {_usd(m['annual_dues_usd'])} "
             f"either makes real-estate purchase mandatory or is invitation-only in Miami. "
-            f"Every club where real estate is optional prices dues at $18,500 or below. This "
-            f"programme sells {fs['garage_condos']['units'] + fs['homesites']['units']} units "
-            f"against a {m['cap']}-member cap, so purchase cannot be mandatory here.", S_BODY))
+            f"Where real estate is OPTIONAL the highest dues in the set outside that Miami "
+            f"club is $20,000 — New Jersey Motorsports Park, which charges no initiation fee "
+            f"at all — and the highest optional-purchase club that also charges a six-figure "
+            f"initiation is Monticello Gold at $18,500 against "
+            f"{_usd(m['initiation_fee_usd'])} here. This programme sells "
+            f"{fs['garage_condos']['units'] + fs['homesites']['units']} units against a "
+            f"{m['cap']}-member cap, so purchase cannot be mandatory.", S_BODY))
         A(Paragraph(
             f"Repriced to what the comparable set actually charges and sells, the programme "
             f"returns <b>{_pct(c.equity_irr, 1)}</b> equity IRR, covers at "
@@ -346,12 +351,17 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"ratio. That premium exists because the buyer is purchasing access and adjacency, "
         f"not square footage. Validating it against local flex comparables is the single most "
         f"important diligence item in the plan."))
-    A(B("Prior-use sites are the only economically viable typology",
-        "Site infrastructure is underwritten 30% below a greenfield programme because the "
-        "target sites are former airfields, reclaimed quarries, capped landfills and closed "
-        "golf courses with existing pavement, grading and utilities. On raw land the "
-        "infrastructure reverts and the programme does not clear. Site typology is an "
-        "economic requirement, not an aesthetic preference."))
+    A(B("Prior-use sites carry the typology; greenfield has to earn its place",
+        f"Site infrastructure is underwritten 30% below a greenfield programme because most "
+        f"target sites are former airfields, reclaimed quarries, capped landfills and closed "
+        f"golf courses with existing pavement, grading and utilities. On raw land that "
+        f"discount reverts and the site has to be cheap enough or long-season enough to pay "
+        f"for it. "
+        f"{sum(1 for x in S['sites'] if str(x['p'].get('prior_use','')).startswith('greenfield'))} "
+        f"of the {len(S['sites'])} live targets are greenfield and cleared the screen on "
+        f"exactly that trade; one more died at Gate 2 for having no inherited noise floor at "
+        f"all. Typology is an economic driver, not an aesthetic preference — but it is not "
+        f"an absolute bar."))
     A(B("An inherited noise floor is the entitlement asset",
         "Noise, not zoning, kills motorsport projects, and it kills them in court after the "
         "permits are issued. Every target site carries a prior intensive use, which supports "
@@ -568,8 +578,18 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
                 f"the ground. {b['p']['parcel_id']} wins on yield: a longer season, a lighter "
                 f"ad valorem load and a lower entry price give it "
                 f"{(b['uw'].yoc_net_at_ask - a['uw'].yoc_net_at_ask) * 10000:.0f} basis points "
-                f"more yield at the ask, and it is the only target in the set that supports a "
-                f"positive land price on the retained basis.", S_BODY))
+                f"more yield at the ask.", S_BODY))
+            positive = [x for x in S["sites"] if x["uw"].max_land_net > 0]
+            A(Paragraph(
+                (f"On the retained basis {len(positive)} of the {len(S['sites'])} live "
+                 f"targets support a positive maximum land price: "
+                 f"{', '.join(x['p']['parcel_id'] for x in positive)}.")
+                if positive else
+                (f"Neither of them — and none of the {len(S['sites'])} live targets — "
+                 f"supports a positive maximum land price on the retained basis at the "
+                 f"modelled revenue. That is a programme finding, not a site finding: at "
+                 f"these assumptions the income stack cannot carry the vertical even on "
+                 f"free dirt, which is what Section 7C tests."), S_BODY))
             A(Paragraph(
                 f"The two are also asymmetric in the direction their cost basis can move. "
                 f"{b['p']['parcel_id']} carries a {_m(abs(b['p'].get('site_cost_premium_usd') or 0))} "
@@ -583,8 +603,10 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
                 f"into Tranche 1 diligence, and the credit is the first thing tested.", S_BODY))
 
     fr = S.get("fragility")
-    if fr is not None and fr.flips:
-        A(Paragraph("The lead turns on one unverified number", S_H2))
+    if fr is not None and (fr.flips or fr.economics_flip):
+        A(Paragraph(
+            "The lead turns on one unverified number" if fr.flips
+            else "The ranking holds and the economics do not", S_H2))
         A(Paragraph(f"<b>{fr.verdict}</b>", S_BODY))
         A(Paragraph(
             "The risk register carries this as RR-02, Severe and High, evidenced against the "
