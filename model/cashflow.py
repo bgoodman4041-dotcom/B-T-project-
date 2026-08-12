@@ -180,13 +180,26 @@ def amortization_schedule(
 # IRR
 # =============================================================================
 
-def irr(cash_flows: list[float], lo: float = -0.95, hi: float = 5.0,
+def irr(cash_flows: list[float], lo: float = -0.999, hi: float = 5.0,
         tol: float = 1e-7, max_iter: int = 300) -> float | None:
     """
     Bisection IRR on annual flows, cash_flows[0] at t=0.
 
     Returns None when no sign change exists (all-positive or all-negative
     streams have no real IRR) rather than inventing a number.
+
+    The floor is -99.9% rather than -95% so that a genuinely very negative rate
+    resolves instead of falling off the end of the search and reading as
+    undefined. It is defensive: on the current scenario set it changes nothing.
+
+    None still covers two situations and a reader cannot tell them apart from
+    the number alone -- no distributions at all, and a stream whose NPV is
+    negative at EVERY discount rate because its terminal years are negative
+    too. The downside case is the second: it returns a fortieth of its capital
+    and then bleeds, so no rate exists. Neither may ever be printed as 0%,
+    which reads as break-even. `ScenarioResult.verdict` therefore states how
+    much capital comes back whenever the covenant fails, so the row is never a
+    bare "n/a".
     """
     if not cash_flows or all(c >= 0 for c in cash_flows) or all(c <= 0 for c in cash_flows):
         return None

@@ -325,6 +325,21 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
          "Cap rate at which value equals retained cost"],
     ], [1.85 * inch, 1.2 * inch, 3.0 * inch]))
 
+    diag = ts.feasibility_diagnostic(S["lcfg"])
+    A(Paragraph(
+        f"<b>SECONDARY — the mandated gross-basis yield test.</b> The mandate names a "
+        f"{cfg['meta']['hurdle_yoc']:.2%} yield on GROSS development cost, and on that test "
+        f"the programme reports infeasible: stabilised NOI of "
+        f"{_m(diag['stabilized_noi'])} would have to reach "
+        f"{_m(diag['noi_required_at_zero_land'])}, a "
+        f"{diag['noi_multiple_required']:.2f}× increase, to clear it on free land. That is "
+        f"expected and it is not the governing verdict. The gross basis charges the retained "
+        f"club with the entire cost of garage condominiums and homesites the programme SELLS, "
+        f"so it is negative for any merchant build at any land price. Section 13 sets out why "
+        f"we recommend replacing it with the three tests above, and asks the committee to "
+        f"rule on that explicitly rather than leave two contradictory tests in the mandate.",
+        S_NOTE))
+
     A(Paragraph("What this is, and what it is not", S_H2))
     A(B("This is a merchant-build development with a retained income asset",
         "Roughly two thirds of the capital returns through for-sale closings and member "

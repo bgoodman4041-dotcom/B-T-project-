@@ -269,6 +269,34 @@ $350. At $530 that is +$84k a unit; at the $344–352 operating comps achieve it
 sells. `loaded_margin_pct`, `loaded_cost_psf` and `condo_margin_per_unit` are now
 reported and audited.
 
+## v2.4 — IC readiness
+
+`tests/test_ic_ready.py` asks the questions a committee chair asks, and fails on
+things that are true but badly presented. Three defects it caught:
+
+- **The memo's recommendation ran on the RETIRED gross-basis hurdle.** The single
+  most important sentence in the IC document read DO NOT PROCEED, on a test the
+  workbook already reports as secondary and §13 recommends retiring, while equity
+  IRR, covenant coverage and value-to-retained-cost all said otherwise. It now
+  runs on the governing tests and carries the gross line labelled beneath.
+- **The plan never REPORTED the gross-basis verdict where the numbers are read.**
+  Recommending its retirement in §13 is not the same as showing the committee the
+  figure and saying what it is. §1 now does both and asks for a ruling.
+- **A wipe-out and a covenant miss read identically.** Downside and severe both
+  said "COVENANT FAILS" while one returns a fortieth of capital and the other
+  returns none. Verdicts now separate, and any row without an IRR states how much
+  capital comes back.
+
+**An undefined IRR is never 0%.** `severe` contributes $455M and distributes
+nothing, so no rate exists; `downside` returns a fortieth and then bleeds, so its
+NPV is negative at every discount rate and no rate exists there either. Both print
+`n/a`, never zero, and the verdict carries the multiple so the row is never bare.
+
+**The package supports a TRANCHE 1 decision only** — $4.59M of feasibility capital
+against options and studies. It does not support a construction commitment,
+because the revenue assumptions the whole model rests on are unverified and the
+comparable set contradicts them. Every artifact says so in the same voice.
+
 ## Layout
 
 ```
@@ -298,9 +326,10 @@ research/jurisdiction_register.md Entitlement regime per target jurisdiction
 data/jurisdictions.csv            15 jurisdictions; noise, abatement, timeline, who to call
 research/risk_register.md         Noise litigation and opposition history
 tests/test_model.py               78 tests; the closed-form identities
-tests/test_analytics.py           88 tests; tax, cashflow, scenarios, risk, roadmap
+tests/test_analytics.py           92 tests; tax, cashflow, scenarios, risk, roadmap
 tests/test_markets.py             47 tests; market screen, season, demand, fragility
 tests/test_data_integrity.py      23 tests; every data file against every other
+tests/test_ic_ready.py            16 checks; is the package fit for a committee
 tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
@@ -459,9 +488,10 @@ python3 build/build_memo.py          --parcels data/sites_targets.csv --rank 1 -
 python3 build/deck/export_data.py && node build/deck/make_deck.js dist/deck.pptx
 
 python3 tests/test_model.py               # 78 tests, fast
-python3 tests/test_analytics.py           # 88 tests, fast
+python3 tests/test_analytics.py           # 92 tests, fast
 python3 tests/test_markets.py             # 47 tests, fast
 python3 tests/test_data_integrity.py      # 23 tests, fast — run after ANY data edit
+python3 tests/test_ic_ready.py            # 16 checks — run before any IC submission
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

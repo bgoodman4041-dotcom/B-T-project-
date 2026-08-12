@@ -851,6 +851,52 @@ def test_respec_will_not_recommend_a_club_the_catchment_cannot_fill():
         assert r.best_feasible.demand_ok is not False
 
 
+def test_a_wipe_out_and_a_covenant_miss_do_not_read_the_same():
+    """
+    Both returned the bare words "COVENANT FAILS", so the scenario table showed
+    the downside and the severe case identically while one returns a twentieth
+    of the capital and the other returns none of it.
+    """
+    results = {r.name: r for r in sc.run_all(CFG, ask_price=ASK)}
+    verdicts = {n: r.verdict for n, r in results.items()}
+    assert len(set(verdicts.values())) >= 3, f"scenario verdicts do not separate: {verdicts}"
+    for r in results.values():
+        if r.equity_multiple is not None and r.equity_multiple <= 0.01:
+            assert "TOTAL LOSS" in r.verdict, (
+                f"{r.name} returns {r.equity_multiple:.2f}x and is not called a total loss")
+
+
+def test_an_undefined_irr_is_never_rendered_as_zero():
+    """
+    A scenario with no distributions has an UNDEFINED IRR, not a 0% one, and 0%
+    reads to a committee as break-even. Every display path must say n/a.
+    """
+    from build.build_business_plan import _pct, _x
+    assert _pct(None) == "n/a" and _x(None) == "n/a"
+    results = {r.name: r for r in sc.run_all(CFG, ask_price=ASK)}
+    # Where the rate does not exist the row must still tell a committee what
+    # happens to the money, or "n/a" is the only thing they see.
+    for r in results.values():
+        if r.equity_irr is None:
+            assert "CLEARS" not in r.verdict, f"{r.name}: no rate, but verdict {r.verdict!r}"
+            assert ("TOTAL LOSS" in r.verdict
+                    or "capital returned" in r.verdict
+                    or f"{r.equity_multiple:.2f}" in r.verdict), (
+                f"{r.name} reports no IRR and its verdict {r.verdict!r} does not say "
+                f"how much of the capital comes back")
+
+
+def test_a_near_total_loss_still_reports_a_rate():
+    """A twentieth of capital back has an IRR. It is about -32%, not 'n/a'."""
+    flows = [-100.0] + [0.0] * 11 + [5.0]
+    r = cfm.irr(flows)
+    assert r is not None and -1.0 < r < 0.0, f"irr={r}"
+
+
+def test_a_stream_with_no_distributions_has_no_rate():
+    assert cfm.irr([-100.0] + [0.0] * 12) is None
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items())
            if n.startswith("test_") and callable(f)]

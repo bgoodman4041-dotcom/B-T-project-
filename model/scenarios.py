@@ -73,6 +73,15 @@ class ScenarioResult:
         NOI against a basis that includes sold collateral is not the governing
         test -- see the business plan's recommendation on the hurdle.
         """
+        # Severity first. A wipe-out and a covenant miss both used to read
+        # "COVENANT FAILS", so the scenario table showed the downside and the
+        # severe case with identical verdicts while one returns half the capital
+        # and the other returns none of it. An IC reading two identical words
+        # against very different outcomes has been told the wrong thing.
+        if self.equity_multiple is not None and self.equity_multiple <= 0.01:
+            return "TOTAL LOSS OF EQUITY"
+        if not self.covenant_holds and (self.equity_multiple or 0) < 0.5:
+            return f"COVENANT FAILS — {self.equity_multiple:.2f}x of capital returned"
         if not self.covenant_holds:
             return "COVENANT FAILS"
         if self.equity_irr is None or self.equity_irr <= 0:

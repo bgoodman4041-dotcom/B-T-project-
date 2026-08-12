@@ -1,5 +1,5 @@
 {
- "today": "2026-08-10",
+ "today": "2026-08-12",
  "program": {
   "miles": 4.0,
   "cap": 340,
@@ -27,7 +27,7 @@
   "noi": 8378258.703771631,
   "peak_equity": 98051445.33125001,
   "peak_year": 4,
-  "irr": 0.08835290046680178,
+  "irr": 0.08835290046680183,
   "em": 2.488591549876354,
   "vc": 1.2103751466789046,
   "profit": 29984187.617142767,
@@ -327,8 +327,8 @@
   "flip_at": null,
   "verdict": "THE RANKING HOLDS AND THE ECONOMICS DO NOT, WHICH IS THE MORE USEFUL ANSWER. Write the $9,500,000 site cost credit at TP-01-EPCAL down to zero and it still leads TP-06-PINAL-303 on the composite by 2.5 points \u2014 but it returns 7.4% against 9.2%, so the runner-up out-earns it by 180 basis points. The composite spends 20 of its 100 points on yield, so a swing of this size barely moves it. That credit is the reuse of existing runway pavement as base course, on a runway around which fifteen PFAS areas of concern were identified in 2023. Rank on the composite if you like; fund the one that earns more.",
   "econ_flip": true,
-  "lead_irr": 0.07422506764996478,
-  "up_irr": 0.09226468696051837
+  "lead_irr": 0.07422506764996467,
+  "up_irr": 0.09226468696051832
  },
  "demand": [
   {
@@ -467,13 +467,13 @@
  "respec": {
   "n": 120,
   "verdict": "THE COMP CASE IS A SPECIFICATION PROBLEM, NOT ONLY A PRICING ONE. At comp-supported pricing the configured programme returns -0.1% and covers at 0.88x. A 510-member club on 2.25 miles with 110 garage condos returns 13.5% and covers at 2.29x \u2014 clearing every governing test on the same dirt at the same prices. The lever is MEMBER COUNT, not track length: across the searched range track length is worth 107 bp of IRR and the for-sale count 776 bp, and the for-sale count moves the WRONG WAY \u2014 more units lower the return, because the vertical is 43% of non-land cost on a thin comp-supported margin and the carry runs until the last one sells.",
-  "track_bps": 106.53267893669161,
-  "condo_bps": 775.6699610814043,
+  "track_bps": 106.53267893669272,
+  "condo_bps": 775.6699610814053,
   "base": {
    "cap": 340,
    "mi": 4.0,
    "condos": 140,
-   "irr": -0.0010473255235741085,
+   "irr": -0.0010473255235741567,
    "dscr": 0.8829816292513404,
    "vc": 0.5837263637624078,
    "permi": 85.0,
@@ -483,7 +483,7 @@
    "cap": 510,
    "mi": 2.25,
    "condos": 110,
-   "irr": 0.13468390627635077,
+   "irr": 0.13468390627635085,
    "dscr": 2.2897219180020105,
    "vc": 1.2809713764903883,
    "permi": 226.66666666666666,
@@ -499,7 +499,7 @@
   "loaded_margin": 0.1786503283302064
  },
  "comp": {
-  "irr": -0.0010473255235741085,
+  "irr": -0.0010473255235741567,
   "dscr": 0.8829816292513404,
   "vc": 0.5837263637624078,
   "land": -68436595.27477801,
@@ -507,67 +507,67 @@
   "label": "Comp-repriced \u2014 what the comparable set actually supports"
  },
  "bridge": {
-  "base": 0.08835290046680178,
+  "base": 0.08835290046680183,
   "target": 0.15,
   "verdict": "No single driver reaches 15%. The best is Initiation fee +50% at 12.9% against a 8.8% base. It takes 2 of them together \u2014 Initiation fee +50% + Annual dues +25% \u2014 to reach 15.4%. That is not a base case; it is 2 independent things going right at once, and the scenario set already prices that as the upside.",
   "n": 2,
   "label": "Initiation fee +50% + Annual dues +25%",
-  "irr": 0.15409436991951903,
+  "irr": 0.15409436991951891,
   "vc": 1.7483205482538358,
   "rungs": [
    {
     "driver": "Initiation fee",
     "move": "+50%",
-    "irr": 0.1288340083905048,
+    "irr": 0.1288340083905049,
     "vc": 1.3969959846972992,
     "reaches": false
    },
    {
     "driver": "Annual dues",
     "move": "+25%",
-    "irr": 0.1181443079003289,
+    "irr": 0.11814430790032882,
     "vc": 1.5616997102354413,
     "reaches": false
    },
    {
     "driver": "Permanent leverage",
     "move": "to zero",
-    "irr": 0.11699829050985874,
+    "irr": 0.1169982905098588,
     "vc": 1.2103751466789046,
     "reaches": false
    },
    {
     "driver": "Hard cost",
     "move": "-10%",
-    "irr": 0.11570013797985379,
+    "irr": 0.11570013797985385,
     "vc": 1.53950153816735,
     "reaches": false
    },
    {
     "driver": "Condo price",
     "move": "+30% / SF",
-    "irr": 0.11374800168473767,
+    "irr": 0.11374800168473759,
     "vc": 1.648256450773987,
     "reaches": false
    },
    {
     "driver": "Absorption",
     "move": "1.5x faster",
-    "irr": 0.111486923700435,
+    "irr": 0.11148692370043511,
     "vc": 1.4552080324019325,
     "reaches": false
    },
    {
     "driver": "Ancillary",
     "move": "+20%",
-    "irr": 0.10208226067016823,
+    "irr": 0.10208226067016843,
     "vc": 1.3611164819073147,
     "reaches": false
    },
    {
     "driver": "Exit cap",
     "move": "-100 bp",
-    "irr": 0.09714612983287971,
+    "irr": 0.09714612983287979,
     "vc": 1.4040351701475295,
     "reaches": false
    }
@@ -596,7 +596,7 @@
   {
    "name": "base",
    "label": "Base \u2014 as configured",
-   "irr": 0.08835290046680178,
+   "irr": 0.08835290046680183,
    "em": 2.488591549876354,
    "vc": 1.2103751466789046,
    "land": -5654434.007415175,
@@ -607,12 +607,12 @@
   {
    "name": "downside",
    "label": "Downside \u2014 soft cycle, slow lease-up",
-   "irr": -0.31781185501294673,
+   "irr": -0.3178118550129468,
    "em": 0.0548500939708049,
    "vc": 0.28788732732660016,
    "land": -111289127.1443617,
    "dscr": 0.36965310935642404,
-   "verdict": "COVENANT FAILS",
+   "verdict": "COVENANT FAILS \u2014 0.05x of capital returned",
    "peak": 158767433.87932518
   },
   {
@@ -623,13 +623,13 @@
    "vc": -0.027585690446834035,
    "land": -204300625.26177543,
    "dscr": -0.19627550300641103,
-   "verdict": "COVENANT FAILS",
+   "verdict": "TOTAL LOSS OF EQUITY",
    "peak": 339527606.52928424
   },
   {
    "name": "comp_repriced",
    "label": "Comp-repriced \u2014 what the comparable set actually supports",
-   "irr": -0.0010473255235741085,
+   "irr": -0.0010473255235741567,
    "em": 0.988509973777612,
    "vc": 0.5837263637624078,
    "land": -68436595.27477801,
@@ -641,32 +641,32 @@
  "lev": [
   {
    "ltc": 0.0,
-   "irr": 0.11699829050985874,
+   "irr": 0.1169982905098588,
    "dscr": null
   },
   {
    "ltc": 0.15,
-   "irr": 0.10141687202765157,
+   "irr": 0.10141687202765151,
    "dscr": 4.035610012250089
   },
   {
    "ltc": 0.3,
-   "irr": 0.08835290046680178,
+   "irr": 0.08835290046680183,
    "dscr": 2.0178050061250445
   },
   {
    "ltc": 0.45,
-   "irr": 0.08261877065710513,
+   "irr": 0.08261877065710505,
    "dscr": 1.3452033374166963
   },
   {
    "ltc": 0.6,
-   "irr": 0.07723435285156666,
+   "irr": 0.0772343528515666,
    "dscr": 1.0089025030625223
   },
   {
    "ltc": 0.7,
-   "irr": 0.07461697273067577,
+   "irr": 0.07461697273067591,
    "dscr": 0.888687586421892
   }
  ],
@@ -688,7 +688,7 @@
    "ask": 14000000.0,
    "premium": -9500000.0,
    "drive": 95,
-   "irr": 0.08835290046680178,
+   "irr": 0.08835290046680183,
    "dscr": 2.0178050061250445,
    "score": 67.8,
    "why": "Airport airfield gives it an inherited noise floor; infrastructure cost at 100% and physical suitability at 97%",
@@ -715,7 +715,7 @@
    "ask": 8200000.0,
    "premium": 3400000.0,
    "drive": 58,
-   "irr": 0.09226468696051837,
+   "irr": 0.09226468696051832,
    "dscr": 2.1346368245405984,
    "score": 65.3,
    "why": "Reclaimed quarry gives it an inherited noise floor; physical suitability at 99% and optionality at 97%",
@@ -742,7 +742,7 @@
    "ask": 9600000.0,
    "premium": 7100000.0,
    "drive": 42,
-   "irr": 0.08543241639713053,
+   "irr": 0.0854324163971305,
    "dscr": 2.0263017876325256,
    "score": 61.4,
    "why": "Sand gravel pit gives it an inherited noise floor; physical suitability at 100% and optionality at 97%",
@@ -769,7 +769,7 @@
    "ask": 8900000.0,
    "premium": 5900000.0,
    "drive": 44,
-   "irr": 0.07837561868951393,
+   "irr": 0.0783756186895139,
    "dscr": 1.8540629036116356,
    "score": 59.4,
    "why": "Mine gives it an inherited noise floor; optionality at 97% and physical suitability at 83%",
@@ -796,7 +796,7 @@
    "ask": 11400000.0,
    "premium": 5600000.0,
    "drive": 22,
-   "irr": 0.07492581497056963,
+   "irr": 0.07492581497056955,
    "dscr": 1.8022442697390897,
    "score": 58.7,
    "why": "Reclaimed quarry gives it an inherited noise floor; physical suitability at 89% and catchment at 81%",
@@ -823,7 +823,7 @@
    "ask": 11200000.0,
    "premium": 4600000.0,
    "drive": 48,
-   "irr": 0.07871826547101729,
+   "irr": 0.07871826547101715,
    "dscr": 1.869336447643711,
    "score": 55.7,
    "why": "Optionality at 97% and physical suitability at 87%",
@@ -850,7 +850,7 @@
    "ask": 11600000.0,
    "premium": 2600000.0,
    "drive": 28,
-   "irr": 0.08320156793264813,
+   "irr": 0.08320156793264802,
    "dscr": 1.9690749741868103,
    "score": 55.1,
    "why": "Infrastructure cost at 100% and catchment at 80%",
@@ -877,7 +877,7 @@
    "ask": 13700000.0,
    "premium": 5400000.0,
    "drive": 32,
-   "irr": 0.06553539197999503,
+   "irr": 0.06553539197999494,
    "dscr": 1.6401711831064614,
    "score": 54.9,
    "why": "Physical suitability at 93% and optionality at 82%",
@@ -904,7 +904,7 @@
    "ask": 10100000.0,
    "premium": 3900000.0,
    "drive": 42,
-   "irr": 0.07288859562299993,
+   "irr": 0.07288859562299985,
    "dscr": 1.7412387805502774,
    "score": 51.3,
    "why": "Physical suitability at 100% and optionality at 89%",
@@ -931,7 +931,7 @@
    "ask": 9800000.0,
    "premium": 4200000.0,
    "drive": 48,
-   "irr": 0.062091315591048746,
+   "irr": 0.06209131559104873,
    "dscr": 1.5604894950206396,
    "score": 50.9,
    "why": "Catchment at 87% and infrastructure cost at 76%",
@@ -958,7 +958,7 @@
    "ask": 6900000.0,
    "premium": 7800000.0,
    "drive": 52,
-   "irr": 0.06743700966189511,
+   "irr": 0.06743700966189509,
    "dscr": 1.6614462627232838,
    "score": 50.8,
    "why": "Catchment at 93% and physical suitability at 86%",
@@ -985,7 +985,7 @@
    "ask": 10400000.0,
    "premium": 6800000.0,
    "drive": 22,
-   "irr": 0.08032050219416015,
+   "irr": 0.08032050219416023,
    "dscr": 1.9347926605278003,
    "score": 47.3,
    "why": "Physical suitability at 79% and catchment at 79%",

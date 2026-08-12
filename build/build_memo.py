@@ -111,7 +111,6 @@ def build_memo(
     sources: list[dict[str, Any]] | None = None,
     out_dir: Path | str = "dist",
 ) -> Path:
-    rank_basis = cfg["mandate"]["yoc_basis"]["rank_on"]
     sources = sources or _default_sources()
 
     ask = parcel.get("ask_price") or 0.0
@@ -147,30 +146,64 @@ def build_memo(
     story.append(HRFlowable(width="100%", thickness=0.7, color=colors.black, spaceAfter=4))
 
     # --- Recommendation ------------------------------------------------------
-    infeasible = not diag["program_feasible"]
-    if infeasible:
+    # THE RECOMMENDATION RUNS ON THE GOVERNING TESTS, NOT THE RETIRED ONE.
+    #
+    # It used to lead with the gross-basis yield hurdle, which charges the
+    # retained club with the entire cost of garage condos and homesites that are
+    # SOLD. That test is negative for any merchant build regardless of the dirt
+    # -- the workbook already reports it as a secondary, explained line beneath
+    # the governing verdict, and business plan §13 recommends retiring it. The
+    # memo had not been updated, so the single most important sentence in the IC
+    # document said DO NOT PROCEED on a test the rest of the package says is the
+    # wrong one to ask, while equity IRR, covenant coverage and value against
+    # retained cost all pointed the other way.
+    stab_yr = two_stack.stabilization_year(scfg)
+    dev_yrs = int(round(cfg["cost"]["carry"]["development_years"]))
+    gov_cov = cf_mod.covenant_report(cf, cfg["debt"]["min_dscr"],
+                                     tested_from_year=dev_yrs + stab_yr)
+    irr = cf.equity_irr
+    clears = (gov_cov["passes_every_year"] and irr is not None and irr > 0
+              and cf.value_to_cost >= 1.0)
+
+    if clears:
         rec = (
-            f"<b>DO NOT PROCEED TO CONTRACT ON CURRENT ASSUMPTIONS.</b> The program as "
-            f"modeled fails the binding {diag['required_yield']:.2%} test "
-            f"({diag['binding_constraint']}) on the {rank_basis} basis before land is priced "
-            f"at all. Stabilized NOI of {_usd(diag['stabilized_noi'])} must reach "
-            f"{_usd(diag['noi_required_at_zero_land'])} "
-            f"({diag['noi_multiple_required']:.2f}&times;) merely to clear that test on free "
-            f"land. This is a program problem, not a parcel problem, and no site in the "
-            f"national search can cure it. Recommend re-basing the revenue assumptions "
-            f"against the verified comp set before any site is put under control."
+            f"<b>PROCEED TO OPTION — TRANCHE 1 ONLY.</b> On the governing tests {pid} "
+            f"returns {_pct(irr)} equity IRR over 12 operating years, covers at "
+            f"{_x(gov_cov['min_dscr_tested'])} from loan conversion against a "
+            f"{cfg['debt']['min_dscr']:.2f}&times; covenant with "
+            f"{gov_cov['breach_count']} breach year(s), and exits at "
+            f"{_x(cf.value_to_cost)} of retained cost. Peak equity is "
+            f"{_usd(cf.peak_equity_requirement)}. This recommendation authorises an "
+            f"OPTION and the feasibility programme, not an acquisition — see the "
+            f"conditions precedent below."
         )
     else:
+        fails = []
+        if not gov_cov["passes_every_year"]:
+            fails.append(f"covenant coverage bottoms at {_x(gov_cov['min_dscr_tested'])} "
+                         f"against a {cfg['debt']['min_dscr']:.2f}&times; floor")
+        if irr is None or irr <= 0:
+            fails.append("equity IRR is not positive")
+        if cf.value_to_cost < 1.0:
+            fails.append(f"exit value is {_x(cf.value_to_cost)} of retained cost")
         rec = (
-            f"<b>PROCEED TO OPTION.</b> {pid} clears the binding "
-            f"{diag['required_yield']:.2%} test ({diag['binding_constraint']}) on the "
-            f"{rank_basis} basis with {_usd(parcel.get('headroom_to_ask'))} of headroom "
-            f"between the ask and the maximum supportable land price, and covers at "
-            f"{_x(parcel.get('dscr_gross_at_ask'))} against a "
-            f"{diag['min_dscr']:.2f}&times; floor."
+            f"<b>DO NOT PROCEED.</b> {pid} fails the governing tests: "
+            + "; ".join(fails) + ". Re-base the programme before any site is optioned."
         )
+
+    # The retired test, reported because the mandate still names it -- never as
+    # the recommendation.
+    secondary = (
+        f"<b>Secondary — the mandated gross-basis yield test.</b> "
+        f"{diag['verdict']} This test holds stabilised club NOI against a basis that "
+        f"includes garage condos and homesites the programme SELLS, so it is negative "
+        f"for any merchant build at any land price. Business plan §13 recommends "
+        f"replacing it with the project-return and coverage tests used above."
+    )
+
     story.append(Paragraph("RECOMMENDATION", S_H))
     story.append(Paragraph(rec, S_BODY))
+    story.append(Paragraph(secondary, S_NOTE))
 
     # The comparable study is the largest open item in the project and it now has
     # a partial answer that cuts against the recommendation above. An IC memo
@@ -309,9 +342,12 @@ def build_memo(
     # --- Risks ---------------------------------------------------------------
     story.append(Paragraph("RISKS", S_H))
     flags = [f.strip() for f in str(parcel.get("flags") or "").split("|") if f.strip()]
-    if infeasible:
-        flags.insert(0, "PROGRAM-INFEASIBLE — revenue assumptions unverified and below the "
-                        "level required to clear the hurdle")
+    if not clears:
+        flags.insert(0, "FAILS THE GOVERNING TESTS on current assumptions")
+    if comp is not None and comp.min_dscr_tested < cfg["debt"]["min_dscr"]:
+        flags.insert(0, f"COMPARABLE-SET REPRICING breaks the covenant — "
+                        f"{_x(comp.min_dscr_tested)} against a "
+                        f"{cfg['debt']['min_dscr']:.2f}x floor at comp-supported pricing")
     for f in flags[:3]:
         story.append(Paragraph(f"{DIAMOND}&nbsp;{f}", S_BULLET))
     if not flags:
@@ -319,7 +355,7 @@ def build_memo(
 
     # --- Ask -----------------------------------------------------------------
     story.append(Paragraph("ASK", S_H))
-    if infeasible:
+    if not clears:
         ask_txt = (
             "Approval to commission the verified comp study (§7) and re-base dues, membership "
             "cap, ancillary revenue and the for-sale margin against it. Diligence priority is "
