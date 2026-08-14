@@ -41,6 +41,7 @@ from reportlab.platypus import (
 
 from build.build_workbook import enrich, load_parcels_csv
 from model import cashflow as cf_mod
+from model import diligence as dil
 from model import risk as rk, scenarios as sc, two_stack
 
 SERIF = "Times-Roman"
@@ -55,11 +56,11 @@ S_TITLE = ParagraphStyle("t", fontName=SERIF_B, fontSize=13.5, leading=16, space
 S_SUB = ParagraphStyle("s", fontName=SERIF_I, fontSize=8.5, leading=10,
                        textColor=colors.HexColor("#444444"), spaceAfter=5)
 S_H = ParagraphStyle("h", fontName=SERIF_B, fontSize=9.2, leading=11,
-                     spaceBefore=3.5, spaceAfter=1.5)
-S_BODY = ParagraphStyle("b", fontName=SERIF, fontSize=8.5, leading=10.2,
-                        alignment=TA_JUSTIFY, spaceAfter=1.2)
-S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.5, leading=10.2,
-                          leftIndent=11, firstLineIndent=-11, spaceAfter=1.2)
+                     spaceBefore=3.0, spaceAfter=1.2)
+S_BODY = ParagraphStyle("b", fontName=SERIF, fontSize=8.5, leading=9.9,
+                        alignment=TA_JUSTIFY, spaceAfter=1.0)
+S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.5, leading=9.9,
+                          leftIndent=11, firstLineIndent=-11, spaceAfter=1.0)
 S_NOTE = ParagraphStyle("n", fontName=SERIF_I, fontSize=7.6, leading=9.2,
                         textColor=colors.HexColor("#555555"), spaceBefore=3)
 MEMO_CITATION_LIMIT = 2
@@ -359,7 +360,7 @@ def build_memo(
         ask_txt = (
             "Approval to commission the verified comp study (§7) and re-base dues, membership "
             "cap, ancillary revenue and the for-sale margin against it. Diligence priority is "
-            "set by the Tornado tab, not by intuition. No capital at risk and no site under "
+            "set by the Diligence tab, not by intuition. No capital at risk and no site under "
             "control until the program clears the binding test on paper, the covenant holds in "
             "every year of the hold rather than at stabilization only, and the internal "
             "consistency audit is clean.")
@@ -368,6 +369,17 @@ def build_memo(
                    f"{_usd(parcel.get('max_land_gross'))}, and to fund Phase I, a boundary "
                    f"and topographic survey, and an acoustic model.")
     story.append(Paragraph(ask_txt, S_BODY))
+
+    # The register that sequences the above. It belongs in the ASK because it is
+    # the answer to "why this order" -- and because its cheapest finding is one
+    # no committee should have to open a workbook to see.
+    dsum = dil.summary(dil.price(scfg, ask, prem))
+    story.append(Paragraph(
+        f"<b>Diligence.</b> {dsum['items']} open items priced by flexing the model over each "
+        f"one's range; {dsum['covenant_breakers']} break the covenant adversely and are "
+        f"conditions precedent. {dsum['free_items']} cost nothing and carry "
+        f"{dsum['free_downside_bps']:,.0f} bp of downside between them — calls and records "
+        f"requests. Those go first. Workbook, Diligence tab.", S_BODY))
 
     # --- Citations -----------------------------------------------------------
     # A one-pager cites what it leans on, not the whole register. When the

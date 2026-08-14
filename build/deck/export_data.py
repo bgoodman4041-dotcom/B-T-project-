@@ -1,15 +1,26 @@
 """Export live model figures for the investor deck. Run before make_deck.js."""
 from __future__ import annotations
-import datetime, copy, json, sys
+import datetime, copy, json, re, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from build.build_workbook import enrich, load_parcels_csv
 from model import gates, scoring
-from model import cashflow as cfm, demand as dmd, markets as mk, respec as rsp, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
+from model import cashflow as cfm, demand as dmd, diligence as dil, markets as mk, respec as rsp, risk as rk, roadmap as rmap, scenarios as sc, two_stack as ts
 
 PARCELS = Path("data/sites_targets.csv")
 OUT = Path(__file__).resolve().parent / "data.json"
+
+
+def _test_count() -> int:
+    """
+    Count the assertions actually shipped rather than transcribing a total. The
+    deck closes by claiming the model is tested; the claim decays the moment a
+    test file is added, and it has.
+    """
+    root = Path(__file__).resolve().parent.parent.parent
+    return sum(len(re.findall(r"^def test_", f.read_text(encoding="utf-8"), re.M))
+               for f in sorted((root / "tests").glob("test_*.py")))
 
 
 def main() -> None:
@@ -33,6 +44,8 @@ def main() -> None:
     bev = rk.direct_break_evens(lcfg, ask)
     br = rk.return_bridge(lcfg, ask, target_irr=0.15, site_cost_premium=prem)
     t1b = ts.tranche_1_budget(cfg)
+    dpriced = dil.price(lcfg, ask, prem)
+    dsum, drec = dil.summary(dpriced), dil.reconcile(cfg)
     tor, _b, _n = rk.tornado(lcfg)
     mc = rk.monte_carlo(lcfg, ask, site_cost_premium=prem)
     scen = sc.run_all(lcfg, ask_price=ask, site_cost_premium=prem)
@@ -195,7 +208,19 @@ def main() -> None:
         p50=mc.percentiles.get("p50")),
       plaus=dict(fails=plaus["fail_count"], warns=plaus["warn_count"], ok=plaus["ok_count"]),
       ramp_years=[dict(y=y.year, members=y.members, noi=y.noi) for y in yrs],
+      tests=_test_count(),
       tranche1=t1b["total"],
+      dil=dict(
+        items=dsum["items"], breakers=dsum["covenant_breakers"],
+        free_items=dsum["free_items"], free_bps=dsum["free_downside_bps"],
+        register_cost=drec["register_cost"], subtotal=drec["budget_subtotal"],
+        clean=drec["clean"],
+        rows=[dict(id=x.item.id, cat=x.item.category, q=x.item.question,
+                   rng=x.item.range_note, cost=x.item.cost_usd, weeks=x.item.weeks,
+                   down=x.downside_bps, dscr=x.dscr_adv, breaks=bool(x.breaks_covenant),
+                   per100k=(None if x.bps_per_100k in (None, float("inf"))
+                            else x.bps_per_100k))
+              for x in dpriced]),
       t1=dict(subtotal=t1b["subtotal"], contingency=t1b["contingency"],
         pct=t1b["contingency_pct"], months=t1b["months"],
         items=[dict(month=i["month"], name=i["name"], usd=i["usd"],

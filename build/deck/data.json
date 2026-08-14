@@ -1,5 +1,5 @@
 {
- "today": "2026-08-12",
+ "today": "2026-08-14",
  "program": {
   "miles": 4.0,
   "cap": 340,
@@ -1103,10 +1103,262 @@
    "noi": 14316921.814304372
   }
  ],
- "tranche1": 4586400.0,
+ "tests": 281,
+ "tranche1": 4698400.0,
+ "dil": {
+  "items": 20,
+  "breakers": 2,
+  "free_items": 8,
+  "free_bps": 1447.942942554138,
+  "register_cost": 3755000.0,
+  "subtotal": 4195000.0,
+  "clean": true,
+  "rows": [
+   {
+    "id": "DD-01",
+    "cat": "Revenue",
+    "q": "Will members pay $34,000 a year where buying real estate is optional? The comparable set's ceiling outside a mandatory-purchase club or invitation-only Miami is $18,500.",
+    "rng": "$18,500 to $34,000 a year",
+    "cost": 285000,
+    "weeks": 10,
+    "down": 946.8154467015795,
+    "dscr": 0.7829539241977472,
+    "breaks": true,
+    "per100k": 332.2159462110805
+   },
+   {
+    "id": "DD-10",
+    "cat": "Market",
+    "q": "Can 340 members actually be recruited at this price? Every rate in the demand funnel \u2014 collector share, track-active share, incumbent capture \u2014 is judgment, not measured conversion.",
+    "rng": "340 members achieved, or 272",
+    "cost": 240000,
+    "weeks": 24,
+    "down": 524.5112553467618,
+    "dscr": 1.2826256799819558,
+    "breaks": true,
+    "per100k": 218.5463563944841
+   },
+   {
+    "id": "DD-08",
+    "cat": "Cost",
+    "q": "Is the circuit and vertical hard cost right? Nothing in the package is a bid; the whole cost stack is benchmark-derived.",
+    "rng": "-8% to +15% on hard cost",
+    "cost": 0,
+    "weeks": 10,
+    "down": 344.5069142813108,
+    "dscr": 1.4977826793594207,
+    "breaks": false,
+    "per100k": 17225.34571406554
+   },
+   {
+    "id": "DD-02",
+    "cat": "Revenue",
+    "q": "Is the $150,000 initiation collectable, and is any of it REFUNDABLE? The reference asset is reported to refund 70% on exit, which would make most of it a liability rather than income.",
+    "rng": "0% to 70% refundable",
+    "cost": 0,
+    "weeks": 2,
+    "down": 313.51600431028,
+    "dscr": 1.3798658386102913,
+    "breaks": false,
+    "per100k": 15675.800215513998
+   },
+   {
+    "id": "DD-05",
+    "cat": "For-sale",
+    "q": "Can 23 units a year be absorbed? M1 realised 17.5 and NJMP delivered 10-15 across nine phases in fifteen years \u2014 and NJMP is the closest structural Northeast analogue there is.",
+    "rng": "23 units/yr to 15",
+    "cost": 0,
+    "weeks": 4,
+    "down": 297.0222435214345,
+    "dscr": 1.5650700163002669,
+    "breaks": false,
+    "per100k": 14851.112176071725
+   },
+   {
+    "id": "DD-09",
+    "cat": "Operations",
+    "q": "Will a club operator run this at the modelled operating ratio? No operator is appointed and the ratio drives the covenant.",
+    "rng": "-6% to +16% on club opex",
+    "cost": 0,
+    "weeks": 20,
+    "down": 219.47308044550473,
+    "dscr": 1.596071674487189,
+    "breaks": false,
+    "per100k": 10973.654022275237
+   },
+   {
+    "id": "DD-04",
+    "cat": "For-sale",
+    "q": "Will garage condominiums sell at $530/SF? The two operating new-build track comps price at $344-352 \u2014 which is this model's assumed HARD COST, before the 1.298x soft and contingency load.",
+    "rng": "$348 to $530/SF",
+    "cost": 175000,
+    "weeks": 8,
+    "down": 193.40619728749675,
+    "dscr": 1.547286575395503,
+    "breaks": false,
+    "per100k": 110.51782702142671
+   },
+   {
+    "id": "DD-07",
+    "cat": "Tax",
+    "q": "Will the IDA grant a 50% PILOT? Without it the covenant breaks and maximum supportable land goes negative. Section 862 eligibility for a private recreation use is the open question.",
+    "rng": "50% to 0% abatement",
+    "cost": 145000,
+    "weeks": 16,
+    "down": 187.7840393914948,
+    "dscr": 1.5986300893041396,
+    "breaks": false,
+    "per100k": 129.50623406309987
+   },
+   {
+    "id": "DD-06",
+    "cat": "Environmental",
+    "q": "Is the EPCAL runway pavement reusable as base course, or is it a PFAS waste-characterisation problem? The Navy identified fifteen new areas of concern around that runway in 2023, sourced to firefighting foam.",
+    "rng": "a $9.5M cost credit, or zero",
+    "cost": 420000,
+    "weeks": 12,
+    "down": 141.27832816837162,
+    "dscr": 1.7951252911614461,
+    "breaks": false,
+    "per100k": 33.63769718294562
+   },
+   {
+    "id": "DD-03",
+    "cat": "Revenue",
+    "q": "Does the Northeast initiation ceiling of $125,000 hold? It rests on ONE AI-generated wiki entry about ONE club, with a five-fold gap to the next observation in the set.",
+    "rng": "$125,000 to $150,000",
+    "cost": 0,
+    "weeks": 1,
+    "down": 137.7118433384042,
+    "dscr": 1.865914728145341,
+    "breaks": false,
+    "per100k": 6885.59216692021
+   },
+   {
+    "id": "DD-15",
+    "cat": "Exit",
+    "q": "Will a 7.25% exit cap clear for a special-purpose recreational asset with a thin buyer universe?",
+    "rng": "-50 bp to +150 bp on the exit cap",
+    "cost": 0,
+    "weeks": 6,
+    "down": 107.86885259724238,
+    "dscr": 2.0178050061250445,
+    "breaks": false,
+    "per100k": 5393.442629862119
+   },
+   {
+    "id": "DD-17",
+    "cat": "Cost",
+    "q": "Is the site infrastructure budget real? Earthwork, utilities and stormwater are carried at benchmark on a parcel nobody has surveyed.",
+    "rng": "-15% to +25% on site infrastructure",
+    "cost": 380000,
+    "weeks": 10,
+    "down": 75.81642382122361,
+    "dscr": 1.8934079086032207,
+    "breaks": false,
+    "per100k": 19.95169047926937
+   },
+   {
+    "id": "DD-11",
+    "cat": "Season",
+    "q": "Is 210 usable days right for the lead site? The only published Northeast facility figure in the comp set is 150 days, at a materially colder site.",
+    "rng": "210 usable days to 180",
+    "cost": 0,
+    "weeks": 3,
+    "down": 27.84400405996118,
+    "dscr": 1.9630770353381957,
+    "breaks": false,
+    "per100k": 1392.200202998059
+   },
+   {
+    "id": "DD-19",
+    "cat": "Entitlement",
+    "q": "How long is the entitlement path really, and what does running it cost? The researched path at the lead site is 45 months against the programme's 33, and fourteen of fifteen sites revised up.",
+    "rng": "33 months to 45",
+    "cost": 340000,
+    "weeks": 16,
+    "down": 14.813617811703095,
+    "dscr": 1.9925434433090978,
+    "breaks": false,
+    "per100k": 4.356946415206792
+   },
+   {
+    "id": "DD-12",
+    "cat": "Entitlement",
+    "q": "What is the daytime dBA limit at the nine sites where none is published? Two have ordinances whose tables would not open; seven publish nothing.",
+    "rng": "unverified to cited",
+    "cost": 0,
+    "weeks": 3,
+    "down": null,
+    "dscr": null,
+    "breaks": false,
+    "per100k": null
+   },
+   {
+    "id": "DD-13",
+    "cat": "Land",
+    "q": "What does large-acreage land actually trade at in the target counties, and who owns these parcels? No land comparables were obtained and no target carries an APN, coordinates or an owner to call.",
+    "rng": "profile to parcel",
+    "cost": 310000,
+    "weeks": 8,
+    "down": null,
+    "dscr": null,
+    "breaks": false,
+    "per100k": null
+   },
+   {
+    "id": "DD-14",
+    "cat": "Title",
+    "q": "Is the EPCAL disposition free to transact? In litigation since 2024, one cause of action surviving dismissal in February 2026, land described as in limbo throughout.",
+    "rng": "clean to unmarketable",
+    "cost": 100000,
+    "weeks": 12,
+    "down": null,
+    "dscr": null,
+    "breaks": false,
+    "per100k": null
+   },
+   {
+    "id": "DD-16",
+    "cat": "Entitlement",
+    "q": "Does the circuit meet the municipal standard at the property line, as designed? A fail here is not a cost line \u2014 it is a redesign, a berm programme, or a different site.",
+    "rng": "pass, redesign, or fatal",
+    "cost": 165000,
+    "weeks": 9,
+    "down": null,
+    "dscr": null,
+    "breaks": false,
+    "per100k": null
+   },
+   {
+    "id": "DD-18",
+    "cat": "Design",
+    "q": "Do 4.0 miles of circuit, 140 garage condominiums and the homesites fit the parcel at a workable grade? The re-specification search wants a shorter course; nobody has drawn either version on real topography.",
+    "rng": "fits as drawn, or the programme changes",
+    "cost": 295000,
+    "weeks": 14,
+    "down": null,
+    "dscr": null,
+    "breaks": false,
+    "per100k": null
+   },
+   {
+    "id": "DD-20",
+    "cat": "Control",
+    "q": "Can both finalists be optioned, at what price, and for long enough to run the entitlement? Nothing is under contract and one of the two is in litigation over its disposition.",
+    "rng": "optioned, or not",
+    "cost": 900000,
+    "weeks": 26,
+    "down": null,
+    "dscr": null,
+    "breaks": false,
+    "per100k": null
+   }
+  ]
+ },
  "t1": {
-  "subtotal": 4095000.0,
-  "contingency": 491400.0,
+  "subtotal": 4195000.0,
+  "contingency": 503400.0,
   "pct": 0.12,
   "months": 18,
   "items": [
@@ -1125,6 +1377,13 @@
     "resolves": "Turns 15 target profiles into parcels with APN, coordinates and an owner to call"
    },
    {
+    "month": 5,
+    "name": "Acoustic modelling against the actual municipal standard",
+    "usd": 165000,
+    "vendor": "Motorsport-specific acoustic consultant",
+    "resolves": "Whether the circuit can be built inside the published limit, before a dollar of land closes"
+   },
+   {
     "month": 6,
     "name": "Site option payments and extensions (2 sites)",
     "usd": 900000,
@@ -1139,11 +1398,11 @@
     "resolves": "Replaces the assumed demand funnel with measured conversion"
    },
    {
-    "month": 7,
-    "name": "Acoustic modelling against the actual municipal standard",
-    "usd": 165000,
-    "vendor": "Motorsport-specific acoustic consultant",
-    "resolves": "Whether the circuit can be built inside the published limit, before a dollar of land closes"
+    "month": 8,
+    "name": "Title and disposition counsel (lead site)",
+    "usd": 100000,
+    "vendor": "Title counsel and a national title underwriter",
+    "resolves": "Whether the lead site's disposition, in litigation since 2024 with one cause of action surviving dismissal in February 2026, can be optioned and insured at all. Added after the diligence register found the risk register carried this as High/High while the ask carried no title line."
    },
    {
     "month": 9,

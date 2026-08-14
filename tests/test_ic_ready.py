@@ -177,6 +177,68 @@ def test_the_two_asks_are_not_confused():
         "the plan does not say plainly that construction equity is not being asked for")
 
 
+def test_the_ask_reconciles_against_the_diligence_register():
+    """
+    A budget nobody can tie to a question list is a number to argue about. The
+    register claims each line of the ask, and the one line that is not a
+    diligence item is named rather than absorbed into a rounding note.
+    """
+    from model import diligence as dil
+    r = dil.reconcile(CFG)
+    assert r["clean"], (
+        f"the ask and the diligence register do not reconcile: orphans "
+        f"{r['orphan_items']}, unclaimed {r['unclaimed_lines']}, mismatched "
+        f"{r['mismatched_lines']}")
+
+
+def test_the_diligence_register_reaches_every_artifact():
+    """
+    The committee will ask what is unverified and what it costs to find out. The
+    answer exists; it has to be in the documents they read, not only in a module.
+    """
+    for label, src in (("plan", _plan_source()), ("memo", _memo_source()),
+                       ("workbook", (ROOT / "build" / "build_workbook.py")
+                        .read_text(encoding="utf-8")),
+                       ("deck", (ROOT / "build" / "deck" / "export_data.py")
+                        .read_text(encoding="utf-8"))):
+        assert "diligence" in src.lower(), (
+            f"{label} never surfaces the diligence register")
+
+
+def test_the_free_diligence_finding_is_stated_where_it_will_be_read():
+    """
+    Eight of the twenty items cost nothing and carry more downside than most of
+    the funded studies. That is the most actionable sentence the analysis
+    produced, and it is worthless inside a module.
+    """
+    from model import diligence as dil
+    s = dil.summary(dil.price(LCFG, ASK, PREM))
+    assert s["free_items"] >= 5 and s["free_downside_bps"] > 1_000
+    for label, src in (("plan", _plan_source()), ("memo", _memo_source())):
+        assert "cost nothing" in src, (
+            f"{label} does not say that the cheapest diligence items carry real money")
+
+
+def test_the_sequencing_claim_is_derived_and_true():
+    """
+    The plan, the deck and the workbook all claim the two kill-switch answers
+    land before option money is at risk. That was transcribed as 'months 3 and
+    7' against options in month 6, which was false. It is now derived.
+    """
+    months = {i["name"]: int(i["month"]) for i in ts.tranche_1_budget(CFG)["items"]}
+    comp = next(v for k, v in months.items() if "Comparable club" in k)
+    acoustic = next(v for k, v in months.items() if "Acoustic" in k)
+    options = next(v for k, v in months.items() if "option payments" in k)
+    assert comp <= options and acoustic <= options, (
+        f"the package claims the comparable study (month {comp}) and the acoustic "
+        f"model (month {acoustic}) land before the option payments (month {options})")
+    for label, src in (("plan", _plan_source()),
+                       ("deck", _deck_source()),
+                       ("workbook", (ROOT / "build" / "build_workbook.py")
+                        .read_text(encoding="utf-8"))):
+        assert "months 3 and 7" not in src, f"{label} transcribes the sequencing months"
+
+
 def test_conditions_precedent_exist_and_name_the_real_ones():
     plan = _plan_source()
     assert "CONDITIONS PRECEDENT" in plan.upper()

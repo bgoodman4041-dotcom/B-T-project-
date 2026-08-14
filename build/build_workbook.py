@@ -31,6 +31,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from model import cashflow as cf_mod
 from model import demand
+from model import diligence as dil
 from model import respec as rsp
 from model import gates, risk as rk, scenarios as sc, scoring, two_stack
 from model.schema import PARCEL_SCHEMA, coerce
@@ -1705,6 +1706,104 @@ def _tab_plausibility(wb: Workbook, cfg: dict[str, Any], land_price: float) -> N
 
 
 # =============================================================================
+# Tab: Diligence
+# =============================================================================
+
+def _tab_diligence(wb: Workbook, cfg: dict[str, Any], land_price: float,
+                   premium: float) -> None:
+    """
+    Every open item in the package, priced by how far the adverse answer sits
+    below the base case.
+
+    The Tranche 1 tab says what the money buys. This says what each answer is
+    worth, which is the only basis on which to sequence them — and it reconciles
+    against that tab in both directions, so no line of the ask goes unclaimed by
+    a numbered question and no question spends money the ask does not contain.
+    """
+    priced = dil.price(cfg, land_price, premium)
+    summ = dil.summary(priced)
+    rec = dil.reconcile(cfg)
+
+    ws = wb.create_sheet("Diligence")
+    ws["A1"] = "DILIGENCE REGISTER — WHAT IS UNVERIFIED, AND WHAT THE ANSWER IS WORTH"
+    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
+    ws["A2"] = (
+        "Each item is flexed across the honest span between what the evidence suggests and "
+        "what the model assumes, and the governing tests are re-run at both ends. DOWNSIDE is "
+        "the distance below the base case at the adverse end — not the width of the range, "
+        "because an unbid cost block flexed both ways is mostly upside and ranking it against "
+        "a revenue assumption the comparable set contradicts would flatter the wrong item. "
+        "Items with no model driver carry no swing rather than a guessed one; they are ranked "
+        "by the gate they clear.")
+    ws["A2"].font = NOTE_FONT
+    ws["A3"] = (
+        f"{summ['covenant_breakers']} of {summ['items']} items break the covenant at their "
+        f"adverse end and are conditions precedent, not refinements. "
+        f"{summ['free_items']} cost nothing at all and together carry "
+        f"{summ['free_downside_bps']:,.0f} bp of downside — phone calls and records requests "
+        f"worth more than most of the funded studies beneath them. Make those first.")
+    ws["A3"].font = Font(name="Calibri", size=9, bold=True, color="7F1D1D")
+    ws["A3"].alignment = Alignment(wrap_text=True, vertical="top")
+
+    headers = ["ID", "Category", "Open question", "Range tested", "Cost", "Weeks",
+               "IRR favourable", "IRR adverse", "Downside (bp)", "DSCR adverse",
+               "bp per $100k", "Verdict", "Who does it", "Source"]
+    _header_row(ws, headers, row=5)
+    r = 6
+    for p in priced:
+        i = p.item
+        vals = [i.id, i.category, i.question, i.range_note, i.cost_usd, i.weeks,
+                p.irr_fav, p.irr_adv, p.downside_bps, p.dscr_adv, p.bps_per_100k,
+                p.verdict, i.owner, i.source]
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row=r, column=c, value=_safe(v))
+            cell.font, cell.border = BODY_FONT, BORDER
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            if c == 5:
+                cell.number_format = FMT_USD
+            elif c in (7, 8):
+                cell.number_format = FMT_PCT
+            elif c in (9, 11):
+                cell.number_format = FMT_NUM
+            elif c == 10:
+                cell.number_format = "0.00x"
+        ws.cell(row=r, column=1).fill = (
+            RED if p.breaks_covenant else
+            AMBER if (p.downside_bps or 0) >= 300 else
+            GREEN if p.downside_bps is not None else AMBER)
+        r += 1
+    last = r - 1
+
+    r += 1
+    ws.cell(row=r, column=1, value="RECONCILIATION AGAINST THE TRANCHE 1 ASK").font = (
+        Font(name="Calibri", size=11, bold=True))
+    r += 1
+    for label, val in (
+            ("Register cost, claimed against ask lines", rec["register_cost"]),
+            ("Programme management — not a diligence question",
+             sum(v for _, v in rec["excluded_lines"])),
+            ("Tranche 1 subtotal", rec["budget_subtotal"]),
+            ("Tranche 1 total, after contingency", rec["budget_total"])):
+        ws.cell(row=r, column=1, value=label).font = BODY_FONT
+        c = ws.cell(row=r, column=5, value=_safe(val))
+        c.number_format, c.font = FMT_USD, BODY_FONT
+        r += 1
+    verdict = ("Reconciled — every line of the ask is claimed by a numbered question, and no "
+               "question spends money the ask does not contain."
+               if rec["clean"] else
+               f"NOT RECONCILED — orphan items {rec['orphan_items']}; "
+               f"unclaimed lines {rec['unclaimed_lines']}")
+    v = ws.cell(row=r + 1, column=1, value=verdict)
+    v.font = NOTE_FONT
+    v.fill = GREEN if rec["clean"] else RED
+    v.alignment = Alignment(wrap_text=True, vertical="top")
+
+    _finish(ws, freeze="C6", ncols=len(headers), nrows=last, header_row=5,
+            widths={"A": 8, "B": 14, "C": 74, "D": 30, "E": 13, "F": 7, "G": 14,
+                    "H": 13, "I": 13, "J": 13, "K": 13, "L": 62, "M": 44, "N": 30})
+
+
+# =============================================================================
 # Orchestration
 # =============================================================================
 
@@ -1846,6 +1945,7 @@ def build(parcels: list[dict[str, Any]], cfg: dict[str, Any],
     _tab_monte_carlo(wb, ref_cfg, ref_land, ref_premium)
     _tab_plausibility(wb, ref_cfg, ref_land)
     _tab_respec(wb, ref_cfg, ref_land, ref_premium, lead or None)
+    _tab_diligence(wb, ref_cfg, ref_land, ref_premium)
     _tab_sources(wb, sources or _default_sources())
     _tab_unverified(wb, unverified)
 

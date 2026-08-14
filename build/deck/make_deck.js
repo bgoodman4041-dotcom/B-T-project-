@@ -1142,12 +1142,55 @@ if (D.respec && D.respec.best) {
              "Complete by month " + D.t1.months]);
   tbl(s, M, 1.5, W - 2 * M, rows, [0.4, 2.55, 0.85, 2.65, 5.45],
       { rowH: 0.295, fs: 8 });
+  const mo = (frag) => D.t1.items.find(i => i.name.indexOf(frag) >= 0).month;
   footnote(s, "Sequencing is the point. The comparable club study and the acoustic model " +
-    "land in months 3 and 7 \u2014 both before the option payments are at real risk and " +
-    "long before land closes. If either comes back wrong the programme stops having spent " +
-    "a fraction of the commitment, and the balance is released.");
+    "land in months " + mo("Comparable club") + " and " + mo("Acoustic") +
+    " \u2014 both before the option payments in month " + mo("option payments") +
+    " are at real risk and long before land closes. If either comes back wrong the " +
+    "programme stops having spent a fraction of the commitment, and the balance is released.");
   s.addNotes("This slide is the answer to \u2018what stops you spending my money on the " +
     "wrong site\u2019. The two kill-switch items are the two cheapest and the two earliest.");
+}
+
+// =====================================================================
+// 15c — The diligence register
+// =====================================================================
+{
+  const s = lightSlide("Diligence",
+    "Every open item, priced by how far the wrong answer moves us");
+  s.addText("Each item is flexed across the span between what the evidence suggests and " +
+    "what the model assumes. What is shown is the DOWNSIDE \u2014 the distance below the " +
+    "base case at the adverse end, not the width of the range.", {
+    x: M, y: 1.3, w: W - 2 * M, h: 0.34, fontFace: BFONT, fontSize: 10.5,
+    color: GREY, margin: 0,
+  });
+  const rows = [["ID", "Open item", "Cost", "Downside", "DSCR adv.", "bp / $100k"]];
+  D.dil.rows.filter(r => r.down !== null).slice(0, 9).forEach(r => rows.push([
+    r.id, r.cat + " \u2014 " + r.rng, k$(r.cost),
+    Math.round(r.down).toLocaleString() + " bp",
+    r.dscr === null ? "n/a" : xx(r.dscr),
+    r.per100k === null ? "n/a" : Math.round(r.per100k).toLocaleString(),
+  ]));
+  tbl(s, M, 1.78, 7.86, rows, [0.6, 2.96, 0.84, 1.04, 0.9, 1.52], { rowH: 0.3, fs: 8.5 });
+
+  const x2 = 8.82, w2 = W - M - x2;
+  const card = { vsize: 22, lsize: 8.5 };
+  statCard(s, x2, 1.78, w2, 1.24, D.dil.breakers + " of " + D.dil.items,
+    "items break the " + xx(D.econ.covenant) + " covenant at their adverse end. " +
+    "Conditions precedent, not refinements.", card);
+  statCard(s, x2, 3.16, w2, 1.24, D.dil.free_items + " free",
+    "items cost nothing at all \u2014 membership offices, county records, nine municipal " +
+    "clerks with a noise table.", card);
+  statCard(s, x2, 4.54, w2, 1.24, Math.round(D.dil.free_bps).toLocaleString() + " bp",
+    "of downside those free items carry between them. More than any funded study " +
+    "except the comparable set.", card);
+  footnote(s, "The register reconciles against the ask in both directions: " +
+    m$(D.dil.register_cost) + " of the " + m$(D.dil.subtotal) + " subtotal is claimed by a " +
+    "numbered question and the balance is programme management. That reconciliation is what " +
+    "added the title line \u2014 the risk register carried the lead site's disposition as " +
+    "High/High while the ask had nothing to pay a title lawyer with.");
+  s.addNotes("The point of this slide is sequencing, not fear. Eight of the twenty items " +
+    "are phone calls. Do them before writing a cheque for anything on the list.");
 }
 
 // =====================================================================
@@ -1186,7 +1229,7 @@ if (D.respec && D.respec.best) {
       fontSize: 11, color: MIDGREY, margin: 0, lineSpacingMultiple: 1.05 });
   });
   s.addText("Every figure in this deck is generated directly from the underwriting model — " +
-    "129 unit tests, an internal-consistency audit, and a check that the live spreadsheet " +
+    D.tests + " unit tests, an internal-consistency audit, and a check that the live spreadsheet " +
     "formulas agree with the model to the cent. Nothing here is typed by hand.", {
     x: M, y: 6.36, w: 11.9, h: 0.55, fontFace: BFONT, fontSize: 10, italic: true,
     color: GREY, margin: 0, lineSpacingMultiple: 1.08,

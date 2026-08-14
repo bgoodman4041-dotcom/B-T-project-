@@ -41,6 +41,7 @@ from build.build_workbook import enrich, load_parcels_csv
 from model import gates, scoring
 from model import cashflow as cfm
 from model import demand as dm
+from model import diligence as dil
 from model import markets as mk
 from model import respec as rs
 from model import risk as rk
@@ -178,6 +179,9 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     comp = next((r for r in scen if r.name == "comp_repriced"), None)
     respec_r = rs.search(lcfg, lead_ask, lead_prem, parcel=lead)
     t1 = ts.tranche_1_budget(cfg)
+    # The diligence register, priced against the LEAD SITE -- the environmental
+    # item flexes that site's own cost credit, so it is not a national figure.
+    dil_priced = dil.price(lcfg, lead_ask, lead_prem)
     bridge = rk.return_bridge(lcfg, lead_ask, target_irr=0.15,
                               site_cost_premium=lead_prem)
     tor, tor_base, _ = rk.tornado(lcfg)
@@ -204,6 +208,14 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
                     [p for p in universe], cfg, ts.underwrite, gates.screen,
                     ts.site_config, cfm.project_cash_flow),
                 t1=t1,
+                dil_priced=dil_priced,
+                dil_summary=dil.summary(dil_priced),
+                dil_reconcile=dil.reconcile(cfg),
+                # The plan prints the items that carry a number plus the two
+                # unpriced items that gate the whole programme; the workbook
+                # Diligence tab carries all of them.
+                dil_top=[x for x in dil_priced if x.downside_bps][:8]
+                + [x for x in dil_priced if x.item.id in ("DD-13", "DD-20")],
                 tor=tor, tor_base=tor_base, mc=mc, sites=sites,
                 markets=mk.ranked_markets(), rollout=mk.rollout(lead_site=lead),
                 demand=dm.portfolio(cfg, live),
@@ -1045,11 +1057,16 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         ["", "TRANCHE 1 TOTAL", _usd(t1), "",
          f"Complete by month {t1b['months']}"],
     ], [0.3 * inch, 1.78 * inch, 0.66 * inch, 1.72 * inch, 2.39 * inch]))
+    _months = {i["name"]: int(i["month"]) for i in t1b["items"]}
+    _m_comp = next(v for k, v in _months.items() if "Comparable club" in k)
+    _m_acou = next(v for k, v in _months.items() if "Acoustic" in k)
+    _m_opt = next(v for k, v in _months.items() if "option payments" in k)
     A(Paragraph(
-        "Sequencing is the point. The comparable club study and the acoustic model land in "
-        "months 3 and 7 — both before the option payments are at real risk and long before "
-        "land closes. If either comes back wrong, the programme stops having spent a fraction "
-        "of the commitment, and the remaining capital is released.", S_NOTE))
+        f"Sequencing is the point. The comparable club study and the acoustic model land in "
+        f"months {_m_comp} and {_m_acou} — both before the option payments in month {_m_opt} "
+        f"are at real risk and long before land closes. If either comes back wrong, the "
+        f"programme stops having spent a fraction of the commitment, and the remaining capital "
+        f"is released.", S_NOTE))
 
     A(Paragraph(
         f"Tranche 1 is deliberately the smaller number and the harder gate. The programme's "
@@ -1057,6 +1074,48 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"a fraction of a percent of total cost. Committing "
         f"{_m(cf.peak_equity_requirement)} before that work is done would be indefensible, "
         f"and we are not asking anyone to.", S_BODY))
+
+    # ---------------- 8b. The diligence register ----------------
+    dsum, drec, dtop = S["dil_summary"], S["dil_reconcile"], S["dil_top"]
+    A(Paragraph("What each answer is worth, and what it costs to get it", S_H2))
+    A(Paragraph(
+        f"The table above says what the money buys. This says what each answer is worth, which "
+        f"is the only defensible basis on which to sequence them. Every open item in the "
+        f"package — {dsum['items']} of them, consolidated from the comparable study, the "
+        f"jurisdiction register, the risk register and the citation register — is flexed across "
+        f"the honest span between what the evidence suggests and what the model assumes, and "
+        f"the governing tests are re-run at both ends. What is reported is the DOWNSIDE: the "
+        f"distance below the base case at the adverse end, not the width of the range. The two "
+        f"are different, and conflating them flatters the wrong item. An unbid cost block "
+        f"flexed both ways has a wide range mostly because its favourable end is better than "
+        f"the model assumes; the dues assumption has no favourable end at all, because the "
+        f"model already sits at the top of it.", S_BODY))
+    A(table([["ID", "Open item", "Cost", "Downside", "DSCR adv.", "What it means"]] + [
+        [p.item.id, p.item.category + " — " + p.item.range_note, _usd(p.item.cost_usd),
+         ("n/a" if p.downside_bps is None else f"{p.downside_bps:,.0f} bp"),
+         ("n/a" if p.dscr_adv is None else _x(p.dscr_adv)),
+         p.verdict]
+        for p in dtop
+    ], [0.48 * inch, 1.62 * inch, 0.62 * inch, 0.6 * inch, 0.52 * inch, 2.96 * inch]))
+    A(Paragraph(
+        f"{dsum['covenant_breakers']} items break the {_x(cfg['debt']['min_dscr'])} covenant at "
+        f"their adverse end. Those are conditions precedent under Section 12, not refinements. "
+        f"The finding that should change behaviour this month is cheaper than any of them: "
+        f"{dsum['free_items']} of the {dsum['items']} items cost nothing at all — membership "
+        f"office calls, county records requests, nine municipal clerks who will read a noise "
+        f"table down a phone line — and together they carry "
+        f"{dsum['free_downside_bps']:,.0f} basis points of downside, more than any funded study "
+        f"in the budget except the comparable set itself. They are not in Tranche 1 because "
+        f"they do not cost anything. They should still be done first.", S_BODY))
+    A(Paragraph(
+        f"The register reconciles against the budget above in both directions: no item spends "
+        f"money the ask does not contain, and no line of the ask goes unclaimed by a numbered "
+        f"question. {_usd(drec['register_cost'])} of the {_usd(drec['budget_subtotal'])} "
+        f"subtotal is claimed by a question; the balance is programme management, which is real "
+        f"money and is not a diligence item. That reconciliation is what added the title line: "
+        f"the risk register carried the lead site's disposition as a High/High item, in "
+        f"litigation since 2024, while the ask carried nothing to pay a title lawyer with.",
+        S_NOTE))
 
     # ---------------- 8b. Exit ----------------
     A(Paragraph("9. EXIT STRATEGY", S_H1))

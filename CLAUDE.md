@@ -292,10 +292,65 @@ nothing, so no rate exists; `downside` returns a fortieth and then bleeds, so it
 NPV is negative at every discount rate and no rate exists there either. Both print
 `n/a`, never zero, and the verdict carries the multiple so the row is never bare.
 
-**The package supports a TRANCHE 1 decision only** — $4.59M of feasibility capital
+**The package supports a TRANCHE 1 decision only** — $4.70M of feasibility capital
 against options and studies. It does not support a construction commitment,
 because the revenue assumptions the whole model rests on are unverified and the
 comparable set contradicts them. Every artifact says so in the same voice.
+
+## v2.5 — the diligence register: what is unverified, and what the answer is worth
+
+Four registers each carried their own task list — ~48 open items with no
+consolidated view and no sense of which mattered. `model/diligence.py` holds 20
+numbered items and prices each one by flexing the model across the honest span
+between what the evidence suggests and what the config assumes, then re-running
+the governing tests at both ends.
+
+**Downside is not range width, and conflating them flatters the wrong item.**
+Hard cost is flexed −8%/+15% because nothing is bid, so most of its 561 bp range
+sits *above* the base case; the dues assumption has no favourable end at all
+because the model already sits at the top of it. Ranking on width put an unbid
+cost block next to the one input the comparable set contradicts. The register
+reports `downside_bps` — distance below the base case at the adverse end — and
+ranks on that. `irr_swing_bps` is still reported, and a test pins them apart.
+
+| Rank | Item | Cost | Downside | DSCR adv. |
+|---|---|---|---|---|
+| 1 | DD-01 dues $34,000 → $18,500 | $285k | **947 bp** | **0.78×** |
+| 2 | DD-10 cap 340 → 272 achieved | $240k | 525 bp | **1.28×** |
+| 3 | DD-08 hard cost unbid | $0 | 345 bp | 1.50× |
+| 4 | DD-02 initiation 70% refundable | $0 | 314 bp | 1.38× |
+| 5 | DD-05 absorption 23 → 15/yr | $0 | 297 bp | 1.57× |
+
+**The finding that should change behaviour this month is free.** Eight of the
+twenty items cost nothing — membership-office calls, county records requests,
+nine municipal clerks who will read a noise table down a phone line — and
+together they carry **1,448 bp of downside**, more than any funded study except
+the comparable set. They are not in Tranche 1 because they do not cost anything.
+They should still be done first, and every artifact now says so.
+
+**The site cost premium had to become a flexed input.** The most-argued number in
+the programme is EPCAL's −$9.5M pavement credit, and it is an argument to
+`project_cash_flow`, not a config key. A flexer that could only reach the config
+would have left it unpriced, so every flexer takes and returns the premium.
+Writing the credit to zero costs **141 bp** — which reproduces the 7.4% already
+quoted in v2.2b from a different direction. A credit can evaporate and a premium
+can only be bid against, so on a site that already carries a *charge* the item
+carries no flex rather than an invented multiplier.
+
+**Reconciliation found a hole in the ask.** `reconcile()` checks both directions:
+no item may spend money the ask does not contain, and no line of the ask may go
+unclaimed by a numbered question. The risk register carried the lead site's
+disposition as High/High — in litigation since 2024 — while Tranche 1 had no
+title line at all. Added at $100k; the ask goes $4.59M → **$4.70M**. One line is
+declared `NOT_A_QUESTION` (programme management) rather than absorbed into a
+rounding note.
+
+**Two transcribed figures were wrong.** The plan and deck both claimed the
+comparable study and the acoustic model "land in months 3 and 7 — both before the
+option payments are at real risk", against options in month **6**. The acoustic
+model moved to month 5 and all three artifacts now derive the months. The deck
+also closed on a hard-coded "129 unit tests" against a register that has since grown;
+it counts them at export time now.
 
 ## Layout
 
@@ -305,10 +360,10 @@ model/two_stack.py                Two-stack model; closed-form max supportable l
 model/gates.py                    Gates 1-5 screening funnel
 model/scoring.py                  Composite 100-point ranking (§11 weights)
 model/schema.py                   119-column parcel schema; CSV intake coercion
-build/build_workbook.py           17-tab xlsx, live formulas on the Underwriting tab
+build/build_workbook.py           22-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
-build/build_business_plan.py      19-page formal business plan PDF
-build/deck/make_deck.js           19-slide investor deck (pptxgenjs)
+build/build_business_plan.py      34-page formal business plan PDF
+build/deck/make_deck.js           27-slide investor deck (pptxgenjs)
 data/sites_targets.csv            15 nationwide TARGET PROFILES — not parcels under contract
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
@@ -320,6 +375,7 @@ model/roadmap.py                  10-horizon milestones, platform scale, listing
 model/markets.py                  23 US metros, six-driver composite, rollout Phases A-D
 model/demand.py                   HNW pool -> capturable seats; coverage and break-even
 model/respec.py                   Holds comp pricing fixed, searches the programme
+model/diligence.py                Open items priced by how far the wrong answer moves us
 data/comps_clubs.csv              41 rows, 22 clubs. NOTHING is Verified — read the grade
 research/comps_findings.md        The comparable study. Read before touching income assumptions
 research/jurisdiction_register.md Entitlement regime per target jurisdiction
@@ -329,7 +385,8 @@ tests/test_model.py               78 tests; the closed-form identities
 tests/test_analytics.py           92 tests; tax, cashflow, scenarios, risk, roadmap
 tests/test_markets.py             47 tests; market screen, season, demand, fragility
 tests/test_data_integrity.py      23 tests; every data file against every other
-tests/test_ic_ready.py            16 checks; is the package fit for a committee
+tests/test_ic_ready.py            20 checks; is the package fit for a committee
+tests/test_diligence.py           21 tests; the register, its flexers, its reconciliation
 tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
@@ -491,7 +548,8 @@ python3 tests/test_model.py               # 78 tests, fast
 python3 tests/test_analytics.py           # 92 tests, fast
 python3 tests/test_markets.py             # 47 tests, fast
 python3 tests/test_data_integrity.py      # 23 tests, fast — run after ANY data edit
-python3 tests/test_ic_ready.py            # 16 checks — run before any IC submission
+python3 tests/test_ic_ready.py            # 20 checks — run before any IC submission
+python3 tests/test_diligence.py           # 21 tests, fast — the diligence register
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

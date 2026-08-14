@@ -554,7 +554,7 @@ tranche_1:
       resolves: Control without ownership while entitlement risk is live
     - name: Acoustic modelling against the actual municipal standard
       usd: 165000
-      month: 7
+      month: 5
       vendor: Motorsport-specific acoustic consultant
       resolves: Whether the circuit can be built inside the published limit,
         before a dollar of land closes
@@ -579,6 +579,14 @@ tranche_1:
       month: 14
       vendor: Land-use counsel admitted in the jurisdiction
       resolves: The permitting path, the approval body and the real timeline
+    - name: Title and disposition counsel (lead site)
+      usd: 100000
+      month: 8
+      vendor: Title counsel and a national title underwriter
+      resolves: Whether the lead site's disposition, in litigation since 2024 with
+        one cause of action surviving dismissal in February 2026, can be optioned
+        and insured at all. Added after the diligence register found the risk
+        register carried this as High/High while the ask carried no title line.
     - name: Property tax abatement negotiation
       usd: 145000
       month: 15
