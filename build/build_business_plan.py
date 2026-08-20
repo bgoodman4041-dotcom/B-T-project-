@@ -182,6 +182,7 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
     # The diligence register, priced against the LEAD SITE -- the environmental
     # item flexes that site's own cost credit, so it is not a national figure.
     dil_priced = dil.price(lcfg, lead_ask, lead_prem)
+    dil_tols = dil.tolerance(lcfg, lead_ask, lead_prem)
     bridge = rk.return_bridge(lcfg, lead_ask, target_irr=0.15,
                               site_cost_premium=lead_prem)
     tor, tor_base, _ = rk.tornado(lcfg)
@@ -211,6 +212,9 @@ def snapshot(cfg: dict[str, Any], parcels_csv: Path) -> dict[str, Any]:
                 dil_priced=dil_priced,
                 dil_summary=dil.summary(dil_priced),
                 dil_reconcile=dil.reconcile(cfg),
+                dil_tols=dil_tols,
+                dil_binding=dil.binding_summary(dil_tols),
+                dil_survival=dil.survival(lcfg, lead_ask, lead_prem),
                 # The plan prints the items that carry a number plus the two
                 # unpriced items that gate the whole programme; the workbook
                 # Diligence tab carries all of them.
@@ -1116,6 +1120,67 @@ def build(cfg: dict[str, Any], parcels_csv: Path, out_dir: Path) -> Path:
         f"the risk register carried the lead site's disposition as a High/High item, in "
         f"litigation since 2024, while the ask carried nothing to pay a title lawyer with.",
         S_NOTE))
+
+    A(Paragraph("How much of each wrong answer the deal absorbs", S_H2))
+    dbind, dtol = S["dil_binding"], S["dil_tols"]
+    dthin = dbind["thinnest"]
+    A(Paragraph(
+        f"\u201cThe adverse end breaks the covenant\u201d is a yes or no. It does not say how "
+        f"much room there is. Because each range is continuous in its own units, the same model "
+        f"can be asked where along the range the deal stops clearing \u2014 which turns a "
+        f"binary into a margin of safety. Of the "
+        f"{dbind['binds'] + dbind['absorb_everything']} items with a model driver, "
+        f"{dbind['absorb_everything']} absorb their entire range: the deal still clears every "
+        f"governing test even at the far end. {dbind['binds']} do not.", S_BODY))
+    A(table([["ID", "Open item", "Absorbs", "Stops clearing at", "Covenant holds to",
+              "First test to fail"]] + [
+        [t.item.id, t.item.category, f"{t.absorbed_pct:.0%}", t.breaks_at_text,
+         t.covenant_at_text, t.binding_test]
+        for t in dtol if t.absorbed_pct is not None and t.absorbed_pct < 1.0
+    ], [0.48 * inch, 0.9 * inch, 0.6 * inch, 1.25 * inch, 1.25 * inch, 2.32 * inch]))
+    A(Paragraph(
+        f"<b>The constraint is not the one the package talks about.</b> The "
+        f"{cfg['debt']['min_dscr']:.2f}\u00d7 covenant is the principal's confirmed number and "
+        f"it is quoted in every section of this plan, so the risk reads as a coverage story. "
+        f"Walking any driver from the base case toward its adverse end, "
+        f"{dbind['first_to_fail']} fails first \u2014 on every one of the {dbind['binds']} "
+        f"items that binds at all. On {dthin.item.id} the exit test binds at "
+        f"{dthin.breaks_at_text} while coverage still holds until {dthin.covenant_at_text}, "
+        f"{dbind['thinnest_gap_pct']:.0%} of the range further on. On "
+        f"{dbind['covenant_never_breaks']} of the {dbind['binds']} the covenant never breaks "
+        f"anywhere in the range at all. Both statements are true; only one of them describes "
+        f"what this deal is actually operating against, and it is the exit, not the lender. "
+        f"That is a consequence of the deliberate 30% permanent leverage in Section 8 \u2014 "
+        f"an asset that borrows little is hard to break on coverage and is exposed instead on "
+        f"what it is worth when it is sold.", S_BODY))
+
+    dsurv = S["dil_survival"]
+    A(Paragraph("How many can go wrong at once", S_H2))
+    A(table([["Adverse answers", "Item", "Equity IRR", "Min DSCR", "Multiple",
+              "Value / cost", "Clears"]] + [
+        [str(n), st.added, ("n/a" if st.irr is None else _pct(st.irr)),
+         _x(st.min_dscr), _x(st.equity_multiple), _x(st.value_to_cost),
+         "yes" if st.clears else "NO"]
+        for n, st in enumerate(dsurv["steps"])
+    ], [0.95 * inch, 0.95 * inch, 0.82 * inch, 0.72 * inch, 0.72 * inch, 0.82 * inch,
+        0.82 * inch]))
+    _joint = ("no computable return at all" if dsurv["joint_bps"] == float("inf")
+              else f"{dsurv['joint_bps']:,.0f} bp")
+    A(Paragraph(
+        f"The deal survives <b>{dsurv['breaking_point']}</b> adverse answers. Every rung is an "
+        f"adverse end by construction, so this is a joint tail rather than an expectation "
+        f"\u2014 the same distinction Section 11 draws between a correlated scenario and a "
+        f"one-at-a-time flex. But the base case clears with "
+        f"{_x(S['cov']['min_dscr_tested'])} coverage and that headroom absorbs none of it: the "
+        f"largest single item takes coverage to {_x(dsurv['steps'][1].min_dscr)} on its "
+        f"own. "
+        f"<b>The downside column must not be added up.</b> The "
+        f"{len(dsurv['walked'])} items above sum to {dsurv['sum_of_parts_bps']:,.0f} basis "
+        f"points measured one at a time; compounded they produce {_joint}"
+        + (", and return nothing \u2014 a total loss of equity, not a bad year. "
+           if dsurv["total_loss"] else ". ")
+        + "Each item is measured from the same base case, so adding them double-counts every "
+          "interaction between them.", S_BODY))
 
     # ---------------- 8b. Exit ----------------
     A(Paragraph("9. EXIT STRATEGY", S_H1))

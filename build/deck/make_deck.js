@@ -1194,6 +1194,82 @@ if (D.respec && D.respec.best) {
 }
 
 // =====================================================================
+// 15d — Margin of safety on each open item
+// =====================================================================
+{
+  const s = lightSlide("Margin of safety",
+    "How much of each wrong answer this absorbs — and which test actually binds");
+  const rows = [["ID", "Open item", "Absorbs", "Stops clearing at",
+                 "Covenant holds to", "First test to fail"]];
+  D.dil.tol.forEach(t => rows.push([
+    t.id, t.cat, Math.round(t.pct * 100) + "%", t.at, t.cov, t.test,
+  ]));
+  tbl(s, M, 1.42, W - 2 * M, rows, [0.6, 1.5, 0.85, 1.85, 1.85, 5.44],
+      { rowH: 0.31, fs: 9 });
+
+  const y = 1.42 + (rows.length + 0.4) * 0.31 + 0.25;
+  s.addText([
+    { text: "The constraint is not the one we keep quoting.  ",
+      options: { bold: true, color: ASPHALT } },
+    { text: "The " + xx(D.econ.covenant) + " covenant is the confirmed mandate number, so " +
+        "the risk reads as a coverage story. Walk any driver toward its adverse end and " +
+        D.dil.first_fail + " fails first \u2014 on every one of the " + D.dil.binds +
+        " items that binds. On " + D.dil.thin_id + " the exit test binds at " +
+        D.dil.thin_at + " while coverage holds to " + D.dil.thin_cov + ", " +
+        Math.round(D.dil.gap_pct * 100) + "% of the range further on. On " +
+        D.dil.never_breaks + " of the " + D.dil.binds + " the covenant never breaks " +
+        "anywhere in the range at all.",
+      options: { color: GREY } },
+  ], { x: M, y, w: W - 2 * M, h: 1.0, fontFace: BFONT, fontSize: 11,
+       margin: 0, lineSpacingMultiple: 1.12 });
+  s.addText("That is what 30% permanent leverage buys: an asset that borrows little is hard " +
+    "to break on coverage and is exposed instead on what it is worth when it is sold. " +
+    "The remaining " + D.dil.absorb_all + " items absorb their entire range and still clear " +
+    "every governing test at the far end.", {
+    x: M, y: y + 1.05, w: W - 2 * M, h: 0.6, fontFace: BFONT, fontSize: 11,
+    color: GREY, margin: 0, lineSpacingMultiple: 1.12 });
+  footnote(s, "Each range is continuous in its own units, so the model can be asked where " +
+    "along it the deal stops clearing rather than only whether the far end survives.");
+  s.addNotes("If someone challenges the covenant, this is the slide. The covenant is not " +
+    "the binding test on this capital structure and we say so before they do.");
+}
+
+// =====================================================================
+// 15e — How many can go wrong at once
+// =====================================================================
+{
+  const s = lightSlide("Joint downside",
+    "Compounded, not one at a time \u2014 and why you must not add the column up");
+  const rows = [["Adverse answers", "Item", "Equity IRR", "Min DSCR", "Multiple",
+                 "Value / cost", "Clears"]];
+  D.dil.walk.forEach(w => rows.push([
+    String(w.n), w.add, w.irr === null ? "n/a" : pc(w.irr), xx(w.dscr), xx(w.em),
+    xx(w.vc), w.ok ? "yes" : "NO",
+  ]));
+  tbl(s, M, 1.5, 7.9, rows, [1.32, 1.24, 1.14, 1.06, 1.06, 1.12, 0.96],
+      { rowH: 0.33, fs: 9 });
+
+  const x2 = 8.85, w2 = W - M - x2;
+  statCard(s, x2, 1.5, w2, 1.3, String(D.dil.breaking_point),
+    "adverse answers survived. The largest single item breaks it on its own.",
+    { vsize: 30, lsize: 9 });
+  statCard(s, x2, 2.94, w2, 1.3, Math.round(D.dil.parts_bps).toLocaleString() + " bp",
+    "if you add the five downsides one at a time. Nobody should.",
+    { vsize: 22, lsize: 9 });
+  statCard(s, x2, 4.38, w2, 1.3,
+    D.dil.joint_bps === null ? "no return" : Math.round(D.dil.joint_bps) + " bp",
+    D.dil.total_loss
+      ? "compounded: no computable rate and 0.00x of capital back. A wipe-out, not a bad year."
+      : "compounded.",
+    { fill: CARBON, vcolor: PAPER, lcolor: MIDGREY, vsize: 22, lsize: 9 });
+  footnote(s, "A joint TAIL, not an expectation \u2014 every rung is an adverse end by " +
+    "construction. Each item is measured from the same base case, so summing them " +
+    "double-counts every interaction between them.");
+  s.addNotes("The honest answer to \u2018what if two of these go wrong\u2019. Lead with the " +
+    "zero. It is uncomfortable and it is why we are asking for Tranche 1 only.");
+}
+
+// =====================================================================
 // 16 — Close
 // =====================================================================
 {

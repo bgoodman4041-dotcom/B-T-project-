@@ -46,6 +46,9 @@ def main() -> None:
     t1b = ts.tranche_1_budget(cfg)
     dpriced = dil.price(lcfg, ask, prem)
     dsum, drec = dil.summary(dpriced), dil.reconcile(cfg)
+    dtol = dil.tolerance(lcfg, ask, prem)
+    dbind = dil.binding_summary(dtol)
+    dsurv = dil.survival(lcfg, ask, prem)
     tor, _b, _n = rk.tornado(lcfg)
     mc = rk.monte_carlo(lcfg, ask, site_cost_premium=prem)
     scen = sc.run_all(lcfg, ask_price=ask, site_cost_premium=prem)
@@ -215,6 +218,23 @@ def main() -> None:
         free_items=dsum["free_items"], free_bps=dsum["free_downside_bps"],
         register_cost=drec["register_cost"], subtotal=drec["budget_subtotal"],
         clean=drec["clean"],
+        binds=dbind["binds"], absorb_all=dbind["absorb_everything"],
+        first_fail=dbind["first_to_fail"], unanimous=dbind["unanimous"],
+        never_breaks=dbind["covenant_never_breaks"],
+        gap_pct=dbind["thinnest_gap_pct"],
+        thin_id=dbind["thinnest"].item.id if dbind["thinnest"] else None,
+        thin_at=dbind["thinnest"].breaks_at_text if dbind["thinnest"] else None,
+        thin_cov=dbind["thinnest"].covenant_at_text if dbind["thinnest"] else None,
+        tol=[dict(id=t.item.id, cat=t.item.category, pct=t.absorbed_pct,
+                  at=t.breaks_at_text, cov=t.covenant_at_text, test=t.binding_test)
+             for t in dtol if t.absorbed_pct is not None and t.absorbed_pct < 1.0],
+        breaking_point=dsurv["breaking_point"],
+        parts_bps=dsurv["sum_of_parts_bps"],
+        joint_bps=(None if dsurv["joint_bps"] == float("inf") else dsurv["joint_bps"]),
+        total_loss=dsurv["total_loss"],
+        walk=[dict(n=n, add=st.added, irr=st.irr, dscr=st.min_dscr,
+                   em=st.equity_multiple, vc=st.value_to_cost, ok=st.clears)
+              for n, st in enumerate(dsurv["steps"])],
         rows=[dict(id=x.item.id, cat=x.item.category, q=x.item.question,
                    rng=x.item.range_note, cost=x.item.cost_usd, weeks=x.item.weeks,
                    down=x.downside_bps, dscr=x.dscr_adv, breaks=bool(x.breaks_covenant),

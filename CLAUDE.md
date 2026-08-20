@@ -352,6 +352,60 @@ model moved to month 5 and all three artifacts now derive the months. The deck
 also closed on a hard-coded "129 unit tests" against a register that has since grown;
 it counts them at export time now.
 
+## v2.6 — margin of safety, and the test that actually binds
+
+Pricing an item tells you what is at stake in the answer. It does not tell you
+how much of the wrong answer the deal absorbs, and it cannot say what happens
+when two of them land together. Every range in the register is now a `Span` in
+its own natural units — dollars of dues, days of season, members of cap — with
+`t=0` favourable and `t=1` adverse, which makes both questions answerable by
+bisection instead of assertion.
+
+**The covenant is not the binding test, and the whole package said it was.**
+The 1.30× DSCR floor is the principal's confirmed number, so it is quoted in
+every section of every artifact and the risk reads as a coverage story. Walk any
+driver from the base case toward its adverse end and **value against retained
+cost fails first — on all 6 items that bind at all, unanimously.** On 4 of those
+6 the covenant never breaks *anywhere* in the range.
+
+| | Exit test binds | Covenant holds to |
+|---|---|---|
+| DD-01 dues $34,000 | **$28,914** (33% of range) | $24,999 (58%) |
+| DD-10 cap 340 | **300 members** (60%) | 272 (99%) |
+| DD-04 condo $530/SF | **$404/SF** (69%) | never |
+| DD-08 hard cost | **+10%** (77%) | never |
+| DD-02 refundable | **56%** (80%) | never |
+| DD-05 absorption 23/yr | **16/yr** (83%) | never |
+
+That is a direct consequence of the deliberate 30% permanent leverage: an asset
+that borrows little is hard to break on coverage and is exposed instead on what
+it is worth when it is sold. Both statements are true — the covenant does break
+at the far end of the dues range — but only one describes the constraint the
+deal operates against day to day. 8 of the 14 priced items absorb their entire
+range and still clear every governing test at the far end.
+
+**The deal survives ZERO adverse answers.** `survival()` compounds them
+largest-first. DD-01 alone takes coverage from 2.02× to 0.78×. This is a joint
+tail and not an expectation — every rung is an adverse end by construction, the
+same distinction the project already enforces between a correlated scenario and
+a one-at-a-time tornado flex — but the base case's headroom absorbs none of it.
+That zero is the arithmetic behind the Tranche-1-only recommendation, and
+`test_ic_ready` now fails if the register says zero while the plan asks for
+construction equity.
+
+**Never add the downside column up.** Each item is measured from the same base
+case, so summing them double-counts every interaction — and it is the obvious
+thing for a reader to do with the column. The top five sum to **2,426 bp**;
+compounded they produce **no computable return at all and 0.00× of capital
+back**. A test pins the non-additivity, and every artifact carrying the column
+carries the warning.
+
+**Two presentation defects the continuous spans exposed.** Rows that absorb
+their whole range were reporting a break value — `breaks at 0% abated` on an
+item that never breaks, a false negative dressed as a number. And the walk
+table left the IRR cell blank where no rate exists, which reads as missing data
+rather than as the wipe-out it is; it prints `n/a` now, per the standing rule.
+
 ## Layout
 
 ```
@@ -362,8 +416,8 @@ model/scoring.py                  Composite 100-point ranking (§11 weights)
 model/schema.py                   119-column parcel schema; CSV intake coercion
 build/build_workbook.py           22-tab xlsx, live formulas on the Underwriting tab
 build/build_memo.py               One-page IC memo PDF
-build/build_business_plan.py      34-page formal business plan PDF
-build/deck/make_deck.js           27-slide investor deck (pptxgenjs)
+build/build_business_plan.py      35-page formal business plan PDF
+build/deck/make_deck.js           29-slide investor deck (pptxgenjs)
 data/sites_targets.csv            15 nationwide TARGET PROFILES — not parcels under contract
 data/parcels.csv                  Intake template (88 intake columns)
 data/parcels.example.csv          5 SYNTHETIC fixture rows — never treat as sourced parcels
@@ -375,7 +429,7 @@ model/roadmap.py                  10-horizon milestones, platform scale, listing
 model/markets.py                  23 US metros, six-driver composite, rollout Phases A-D
 model/demand.py                   HNW pool -> capturable seats; coverage and break-even
 model/respec.py                   Holds comp pricing fixed, searches the programme
-model/diligence.py                Open items priced by how far the wrong answer moves us
+model/diligence.py                Open items priced, their tolerance, and the joint tail
 data/comps_clubs.csv              41 rows, 22 clubs. NOTHING is Verified — read the grade
 research/comps_findings.md        The comparable study. Read before touching income assumptions
 research/jurisdiction_register.md Entitlement regime per target jurisdiction
@@ -385,8 +439,8 @@ tests/test_model.py               78 tests; the closed-form identities
 tests/test_analytics.py           92 tests; tax, cashflow, scenarios, risk, roadmap
 tests/test_markets.py             47 tests; market screen, season, demand, fragility
 tests/test_data_integrity.py      23 tests; every data file against every other
-tests/test_ic_ready.py            20 checks; is the package fit for a committee
-tests/test_diligence.py           21 tests; the register, its flexers, its reconciliation
+tests/test_ic_ready.py            23 checks; is the package fit for a committee
+tests/test_diligence.py           35 tests; the register, its spans, tolerance and survival
 tests/test_deck_layout.py         pptx geometry: bleed and text collision, with a self-test
 tests/test_workbook_formulas.py   Excel-vs-Python drift, 29 checks; slow
 .claude/agents/                   The seven §8 agents
@@ -548,8 +602,8 @@ python3 tests/test_model.py               # 78 tests, fast
 python3 tests/test_analytics.py           # 92 tests, fast
 python3 tests/test_markets.py             # 47 tests, fast
 python3 tests/test_data_integrity.py      # 23 tests, fast — run after ANY data edit
-python3 tests/test_ic_ready.py            # 20 checks — run before any IC submission
-python3 tests/test_diligence.py           # 21 tests, fast — the diligence register
+python3 tests/test_ic_ready.py            # 23 checks — run before any IC submission
+python3 tests/test_diligence.py           # 35 tests, fast — the diligence register
 python3 tests/test_workbook_formulas.py   # Excel vs Python, slow; writes to a temp dir
 python3 tests/test_deck_layout.py         # deck geometry, after any deck change
 ```

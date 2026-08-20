@@ -56,13 +56,13 @@ S_TITLE = ParagraphStyle("t", fontName=SERIF_B, fontSize=13.5, leading=16, space
 S_SUB = ParagraphStyle("s", fontName=SERIF_I, fontSize=8.5, leading=10,
                        textColor=colors.HexColor("#444444"), spaceAfter=5)
 S_H = ParagraphStyle("h", fontName=SERIF_B, fontSize=9.2, leading=11,
-                     spaceBefore=3.0, spaceAfter=1.2)
+                     spaceBefore=2.6, spaceAfter=1.2)
 S_BODY = ParagraphStyle("b", fontName=SERIF, fontSize=8.5, leading=9.9,
                         alignment=TA_JUSTIFY, spaceAfter=1.0)
 S_BULLET = ParagraphStyle("u", fontName=SERIF, fontSize=8.5, leading=9.9,
                           leftIndent=11, firstLineIndent=-11, spaceAfter=1.0)
 S_NOTE = ParagraphStyle("n", fontName=SERIF_I, fontSize=7.6, leading=9.2,
-                        textColor=colors.HexColor("#555555"), spaceBefore=3)
+                        textColor=colors.HexColor("#555555"), spaceBefore=2)
 MEMO_CITATION_LIMIT = 2
 
 S_CITE = ParagraphStyle("c", fontName=SERIF, fontSize=7.4, leading=9,
@@ -133,6 +133,11 @@ def build_memo(
     spread = sc.scenario_spread(sc.run_all(scfg, ask_price=ask or None,
                                            site_cost_premium=prem))
     plaus = rk.plausibility_report(scfg, ask)
+    # Which governing test actually binds. The covenant is the confirmed mandate
+    # number so it is what every artifact quotes; on this capital structure it is
+    # not the tight one, and a memo that does not say so leaves the committee to
+    # discover it in the workbook.
+    _bind = dil.binding_summary(dil.tolerance(scfg, ask, prem))
 
     pid = parcel.get("parcel_id", "UNKNOWN")
     muni = parcel.get("municipality", "—")
@@ -309,7 +314,10 @@ def build_memo(
         bullet("Value vs cost",
                f"{cf.value_to_cost:.2f}&times; at a {cfg['income']['exit_cap']:.2%} exit cap "
                f"&middot; break-even exit cap "
-               f"{(f'{cf.breakeven_exit_cap:.2%}' if cf.breakeven_exit_cap else 'n/a')}"),
+               f"{(f'{cf.breakeven_exit_cap:.2%}' if cf.breakeven_exit_cap else 'n/a')} "
+               f"&middot; <b>binds before the covenant does</b> on all {_bind['binds']} "
+               f"items that bind; on {_bind['covenant_never_breaks']} the covenant never "
+               f"breaks at all"),
         bullet("Scenario range (max land, net)",
                f"{_usd(spread['max_land_net_high'])} best case to "
                f"{_usd(spread['max_land_net_low'])} severe &middot; "
@@ -376,10 +384,10 @@ def build_memo(
     dsum = dil.summary(dil.price(scfg, ask, prem))
     story.append(Paragraph(
         f"<b>Diligence.</b> {dsum['items']} open items priced by flexing the model over each "
-        f"one's range; {dsum['covenant_breakers']} break the covenant adversely and are "
-        f"conditions precedent. {dsum['free_items']} cost nothing and carry "
-        f"{dsum['free_downside_bps']:,.0f} bp of downside between them — calls and records "
-        f"requests. Those go first. Workbook, Diligence tab.", S_BODY))
+        f"one's range; {dsum['covenant_breakers']} are conditions precedent. "
+        f"{dsum['free_items']} cost nothing and carry {dsum['free_downside_bps']:,.0f} bp of "
+        f"downside — calls and records requests. Those go first. Workbook, Diligence tab.",
+        S_BODY))
 
     # --- Citations -----------------------------------------------------------
     # A one-pager cites what it leans on, not the whole register. When the

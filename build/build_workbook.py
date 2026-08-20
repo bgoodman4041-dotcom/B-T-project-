@@ -1723,6 +1723,9 @@ def _tab_diligence(wb: Workbook, cfg: dict[str, Any], land_price: float,
     priced = dil.price(cfg, land_price, premium)
     summ = dil.summary(priced)
     rec = dil.reconcile(cfg)
+    tols = dil.tolerance(cfg, land_price, premium)
+    binding = dil.binding_summary(tols)
+    surv = dil.survival(cfg, land_price, premium)
 
     ws = wb.create_sheet("Diligence")
     ws["A1"] = "DILIGENCE REGISTER — WHAT IS UNVERIFIED, AND WHAT THE ANSWER IS WORTH"
@@ -1745,15 +1748,21 @@ def _tab_diligence(wb: Workbook, cfg: dict[str, Any], land_price: float,
     ws["A3"].font = Font(name="Calibri", size=9, bold=True, color="7F1D1D")
     ws["A3"].alignment = Alignment(wrap_text=True, vertical="top")
 
+    tol_by_id = {t.item.id: t for t in tols}
     headers = ["ID", "Category", "Open question", "Range tested", "Cost", "Weeks",
                "IRR favourable", "IRR adverse", "Downside (bp)", "DSCR adverse",
-               "bp per $100k", "Verdict", "Who does it", "Source"]
+               "bp per $100k", "Range absorbed", "Breaks at", "First test to fail",
+               "Verdict", "Who does it", "Source"]
     _header_row(ws, headers, row=5)
     r = 6
     for p in priced:
         i = p.item
+        t = tol_by_id.get(i.id)
         vals = [i.id, i.category, i.question, i.range_note, i.cost_usd, i.weeks,
                 p.irr_fav, p.irr_adv, p.downside_bps, p.dscr_adv, p.bps_per_100k,
+                (t.absorbed_pct if t else None),
+                (t.breaks_at_text if t else ""),
+                (t.binding_test if t else ""),
                 p.verdict, i.owner, i.source]
         for c, v in enumerate(vals, start=1):
             cell = ws.cell(row=r, column=c, value=_safe(v))
@@ -1761,7 +1770,7 @@ def _tab_diligence(wb: Workbook, cfg: dict[str, Any], land_price: float,
             cell.alignment = Alignment(vertical="top", wrap_text=True)
             if c == 5:
                 cell.number_format = FMT_USD
-            elif c in (7, 8):
+            elif c in (7, 8, 12):
                 cell.number_format = FMT_PCT
             elif c in (9, 11):
                 cell.number_format = FMT_NUM
@@ -1771,6 +1780,10 @@ def _tab_diligence(wb: Workbook, cfg: dict[str, Any], land_price: float,
             RED if p.breaks_covenant else
             AMBER if (p.downside_bps or 0) >= 300 else
             GREEN if p.downside_bps is not None else AMBER)
+        if t is not None and t.absorbed_pct is not None:
+            ws.cell(row=r, column=12).fill = (
+                RED if t.absorbed_pct < 0.34 else
+                AMBER if t.absorbed_pct < 1.0 else GREEN)
         r += 1
     last = r - 1
 
@@ -1797,10 +1810,86 @@ def _tab_diligence(wb: Workbook, cfg: dict[str, Any], land_price: float,
     v.font = NOTE_FONT
     v.fill = GREEN if rec["clean"] else RED
     v.alignment = Alignment(wrap_text=True, vertical="top")
+    r += 3
+
+    # ---- Which test actually binds -----------------------------------------
+    ws.cell(row=r, column=1, value="WHICH GOVERNING TEST BINDS FIRST").font = (
+        Font(name="Calibri", size=11, bold=True))
+    r += 1
+    thin = binding["thinnest"]
+    bind_note = ws.cell(row=r, column=1, value=(
+        f"Of the {binding['binds'] + binding['absorb_everything']} items with a model "
+        f"driver, {binding['absorb_everything']} absorb their whole range and "
+        f"{binding['binds']} do not. On every one of the {binding['binds']} that binds, "
+        f"the first governing test to fail is {binding['first_to_fail'].upper()} — not "
+        f"the DSCR covenant. The covenant is the confirmed mandate number and it is what "
+        f"the package quotes throughout, so the risk reads as a coverage story. It is not "
+        f"one. On {thin.item.id} the exit test binds at {thin.breaks_at_text} while the "
+        f"covenant holds until {thin.covenant_at_text}, "
+        f"{binding['thinnest_gap_pct']:.0%} of the range further on. And on "
+        f"{binding['covenant_never_breaks']} of the {binding['binds']} binding items the "
+        f"covenant NEVER breaks at any point in the range — there the coverage test is "
+        f"not a loose constraint, it is not a constraint at all."
+        if binding["unanimous"] and thin is not None else
+        f"The first test to fail differs by item: {binding['counts']}."))
+    bind_note.font = NOTE_FONT
+    bind_note.alignment = Alignment(wrap_text=True, vertical="top")
+    bind_note.fill = AMBER
+    r += 2
+
+    # ---- The compounding walk ----------------------------------------------
+    ws.cell(row=r, column=1, value="HOW MANY CAN GO WRONG AT ONCE").font = (
+        Font(name="Calibri", size=11, bold=True))
+    r += 1
+    ws.cell(row=r, column=1, value=(
+        "Adverse answers compounded largest-first. This is a joint TAIL, not an "
+        "expectation — every rung is an adverse end by construction, the same distinction "
+        "the package draws between a correlated scenario and a one-at-a-time tornado flex. "
+        "It is here because the per-item table cannot answer the question a committee asks "
+        "immediately, and because the obvious thing for a reader to do — add the downside "
+        "column up — is wrong.")).font = NOTE_FONT
+    ws.cell(row=r, column=1).alignment = Alignment(wrap_text=True, vertical="top")
+    r += 2
+    sh = ["Adverse answers", "Item added", "Equity IRR", "Min DSCR", "Equity multiple",
+          "Value / retained cost", "Clears?"]
+    _header_row(ws, sh, row=r)
+    r += 1
+    for n, st in enumerate(surv["steps"]):
+        # A blank cell reads as missing data. An undefined IRR is not missing --
+        # the flows never turn positive, so no rate exists. Say that.
+        vals = [n, st.added, "n/a" if st.irr is None else st.irr, st.min_dscr,
+                st.equity_multiple, st.value_to_cost, "YES" if st.clears else "NO"]
+        for c, val in enumerate(vals, start=1):
+            cell = ws.cell(row=r, column=c, value=_safe(val))
+            cell.font, cell.border = BODY_FONT, BORDER
+            if c == 3:
+                cell.number_format = FMT_PCT
+            elif c in (4, 5, 6):
+                cell.number_format = "0.00x"
+        ws.cell(row=r, column=7).fill = GREEN if st.clears else RED
+        r += 1
+    r += 1
+    parts, joint = surv["sum_of_parts_bps"], surv["joint_bps"]
+    joint_txt = ("no computable return at all" if joint == float("inf")
+                 else f"{joint:,.0f} bp")
+    w = ws.cell(row=r, column=1, value=(
+        f"The deal survives {surv['breaking_point']} adverse answers. Every item's adverse "
+        f"end is the evidence-supported bad answer rather than a median, so this is a tail "
+        f"statement — but the base case clears with 2.02x coverage and that headroom "
+        f"absorbs none of it: the largest item alone takes coverage to 0.78x. "
+        f"DO NOT ADD THE DOWNSIDE COLUMN. The {len(surv['walked'])} items walked above sum "
+        f"to {parts:,.0f} bp measured one at a time; compounded they produce "
+        f"{joint_txt}"
+        + (" and return 0.00x of capital — a total loss of equity, not a bad year."
+           if surv["total_loss"] else ".")))
+    w.font = NOTE_FONT
+    w.fill = RED
+    w.alignment = Alignment(wrap_text=True, vertical="top")
 
     _finish(ws, freeze="C6", ncols=len(headers), nrows=last, header_row=5,
-            widths={"A": 8, "B": 14, "C": 74, "D": 30, "E": 13, "F": 7, "G": 14,
-                    "H": 13, "I": 13, "J": 13, "K": 13, "L": 62, "M": 44, "N": 30})
+            widths={"A": 16, "B": 14, "C": 68, "D": 26, "E": 13, "F": 7, "G": 14,
+                    "H": 13, "I": 13, "J": 13, "K": 13, "L": 14, "M": 17, "N": 26,
+                    "O": 58, "P": 42, "Q": 28})
 
 
 # =============================================================================

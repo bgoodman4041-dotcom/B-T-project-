@@ -239,6 +239,66 @@ def test_the_sequencing_claim_is_derived_and_true():
         assert "months 3 and 7" not in src, f"{label} transcribes the sequencing months"
 
 
+def test_the_package_names_the_test_that_actually_binds():
+    """
+    THE ONE A CHAIR WILL CATCH. The DSCR covenant is the principal's confirmed
+    number, so it is quoted in every section of every artifact and the risk reads
+    as a coverage story. On this capital structure it is not the tight test:
+    walking any driver from the base case toward its adverse end, value against
+    retained cost fails first on every item that fails at all, and on most of
+    them the covenant never breaks anywhere in the range. A package that lets the
+    committee discover that for itself has buried its own most important
+    structural fact.
+    """
+    from model import diligence as dil
+    b = dil.binding_summary(dil.tolerance(LCFG, ASK, PREM))
+    assert b["binds"] > 0, "no item binds at all — the finding below is vacuous"
+    assert b["first_to_fail"] == "value to retained cost"
+    for label, src in (("plan", _plan_source()), ("memo", _memo_source()),
+                       ("workbook", (ROOT / "build" / "build_workbook.py")
+                        .read_text(encoding="utf-8")),
+                       ("deck", (ROOT / "build" / "deck" / "make_deck.js")
+                        .read_text(encoding="utf-8"))):
+        assert "binding_test" in src or "binds before the covenant" in src \
+            or "first_fail" in src or "binding_summary" in src, (
+            f"{label} never states which governing test actually binds")
+
+
+def test_no_artifact_sums_the_per_item_downsides():
+    """
+    Each item's downside is measured from the same base case, so adding them
+    double-counts every interaction. It is also the single most obvious thing for
+    a reader to do with the column, which is why every artifact carrying the
+    column must carry the warning too.
+    """
+    from model import diligence as dil
+    sv = dil.survival(LCFG, ASK, PREM)
+    assert not sv["additive"]
+    for label, src in (("plan", _plan_source()),
+                       ("workbook", (ROOT / "build" / "build_workbook.py")
+                        .read_text(encoding="utf-8"))):
+        low = src.lower()
+        assert "must not be added" in low or "do not add the downside" in low, (
+            f"{label} prints the downside column without warning against summing it")
+
+
+def test_the_survival_walk_reports_a_breaking_point_and_the_ask_matches_it():
+    """
+    The deal survives zero adverse answers from its own register. That is the
+    arithmetic behind a Tranche-1-only recommendation, and the two have to agree:
+    a package that survives nothing and asks for construction equity is
+    incoherent.
+    """
+    from model import diligence as dil
+    sv = dil.survival(LCFG, ASK, PREM)
+    assert isinstance(sv["breaking_point"], int)
+    if sv["breaking_point"] == 0:
+        plan = _plan_source()
+        assert "not requested today" in plan, (
+            "the register says the deal survives no adverse answers while the plan "
+            "does not say construction equity is unrequested")
+
+
 def test_conditions_precedent_exist_and_name_the_real_ones():
     plan = _plan_source()
     assert "CONDITIONS PRECEDENT" in plan.upper()
